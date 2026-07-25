@@ -1,0 +1,146 @@
+import XCTest
+
+@testable import iGestures
+
+final class GestureLibraryTests: XCTestCase {
+  func testCreateUpdateMoveAndDeleteKeepPrioritiesDense() throws {
+    let template = try makeTemplate(angle: 0)
+    var library = GestureLibrary()
+    let firstID = library.create(
+      draft(name: "First", template: template)
+    )
+    let secondID = library.create(
+      draft(name: "Second", template: template)
+    )
+    let thirdID = library.create(
+      draft(name: "Third", template: template)
+    )
+
+    try library.rename(id: firstID, to: "Renamed")
+    try library.setEnabled(id: secondID, false)
+    try library.setShortcut(
+      id: thirdID,
+      KeyboardShortcut(keyCode: 13, modifiers: 1)
+    )
+    try library.setAppScope(
+      id: thirdID,
+      .only(["com.apple.finder"])
+    )
+    try library.move(from: 2, to: 0)
+    try library.delete(id: secondID)
+
+    XCTAssertEqual(
+      library.database.mappings.map(\.id),
+      [thirdID, firstID]
+    )
+    XCTAssertEqual(
+      library.database.mappings.map(\.priority),
+      [0, 1]
+    )
+    XCTAssertEqual(
+      library.database.mappings[1].name,
+      "Renamed"
+    )
+    XCTAssertEqual(
+      library.database.mappings[0].shortcut.keyCode,
+      13
+    )
+  }
+
+  func testMissingMappingAndInvalidMoveAreRejected() throws {
+    let template = try makeTemplate(angle: 0)
+    var library = GestureLibrary()
+    _ = library.create(draft(name: "Only", template: template))
+
+    XCTAssertThrowsError(
+      try library.rename(id: UUID(), to: "Missing")
+    )
+    XCTAssertThrowsError(
+      try library.move(from: 0, to: 2)
+    )
+  }
+
+  func testClearingShortcutDisablesMappingUntilRebound() throws {
+    let template = try makeTemplate(angle: 0)
+    var library = GestureLibrary()
+    let id = library.create(
+      draft(name: "Clearable", template: template)
+    )
+
+    try library.setShortcut(
+      id: id,
+      ShortcutRecordingSession.emptyShortcut
+    )
+
+    XCTAssertFalse(library.database.mappings[0].isEnabled)
+    XCTAssertThrowsError(
+      try library.setEnabled(id: id, true)
+    ) {
+      XCTAssertEqual(
+        $0 as? GestureLibraryError,
+        .missingShortcut
+      )
+    }
+
+    try library.setShortcut(
+      id: id,
+      KeyboardShortcut(keyCode: 13, modifiers: 0)
+    )
+    try library.setEnabled(id: id, true)
+    XCTAssertTrue(library.database.mappings[0].isEnabled)
+  }
+
+  func testDraftUpdateReplacesRecordedConfiguration() throws {
+    let original = try makeTemplate(angle: 0)
+    let replacement = try makeTemplate(angle: .pi / 2)
+    var library = GestureLibrary()
+    let id = library.create(
+      draft(name: "Original", template: original)
+    )
+    let shortcut = KeyboardShortcut(keyCode: 13, modifiers: 0)
+
+    try library.update(
+      id: id,
+      with: GestureMappingDraft(
+        name: "Updated",
+        templates: [replacement],
+        shortcut: shortcut,
+        appScope: .only(["com.apple.finder"]),
+        isEnabled: false
+      )
+    )
+
+    let mapping = try XCTUnwrap(library.database.mappings.first)
+    XCTAssertEqual(mapping.name, "Updated")
+    XCTAssertEqual(mapping.templates, [replacement])
+    XCTAssertEqual(mapping.shortcut, shortcut)
+    XCTAssertEqual(
+      mapping.appScope,
+      .only(["com.apple.finder"])
+    )
+    XCTAssertFalse(mapping.isEnabled)
+  }
+
+  private func draft(
+    name: String,
+    template: GestureTemplate
+  ) -> GestureMappingDraft {
+    GestureMappingDraft(
+      name: name,
+      templates: [template],
+      shortcut: KeyboardShortcut(keyCode: 12, modifiers: 0)
+    )
+  }
+
+  private func makeTemplate(angle: Float) throws -> GestureTemplate {
+    try GestureNormalizer().normalize(
+      (0..<80).map { index in
+        let distance = Float(index) * 2
+        return GesturePoint(
+          x: cosf(angle) * distance,
+          y: sinf(angle) * distance
+        )
+      }
+    )
+  }
+}

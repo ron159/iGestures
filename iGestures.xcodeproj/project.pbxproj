@@ -1,0 +1,581 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A20000000000000000000001 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000003 /* AppModel.swift */; };
+		A20000000000000000000002 /* IGesturesApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000004 /* IGesturesApp.swift */; };
+		A20000000000000000000003 /* GesturePoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000005 /* GesturePoint.swift */; };
+		A20000000000000000000004 /* GestureTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000006 /* GestureTemplate.swift */; };
+		A20000000000000000000005 /* GestureNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000007 /* GestureNormalizer.swift */; };
+		A20000000000000000000006 /* GestureRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000008 /* GestureRecognizer.swift */; };
+		A20000000000000000000007 /* GestureMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000009 /* GestureMapping.swift */; };
+		A20000000000000000000008 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000000A /* Localizable.xcstrings */; };
+		A20000000000000000000009 /* GestureNormalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000000C /* GestureNormalizerTests.swift */; };
+		A2000000000000000000000A /* GestureRecognizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000000D /* GestureRecognizerTests.swift */; };
+		A2000000000000000000000B /* EventSourceMarker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000000E /* EventSourceMarker.swift */; };
+		A2000000000000000000000C /* GestureSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000000F /* GestureSession.swift */; };
+		A2000000000000000000000D /* PermissionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000010 /* PermissionCoordinator.swift */; };
+		A2000000000000000000000E /* GestureSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000011 /* GestureSessionTests.swift */; };
+		A2000000000000000000000F /* PermissionCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000012 /* PermissionCoordinatorTests.swift */; };
+		A20000000000000000000010 /* CompiledMappingSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000013 /* CompiledMappingSnapshot.swift */; };
+		A20000000000000000000011 /* ShortcutExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000014 /* ShortcutExecutor.swift */; };
+		A20000000000000000000012 /* GestureOverlaySink.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000015 /* GestureOverlaySink.swift */; };
+		A20000000000000000000013 /* FrontmostAppProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000016 /* FrontmostAppProvider.swift */; };
+		A20000000000000000000014 /* EventTapManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000017 /* EventTapManager.swift */; };
+		A20000000000000000000015 /* ShortcutExecutorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000018 /* ShortcutExecutorTests.swift */; };
+		A20000000000000000000016 /* GestureDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000019 /* GestureDatabase.swift */; };
+		A20000000000000000000017 /* MappingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000001A /* MappingStore.swift */; };
+		A20000000000000000000018 /* OverlayEventBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000001B /* OverlayEventBuffer.swift */; };
+		A20000000000000000000019 /* OverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000001C /* OverlayController.swift */; };
+		A2000000000000000000001A /* MappingStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000001D /* MappingStoreTests.swift */; };
+		A2000000000000000000001B /* OverlayEventBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000001E /* OverlayEventBufferTests.swift */; };
+		A2000000000000000000001C /* GestureLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000001F /* GestureLibrary.swift */; };
+		A2000000000000000000001D /* GestureTrainingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000020 /* GestureTrainingSession.swift */; };
+		A2000000000000000000001E /* ShortcutRecordingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000021 /* ShortcutRecordingSession.swift */; };
+		A2000000000000000000001F /* KeyboardShortcutFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000022 /* KeyboardShortcutFormatter.swift */; };
+		A20000000000000000000020 /* ShortcutRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000023 /* ShortcutRecorderView.swift */; };
+		A20000000000000000000021 /* SettingsRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000024 /* SettingsRootView.swift */; };
+		A20000000000000000000022 /* GesturesSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000025 /* GesturesSettingsView.swift */; };
+		A20000000000000000000023 /* GestureRecorderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000026 /* GestureRecorderSheet.swift */; };
+		A20000000000000000000024 /* GestureLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000027 /* GestureLibraryTests.swift */; };
+		A20000000000000000000025 /* GestureTrainingSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000028 /* GestureTrainingSessionTests.swift */; };
+		A20000000000000000000026 /* ShortcutRecordingSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000029 /* ShortcutRecordingSessionTests.swift */; };
+		A20000000000000000000027 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000002A /* PrivacyInfo.xcprivacy */; };
+		A20000000000000000000028 /* LoginItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000002B /* LoginItemController.swift */; };
+		A20000000000000000000029 /* LoginItemControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000002C /* LoginItemControllerTests.swift */; };
+		A2000000000000000000002A /* SystemShortcutConflictDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000002D /* SystemShortcutConflictDetector.swift */; };
+		A2000000000000000000002B /* SystemShortcutConflictDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000002E /* SystemShortcutConflictDetectorTests.swift */; };
+		A2000000000000000000002C /* AppPreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000002F /* AppPreferencesStore.swift */; };
+		A2000000000000000000002D /* AppPreferencesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000030 /* AppPreferencesStoreTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A22000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A29000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A24000000000000000000001;
+			remoteInfo = iGestures;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		A21000000000000000000001 /* iGestures.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iGestures.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A21000000000000000000002 /* iGesturesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iGesturesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A21000000000000000000003 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		A21000000000000000000004 /* IGesturesApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IGesturesApp.swift; sourceTree = "<group>"; };
+		A21000000000000000000005 /* GesturePoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GesturePoint.swift; sourceTree = "<group>"; };
+		A21000000000000000000006 /* GestureTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureTemplate.swift; sourceTree = "<group>"; };
+		A21000000000000000000007 /* GestureNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureNormalizer.swift; sourceTree = "<group>"; };
+		A21000000000000000000008 /* GestureRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureRecognizer.swift; sourceTree = "<group>"; };
+		A21000000000000000000009 /* GestureMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureMapping.swift; sourceTree = "<group>"; };
+		A2100000000000000000000A /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		A2100000000000000000000B /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		A2100000000000000000000C /* GestureNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureNormalizerTests.swift; sourceTree = "<group>"; };
+		A2100000000000000000000D /* GestureRecognizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureRecognizerTests.swift; sourceTree = "<group>"; };
+		A2100000000000000000000E /* EventSourceMarker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSourceMarker.swift; sourceTree = "<group>"; };
+		A2100000000000000000000F /* GestureSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureSession.swift; sourceTree = "<group>"; };
+		A21000000000000000000010 /* PermissionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionCoordinator.swift; sourceTree = "<group>"; };
+		A21000000000000000000011 /* GestureSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureSessionTests.swift; sourceTree = "<group>"; };
+		A21000000000000000000012 /* PermissionCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionCoordinatorTests.swift; sourceTree = "<group>"; };
+		A21000000000000000000013 /* CompiledMappingSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompiledMappingSnapshot.swift; sourceTree = "<group>"; };
+		A21000000000000000000014 /* ShortcutExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutExecutor.swift; sourceTree = "<group>"; };
+		A21000000000000000000015 /* GestureOverlaySink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureOverlaySink.swift; sourceTree = "<group>"; };
+		A21000000000000000000016 /* FrontmostAppProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontmostAppProvider.swift; sourceTree = "<group>"; };
+		A21000000000000000000017 /* EventTapManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventTapManager.swift; sourceTree = "<group>"; };
+		A21000000000000000000018 /* ShortcutExecutorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutExecutorTests.swift; sourceTree = "<group>"; };
+		A21000000000000000000019 /* GestureDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureDatabase.swift; sourceTree = "<group>"; };
+		A2100000000000000000001A /* MappingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MappingStore.swift; sourceTree = "<group>"; };
+		A2100000000000000000001B /* OverlayEventBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayEventBuffer.swift; sourceTree = "<group>"; };
+		A2100000000000000000001C /* OverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayController.swift; sourceTree = "<group>"; };
+		A2100000000000000000001D /* MappingStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MappingStoreTests.swift; sourceTree = "<group>"; };
+		A2100000000000000000001E /* OverlayEventBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayEventBufferTests.swift; sourceTree = "<group>"; };
+		A2100000000000000000001F /* GestureLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureLibrary.swift; sourceTree = "<group>"; };
+		A21000000000000000000020 /* GestureTrainingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureTrainingSession.swift; sourceTree = "<group>"; };
+		A21000000000000000000021 /* ShortcutRecordingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecordingSession.swift; sourceTree = "<group>"; };
+		A21000000000000000000022 /* KeyboardShortcutFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutFormatter.swift; sourceTree = "<group>"; };
+		A21000000000000000000023 /* ShortcutRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorderView.swift; sourceTree = "<group>"; };
+		A21000000000000000000024 /* SettingsRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRootView.swift; sourceTree = "<group>"; };
+		A21000000000000000000025 /* GesturesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GesturesSettingsView.swift; sourceTree = "<group>"; };
+		A21000000000000000000026 /* GestureRecorderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureRecorderSheet.swift; sourceTree = "<group>"; };
+		A21000000000000000000027 /* GestureLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureLibraryTests.swift; sourceTree = "<group>"; };
+		A21000000000000000000028 /* GestureTrainingSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureTrainingSessionTests.swift; sourceTree = "<group>"; };
+		A21000000000000000000029 /* ShortcutRecordingSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecordingSessionTests.swift; sourceTree = "<group>"; };
+		A2100000000000000000002A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A2100000000000000000002B /* LoginItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItemController.swift; sourceTree = "<group>"; };
+		A2100000000000000000002C /* LoginItemControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItemControllerTests.swift; sourceTree = "<group>"; };
+		A2100000000000000000002D /* SystemShortcutConflictDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemShortcutConflictDetector.swift; sourceTree = "<group>"; };
+		A2100000000000000000002E /* SystemShortcutConflictDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemShortcutConflictDetectorTests.swift; sourceTree = "<group>"; };
+		A2100000000000000000002F /* AppPreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferencesStore.swift; sourceTree = "<group>"; };
+		A21000000000000000000030 /* AppPreferencesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferencesStoreTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A25000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A25000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A2300000000000000000000F = {
+			isa = PBXGroup;
+			children = (
+				A23000000000000000000001 /* iGestures */,
+				A23000000000000000000008 /* iGesturesTests */,
+				A23000000000000000000010 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A23000000000000000000010 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A21000000000000000000001 /* iGestures.app */,
+				A21000000000000000000002 /* iGesturesTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A23000000000000000000001 /* iGestures */ = {
+			isa = PBXGroup;
+			children = (
+				A23000000000000000000002 /* App */,
+				A23000000000000000000003 /* Core */,
+				A23000000000000000000006 /* Resources */,
+				A2300000000000000000000A /* Services */,
+				A23000000000000000000007 /* Supporting */,
+				A2300000000000000000000C /* UI */,
+			);
+			path = iGestures;
+			sourceTree = "<group>";
+		};
+		A23000000000000000000002 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A21000000000000000000003 /* AppModel.swift */,
+				A21000000000000000000004 /* IGesturesApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A23000000000000000000003 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				A23000000000000000000009 /* EventTap */,
+				A23000000000000000000004 /* Gesture */,
+				A23000000000000000000005 /* Mapping */,
+				A2300000000000000000000B /* Shortcut */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		A23000000000000000000004 /* Gesture */ = {
+			isa = PBXGroup;
+			children = (
+				A21000000000000000000005 /* GesturePoint.swift */,
+				A21000000000000000000006 /* GestureTemplate.swift */,
+				A21000000000000000000007 /* GestureNormalizer.swift */,
+				A21000000000000000000008 /* GestureRecognizer.swift */,
+				A2100000000000000000000F /* GestureSession.swift */,
+				A21000000000000000000020 /* GestureTrainingSession.swift */,
+			);
+			path = Gesture;
+			sourceTree = "<group>";
+		};
+		A23000000000000000000005 /* Mapping */ = {
+			isa = PBXGroup;
+			children = (
+				A21000000000000000000009 /* GestureMapping.swift */,
+				A21000000000000000000013 /* CompiledMappingSnapshot.swift */,
+				A21000000000000000000019 /* GestureDatabase.swift */,
+				A2100000000000000000001F /* GestureLibrary.swift */,
+				A2100000000000000000001A /* MappingStore.swift */,
+			);
+			path = Mapping;
+			sourceTree = "<group>";
+		};
+		A23000000000000000000006 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A2100000000000000000000A /* Localizable.xcstrings */,
+				A2100000000000000000002A /* PrivacyInfo.xcprivacy */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A23000000000000000000007 /* Supporting */ = {
+			isa = PBXGroup;
+			children = (
+				A2100000000000000000000B /* Config.xcconfig */,
+			);
+			path = Supporting;
+			sourceTree = "<group>";
+		};
+		A23000000000000000000008 /* iGesturesTests */ = {
+			isa = PBXGroup;
+			children = (
+				A21000000000000000000030 /* AppPreferencesStoreTests.swift */,
+				A21000000000000000000027 /* GestureLibraryTests.swift */,
+				A2100000000000000000000C /* GestureNormalizerTests.swift */,
+				A2100000000000000000000D /* GestureRecognizerTests.swift */,
+				A21000000000000000000011 /* GestureSessionTests.swift */,
+				A21000000000000000000028 /* GestureTrainingSessionTests.swift */,
+				A2100000000000000000002C /* LoginItemControllerTests.swift */,
+				A2100000000000000000001D /* MappingStoreTests.swift */,
+				A2100000000000000000001E /* OverlayEventBufferTests.swift */,
+				A21000000000000000000012 /* PermissionCoordinatorTests.swift */,
+				A21000000000000000000018 /* ShortcutExecutorTests.swift */,
+				A21000000000000000000029 /* ShortcutRecordingSessionTests.swift */,
+				A2100000000000000000002E /* SystemShortcutConflictDetectorTests.swift */,
+			);
+			path = iGesturesTests;
+			sourceTree = "<group>";
+		};
+		A23000000000000000000009 /* EventTap */ = {
+			isa = PBXGroup;
+			children = (
+				A2100000000000000000000E /* EventSourceMarker.swift */,
+				A21000000000000000000015 /* GestureOverlaySink.swift */,
+				A21000000000000000000017 /* EventTapManager.swift */,
+				A2100000000000000000001B /* OverlayEventBuffer.swift */,
+			);
+			path = EventTap;
+			sourceTree = "<group>";
+		};
+		A2300000000000000000000A /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A2100000000000000000002F /* AppPreferencesStore.swift */,
+				A21000000000000000000016 /* FrontmostAppProvider.swift */,
+				A2100000000000000000002B /* LoginItemController.swift */,
+				A21000000000000000000010 /* PermissionCoordinator.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A2300000000000000000000B /* Shortcut */ = {
+			isa = PBXGroup;
+			children = (
+				A21000000000000000000014 /* ShortcutExecutor.swift */,
+				A21000000000000000000021 /* ShortcutRecordingSession.swift */,
+				A2100000000000000000002D /* SystemShortcutConflictDetector.swift */,
+			);
+			path = Shortcut;
+			sourceTree = "<group>";
+		};
+		A2300000000000000000000C /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				A2300000000000000000000D /* Overlay */,
+				A2300000000000000000000E /* Settings */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		A2300000000000000000000D /* Overlay */ = {
+			isa = PBXGroup;
+			children = (
+				A2100000000000000000001C /* OverlayController.swift */,
+			);
+			path = Overlay;
+			sourceTree = "<group>";
+		};
+		A2300000000000000000000E /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				A21000000000000000000026 /* GestureRecorderSheet.swift */,
+				A21000000000000000000025 /* GesturesSettingsView.swift */,
+				A21000000000000000000022 /* KeyboardShortcutFormatter.swift */,
+				A21000000000000000000024 /* SettingsRootView.swift */,
+				A21000000000000000000023 /* ShortcutRecorderView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A24000000000000000000001 /* iGestures */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A28000000000000000000001 /* Build configuration list for PBXNativeTarget "iGestures" */;
+			buildPhases = (
+				A25000000000000000000001 /* Sources */,
+				A25000000000000000000002 /* Frameworks */,
+				A25000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = iGestures;
+			packageProductDependencies = (
+			);
+			productName = iGestures;
+			productReference = A21000000000000000000001 /* iGestures.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A24000000000000000000002 /* iGesturesTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A28000000000000000000002 /* Build configuration list for PBXNativeTarget "iGesturesTests" */;
+			buildPhases = (
+				A25000000000000000000004 /* Sources */,
+				A25000000000000000000005 /* Frameworks */,
+				A25000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A26000000000000000000001 /* PBXTargetDependency */,
+			);
+			name = iGesturesTests;
+			packageProductDependencies = (
+			);
+			productName = iGesturesTests;
+			productReference = A21000000000000000000002 /* iGesturesTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A29000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 2700;
+				ORGANIZATIONNAME = iGestures;
+				TargetAttributes = {
+					A24000000000000000000001 = {
+						ProvisioningStyle = Automatic;
+					};
+					A24000000000000000000002 = {
+						TestTargetID = A24000000000000000000001;
+					};
+				};
+			};
+			buildConfigurationList = A28000000000000000000003 /* Build configuration list for PBXProject "iGestures" */;
+			compatibilityVersion = "Xcode 12.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				"zh-Hans",
+			);
+			mainGroup = A2300000000000000000000F;
+			productRefGroup = A23000000000000000000010 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A24000000000000000000001 /* iGestures */,
+				A24000000000000000000002 /* iGesturesTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A25000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000008 /* Localizable.xcstrings in Resources */,
+				A20000000000000000000027 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A25000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A25000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000001 /* AppModel.swift in Sources */,
+				A20000000000000000000002 /* IGesturesApp.swift in Sources */,
+				A20000000000000000000003 /* GesturePoint.swift in Sources */,
+				A20000000000000000000004 /* GestureTemplate.swift in Sources */,
+				A20000000000000000000005 /* GestureNormalizer.swift in Sources */,
+				A20000000000000000000006 /* GestureRecognizer.swift in Sources */,
+				A20000000000000000000007 /* GestureMapping.swift in Sources */,
+				A2000000000000000000000B /* EventSourceMarker.swift in Sources */,
+				A2000000000000000000000C /* GestureSession.swift in Sources */,
+				A2000000000000000000000D /* PermissionCoordinator.swift in Sources */,
+				A20000000000000000000010 /* CompiledMappingSnapshot.swift in Sources */,
+				A20000000000000000000011 /* ShortcutExecutor.swift in Sources */,
+				A20000000000000000000012 /* GestureOverlaySink.swift in Sources */,
+				A20000000000000000000013 /* FrontmostAppProvider.swift in Sources */,
+				A20000000000000000000014 /* EventTapManager.swift in Sources */,
+				A20000000000000000000016 /* GestureDatabase.swift in Sources */,
+				A20000000000000000000017 /* MappingStore.swift in Sources */,
+				A20000000000000000000018 /* OverlayEventBuffer.swift in Sources */,
+				A20000000000000000000019 /* OverlayController.swift in Sources */,
+				A2000000000000000000001C /* GestureLibrary.swift in Sources */,
+				A2000000000000000000001D /* GestureTrainingSession.swift in Sources */,
+				A2000000000000000000001E /* ShortcutRecordingSession.swift in Sources */,
+				A2000000000000000000001F /* KeyboardShortcutFormatter.swift in Sources */,
+				A20000000000000000000020 /* ShortcutRecorderView.swift in Sources */,
+				A20000000000000000000021 /* SettingsRootView.swift in Sources */,
+				A20000000000000000000022 /* GesturesSettingsView.swift in Sources */,
+				A20000000000000000000023 /* GestureRecorderSheet.swift in Sources */,
+				A20000000000000000000028 /* LoginItemController.swift in Sources */,
+				A2000000000000000000002A /* SystemShortcutConflictDetector.swift in Sources */,
+				A2000000000000000000002C /* AppPreferencesStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A25000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A2000000000000000000002D /* AppPreferencesStoreTests.swift in Sources */,
+				A20000000000000000000024 /* GestureLibraryTests.swift in Sources */,
+				A20000000000000000000009 /* GestureNormalizerTests.swift in Sources */,
+				A2000000000000000000000A /* GestureRecognizerTests.swift in Sources */,
+				A2000000000000000000000E /* GestureSessionTests.swift in Sources */,
+				A20000000000000000000025 /* GestureTrainingSessionTests.swift in Sources */,
+				A20000000000000000000029 /* LoginItemControllerTests.swift in Sources */,
+				A2000000000000000000001A /* MappingStoreTests.swift in Sources */,
+				A2000000000000000000001B /* OverlayEventBufferTests.swift in Sources */,
+				A2000000000000000000000F /* PermissionCoordinatorTests.swift in Sources */,
+				A20000000000000000000015 /* ShortcutExecutorTests.swift in Sources */,
+				A20000000000000000000026 /* ShortcutRecordingSessionTests.swift in Sources */,
+				A2000000000000000000002B /* SystemShortcutConflictDetectorTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A26000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A24000000000000000000001 /* iGestures */;
+			targetProxy = A22000000000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A27000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A2100000000000000000000B /* Config.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A27000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A2100000000000000000000B /* Config.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ONLY_ACTIVE_ARCH = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		A27000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A2100000000000000000000B /* Config.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
+				ENABLE_TESTABILITY = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ron159.igestures.dev.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/iGestures.app/Contents/MacOS/iGestures";
+			};
+			name = Debug;
+		};
+		A27000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A2100000000000000000000B /* Config.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ron159.igestures.dev.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/iGestures.app/Contents/MacOS/iGestures";
+			};
+			name = Release;
+		};
+		A27000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		A27000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A28000000000000000000001 /* Build configuration list for PBXNativeTarget "iGestures" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A27000000000000000000001 /* Debug */,
+				A27000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A28000000000000000000002 /* Build configuration list for PBXNativeTarget "iGesturesTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A27000000000000000000003 /* Debug */,
+				A27000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A28000000000000000000003 /* Build configuration list for PBXProject "iGestures" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A27000000000000000000005 /* Debug */,
+				A27000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A29000000000000000000001 /* Project object */;
+}

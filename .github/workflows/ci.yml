@@ -1,0 +1,100 @@
+name: iGestures CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  stable-xcode:
+    name: macOS 26 / stable Xcode
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Report toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Lint Swift sources
+        run: >
+          swift format lint --strict --recursive
+          iGestures
+          iGesturesTests
+          iGesturesCoreChecks
+          Package.swift
+
+      - name: Validate English and Simplified Chinese
+        run: |
+          ruby -rjson -e '
+            catalog = JSON.parse(
+              File.read("iGestures/Resources/Localizable.xcstrings")
+            )
+            abort "unexpected source language" unless catalog["sourceLanguage"] == "en"
+            missing = catalog.fetch("strings").each_with_object([]) do |(key, entry), result|
+              translation = entry.dig(
+                "localizations", "zh-Hans", "stringUnit", "value"
+              )
+              if key.strip.empty? || !translation.is_a?(String) ||
+                  translation.strip.empty?
+                result << key
+              end
+            end
+            abort "missing translations: #{missing.join(", ")}" unless missing.empty?
+          '
+
+      - name: Verify repository hygiene
+        run: |
+          ruby -e '
+            files = Dir.glob("**/*", File::FNM_DOTMATCH).select do |path|
+              File.file?(path) &&
+                !path.start_with?(".git/", ".build/", "build/")
+            end
+            legacy_extensions = %w[
+              .m .h .xib .sdef .applescript .applescript-src .idraw
+            ]
+            legacy_names = %w[
+              .DS_Store .bartycrouch.toml .xctool-args
+              AppCast.xml gen.sh notes.txt
+            ]
+            legacy = files.select do |path|
+              legacy_extensions.include?(File.extname(path)) ||
+                legacy_names.include?(File.basename(path)) ||
+                path.split("/").include?("cs.lproj")
+            end
+            abort "legacy files found: #{legacy.join(", ")}" unless legacy.empty?
+          '
+
+      - name: Run core checks
+        run: |
+          swift run iGesturesCoreChecks
+          swift run -c release iGesturesCoreChecks
+
+      - name: Run XCTest
+        run: >
+          xcodebuild
+          -project iGestures.xcodeproj
+          -scheme iGestures
+          -configuration Debug
+          -destination 'platform=macOS,arch=arm64'
+          -derivedDataPath "$RUNNER_TEMP/iGesturesTests"
+          CODE_SIGNING_ALLOWED=NO
+          test
+
+      - name: Build and verify Release
+        run: |
+          xcodebuild \
+            -project iGestures.xcodeproj \
+            -scheme iGestures \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$RUNNER_TEMP/iGesturesRelease" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          binary="$RUNNER_TEMP/iGesturesRelease/Build/Products/Release/iGestures.app/Contents/MacOS/iGestures"
+          test "$(lipo -archs "$binary")" = "arm64"
