@@ -41,7 +41,6 @@ jobs:
             iGesturesTests \
             iGesturesCoreChecks \
             Package.swift
-          swift run iGesturesCoreChecks
           swift run -c release iGesturesCoreChecks
 
       - name: Run XCTest
