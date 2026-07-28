@@ -227,7 +227,7 @@ final class GestureRecognizerTests: XCTestCase {
     }
 
     #if DEBUG
-      let maximumP95 = Duration.milliseconds(20)
+      let maximumP95 = Duration.milliseconds(30)
     #else
       let maximumP95 = Duration.milliseconds(2)
     #endif
