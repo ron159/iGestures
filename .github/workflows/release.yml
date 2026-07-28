@@ -1,0 +1,123 @@
+name: iGestures Community Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: community-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: Build and publish community release
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate release version
+        id: release
+        shell: bash
+        run: |
+          version="$(
+            sed -n 's/^MARKETING_VERSION = //p' \
+              iGestures/Supporting/Config.xcconfig
+          )"
+          test -n "$version"
+          test "$GITHUB_REF_NAME" = "v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Run core checks
+        run: |
+          swift format lint --strict --recursive \
+            iGestures \
+            iGesturesTests \
+            iGesturesCoreChecks \
+            Package.swift
+          swift run iGesturesCoreChecks
+          swift run -c release iGesturesCoreChecks
+
+      - name: Run XCTest
+        run: >
+          xcodebuild
+          -project iGestures.xcodeproj
+          -scheme iGestures
+          -configuration Debug
+          -destination 'platform=macOS,arch=arm64'
+          -derivedDataPath "$RUNNER_TEMP/iGesturesTests"
+          CODE_SIGNING_ALLOWED=NO
+          test
+
+      - name: Build ad-hoc signed Release
+        shell: bash
+        run: |
+          xcodebuild \
+            -project iGestures.xcodeproj \
+            -scheme iGestures \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$RUNNER_TEMP/iGesturesRelease" \
+            CODE_SIGN_IDENTITY=- \
+            build
+
+          app="$RUNNER_TEMP/iGesturesRelease/Build/Products/Release/iGestures.app"
+          binary="$app/Contents/MacOS/iGestures"
+          test "$(lipo -archs "$binary")" = "arm64"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign --display --verbose=2 "$app" 2>&1 |
+            grep -q "Signature=adhoc"
+
+      - name: Package release
+        id: package
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          app="$RUNNER_TEMP/iGesturesRelease/Build/Products/Release/iGestures.app"
+          artifact_dir="$RUNNER_TEMP/iGesturesArtifacts"
+          archive="iGestures-$VERSION-macOS-arm64.zip"
+
+          mkdir -p "$artifact_dir"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$app" "$artifact_dir/$archive"
+          (
+            cd "$artifact_dir"
+            shasum -a 256 "$archive" > "$archive.sha256"
+          )
+
+          echo "archive=$artifact_dir/$archive" >> "$GITHUB_OUTPUT"
+          echo "checksum=$artifact_dir/$archive.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+          CHECKSUM: ${{ steps.package.outputs.checksum }}
+        run: |
+          notes="Community build: ad-hoc signed and not notarized by Apple.
+
+          Requires macOS 26 or later on Apple Silicon. After copying iGestures
+          to /Applications, the first launch must be approved in System
+          Settings > Privacy & Security. See README for installation and
+          permission steps."
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              "$ARCHIVE" "$CHECKSUM" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              "$ARCHIVE" "$CHECKSUM" \
+              --verify-tag \
+              --title "iGestures $VERSION" \
+              --generate-notes \
+              --notes "$notes"
+          fi
