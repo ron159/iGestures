@@ -83,17 +83,18 @@ xcodebuild test \
 
 当前基线已通过 Debug/Release 构建、71 项 XCTest、Xcode Analyze、arm64 产物检查和
 本地临时签名验证。GitHub Actions 会复跑格式、本地化、仓库卫生检查、核心检查、
-XCTest 和 Release 构建。
+XCTest 和 Release 构建。每次成功推送到 `main` 后，CI 会更新 `continuous`
+预发布中的 ZIP 与 SHA-256 校验文件。
 
-推送与 `MARKETING_VERSION` 对应的版本标签会自动创建社区版 Release。例如：
+推送与 `MARKETING_VERSION` 对应的版本标签会另外创建正式社区版 Release。例如：
 
 ```shell
-git tag -a v0.1.0 -m "iGestures 0.1.0"
-git push origin v0.1.0
+git tag -a v0.2.0 -m "iGestures 0.2.0"
+git push origin v0.2.0
 ```
 
-Release 工作流会验证标签与工程版本一致，运行格式检查、核心检查和 XCTest，
-构建 ad-hoc 签名的 arm64 应用，并发布 ZIP 与 SHA-256 校验文件。
+正式 Release 工作流会验证标签与工程版本一致，运行格式检查、核心检查和 XCTest，
+构建 ad-hoc 签名的 arm64 应用，并发布版本化的 ZIP 与 SHA-256 校验文件。
 
 ## 设计概要
 

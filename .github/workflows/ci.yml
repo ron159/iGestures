@@ -7,6 +7,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   stable-xcode:
     name: macOS 26 / stable Xcode
@@ -89,6 +92,8 @@ jobs:
           test
 
       - name: Build and verify Release
+        id: release
+        shell: bash
         run: |
           xcodebuild \
             -project iGestures.xcodeproj \
@@ -96,7 +101,79 @@ jobs:
             -configuration Release \
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath "$RUNNER_TEMP/iGesturesRelease" \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY=- \
             build
-          binary="$RUNNER_TEMP/iGesturesRelease/Build/Products/Release/iGestures.app/Contents/MacOS/iGestures"
+
+          app="$RUNNER_TEMP/iGesturesRelease/Build/Products/Release/iGestures.app"
+          binary="$app/Contents/MacOS/iGestures"
           test "$(lipo -archs "$binary")" = "arm64"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign --display --verbose=2 "$app" 2>&1 |
+            grep -q "Signature=adhoc"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+
+      - name: Package continuous release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: package
+        shell: bash
+        env:
+          APP: ${{ steps.release.outputs.app }}
+        run: |
+          artifact_dir="$RUNNER_TEMP/iGesturesArtifacts"
+          archive="iGestures-continuous-macOS-arm64.zip"
+
+          mkdir -p "$artifact_dir"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$APP" "$artifact_dir/$archive"
+          (
+            cd "$artifact_dir"
+            shasum -a 256 "$archive" > "$archive.sha256"
+          )
+
+          echo "archive=$artifact_dir/$archive" >> "$GITHUB_OUTPUT"
+          echo "checksum=$artifact_dir/$archive.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Publish continuous GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+          CHECKSUM: ${{ steps.package.outputs.checksum }}
+        run: |
+          tag="continuous"
+          short_sha="${GITHUB_SHA::7}"
+          title="iGestures Continuous ($short_sha)"
+          notes="Rolling development build from commit $GITHUB_SHA.
+
+          This prerelease is replaced after every successful push to main.
+          It is ad-hoc signed, not notarized by Apple, and requires macOS 26
+          or later on Apple Silicon."
+
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+              >/dev/null 2>&1; then
+            gh api --method PATCH \
+              "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" \
+              --raw-field sha="$GITHUB_SHA" \
+              --field force=true
+            gh release upload "$tag" \
+              "$ARCHIVE" "$CHECKSUM" \
+              --clobber \
+              --repo "$GITHUB_REPOSITORY"
+            gh release edit "$tag" \
+              --target "$GITHUB_SHA" \
+              --title "$title" \
+              --notes "$notes" \
+              --prerelease \
+              --latest=false \
+              --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" \
+              "$ARCHIVE" "$CHECKSUM" \
+              --target "$GITHUB_SHA" \
+              --title "$title" \
+              --notes "$notes" \
+              --prerelease \
+              --latest=false \
+              --repo "$GITHUB_REPOSITORY"
+          fi
