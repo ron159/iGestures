@@ -378,7 +378,7 @@ final class AppModel: ObservableObject {
         updateState = .unavailable
         updateMessage = String(
           localized:
-            "Updates are available only in the notarized product build."
+            "Updates are published on GitHub Releases."
         )
       }
       return

@@ -36,51 +36,22 @@ iGestures 是一款原生 macOS 菜单栏鼠标手势工具：按住自定义触
 | 开发工具 | Xcode 27 |
 | 语言 | Swift 6，Strict Concurrency |
 
-## 下载社区版
+## 下载与安装
 
 从 [GitHub Releases](https://github.com/ron159/iGestures/releases) 下载最新的
 `iGestures-<版本>-macOS-arm64.zip` 和对应的 `.sha256` 文件。
 
-社区版使用开发 Bundle ID `com.ron159.igestures.dev` 和 ad-hoc 签名，不包含
-Apple Developer ID 签名或公证。macOS 无法验证开发者身份，首次打开需要手动批准：
-
 1. 解压后将 `iGestures.app` 拖入 `/Applications`；
 2. 尝试打开应用；
-3. 打开“系统设置 → 隐私与安全性”，点击“仍要打开”；
+3. 如果 macOS 阻止首次打开，在“系统设置 → 隐私与安全性”中点击“仍要打开”；
 4. 根据 iGestures 设置页提示授予辅助功能、输入监听和事件发送权限；
 5. 如需登录后自动运行，在“通用”设置中打开“登录时启动”。
-
-macOS 会将手动批准保存为本机例外。由于社区版没有稳定的 Developer ID 身份，
-覆盖升级后可能需要重新批准应用或重新授予系统权限。
 
 可以在终端校验下载文件：
 
 ```shell
 shasum -a 256 -c iGestures-<版本>-macOS-arm64.zip.sha256
 ```
-
-> 社区版是可供测试和日常使用的免费构建，不是经过 Apple 公证的正式分发版本。
-> 受管理的 Mac 可能禁止手动放行未知开发者应用。
-
-## 正式产品版
-
-仓库同时保留独立的 `iGestures Formal Product Release` 工作流。它使用稳定 Bundle ID
-`com.ron159.igestures`，执行 Developer ID Application 签名、Hardened Runtime、
-Apple Notarization、Staple、Gatekeeper、arm64 和 macOS 26 最低版本验证，并生成
-Ed25519 签名的更新清单。社区版工作流不会被标记为正式产品版。
-
-正式工作流通过手动输入版本号触发，所需配置如下：
-
-- GitHub Variables：`IGESTURES_UPDATE_PUBLIC_KEY`，内容为 32 字节 Ed25519 公钥的
-  Base64；
-- GitHub Secrets：`DEVELOPER_ID_APPLICATION`、`APPLE_DEVELOPMENT_TEAM`、
-  `DEVELOPER_ID_P12_BASE64`、`DEVELOPER_ID_P12_PASSWORD`、
-  `APPLE_NOTARY_KEY_ID`、`APPLE_NOTARY_ISSUER_ID`、
-  `APPLE_NOTARY_PRIVATE_KEY` 和 `IGESTURES_UPDATE_PRIVATE_KEY`。
-
-正式构建会内嵌只读的更新清单地址。应用自动检查或手动检查更新时，会依次验证 HTTPS、
-清单签名、语义版本、系统版本、SHA-256、Bundle ID 和当前 Developer ID 的指定要求；
-任一检查失败都不会替换当前应用。
 
 ## 构建与验证
 
@@ -114,15 +85,15 @@ xcodebuild test \
 XCTest 和 Release 构建。每次成功推送到 `main` 后，CI 会更新 `continuous`
 预发布中的 ZIP 与 SHA-256 校验文件。
 
-推送与 `MARKETING_VERSION` 对应的版本标签会另外创建正式社区版 Release。例如：
+推送与 `MARKETING_VERSION` 对应的版本标签会创建版本化 Release。例如：
 
 ```shell
 git tag -a v0.3.0 -m "iGestures 0.3.0"
 git push origin v0.3.0
 ```
 
-社区 Release 工作流会验证标签与工程版本一致，运行格式检查、核心检查和 XCTest，
-构建 ad-hoc 签名的 arm64 应用，并发布版本化的 ZIP 与 SHA-256 校验文件。
+Release 工作流会验证标签与工程版本一致，运行格式检查、核心检查和 XCTest，
+构建 arm64 应用，并发布版本化的 ZIP 与 SHA-256 校验文件。
 
 ## 设计概要
 

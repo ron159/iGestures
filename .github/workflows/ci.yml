@@ -147,8 +147,7 @@ jobs:
           notes="Rolling development build from commit $GITHUB_SHA.
 
           This prerelease is replaced after every successful push to main.
-          It is ad-hoc signed, not notarized by Apple, and requires macOS 26
-          or later on Apple Silicon."
+          Requires macOS 26 or later on Apple Silicon."
 
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
               >/dev/null 2>&1; then

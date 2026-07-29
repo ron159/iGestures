@@ -27,6 +27,6 @@ INFOPLIST_KEY_LSUIElement = YES
 INFOPLIST_KEY_IGesturesUpdateManifestURL = $(IGESTURES_UPDATE_MANIFEST_URL)
 INFOPLIST_KEY_IGesturesUpdatePublicKey = $(IGESTURES_UPDATE_PUBLIC_KEY)
 
-// Formal builds inject an HTTPS manifest URL and raw Ed25519 public key.
+// Optional update feeds can inject an HTTPS manifest URL and Ed25519 key.
 IGESTURES_UPDATE_MANIFEST_URL =
 IGESTURES_UPDATE_PUBLIC_KEY =

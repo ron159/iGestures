@@ -30,3 +30,6 @@ xcuserdata/
 # Editors
 .idea/
 *~
+
+# Local documentation
+/doc/

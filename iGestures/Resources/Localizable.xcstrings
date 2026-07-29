@@ -2963,12 +2963,12 @@
         }
       }
     },
-    "Updates are available only in the notarized product build.": {
+    "Updates are published on GitHub Releases.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "更新功能仅在经过公证的正式产品版本中可用。"
+            "value": "新版本通过 GitHub Releases 发布。"
           }
         }
       }
