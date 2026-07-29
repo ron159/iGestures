@@ -5,6 +5,7 @@ import os
 @MainActor
 final class OverlayController {
   let eventSink: OverlayEventBuffer
+  let feedbackSink: GestureFeedbackBuffer
 
   private static let performanceLog = OSLog(
     subsystem: "com.ron159.igestures",
@@ -13,16 +14,134 @@ final class OverlayController {
   private var displayLink: CADisplayLink!
   private var screenLayout = ScreenLayout.current
   private var screenOverlays: [ScreenOverlay]
+  private let feedbackPanel: NSPanel
+  private let feedbackLabel: NSTextField
+  private var feedbackTask: Task<Void, Never>?
+  private var isHapticFeedbackEnabled = false
 
-  init(eventSink: OverlayEventBuffer = OverlayEventBuffer()) {
+  init(
+    eventSink: OverlayEventBuffer = OverlayEventBuffer(),
+    feedbackSink: GestureFeedbackBuffer = GestureFeedbackBuffer()
+  ) {
     self.eventSink = eventSink
+    self.feedbackSink = feedbackSink
     self.screenOverlays = screenLayout.screens.map(ScreenOverlay.init)
+    self.feedbackLabel = NSTextField(labelWithString: "")
+    self.feedbackPanel = NSPanel(
+      contentRect: NSRect(x: 0, y: 0, width: 320, height: 58),
+      styleMask: .borderless,
+      backing: .buffered,
+      defer: false
+    )
     configureDisplayLink(isPaused: true)
+    configureFeedbackPanel()
 
     eventSink.setWakeHandler { [weak self] in
       Task { @MainActor [weak self] in
         self?.wakeDisplayLink()
       }
+    }
+    feedbackSink.setHandler { [weak self] feedback in
+      Task { @MainActor [weak self] in
+        self?.showFeedback(feedback)
+      }
+    }
+  }
+
+  private func configureFeedbackPanel() {
+    feedbackPanel.isOpaque = false
+    feedbackPanel.backgroundColor = .windowBackgroundColor.withAlphaComponent(
+      0.94
+    )
+    feedbackPanel.hasShadow = true
+    feedbackPanel.ignoresMouseEvents = true
+    feedbackPanel.hidesOnDeactivate = false
+    feedbackPanel.isReleasedWhenClosed = false
+    feedbackPanel.level = .statusBar
+    feedbackPanel.collectionBehavior = [
+      .canJoinAllSpaces,
+      .fullScreenAuxiliary,
+      .stationary,
+      .ignoresCycle,
+    ]
+    feedbackLabel.alignment = .center
+    feedbackLabel.font = .systemFont(ofSize: 14, weight: .medium)
+    feedbackLabel.frame = NSRect(x: 12, y: 12, width: 296, height: 34)
+    feedbackPanel.contentView = NSView(
+      frame: feedbackPanel.contentRect(forFrameRect: feedbackPanel.frame)
+    )
+    feedbackPanel.contentView?.addSubview(feedbackLabel)
+  }
+
+  private func showFeedback(_ feedback: GestureFeedback) {
+    feedbackTask?.cancel()
+    feedbackLabel.stringValue = feedbackText(feedback)
+    let mouseLocation = NSEvent.mouseLocation
+    let screen =
+      NSScreen.screens.first {
+        $0.frame.contains(mouseLocation)
+      } ?? NSScreen.main
+    if let screen {
+      let frame = feedbackPanel.frame
+      feedbackPanel.setFrameOrigin(
+        CGPoint(
+          x: screen.visibleFrame.midX - (frame.width / 2),
+          y: screen.visibleFrame.minY + 48
+        )
+      )
+    }
+    feedbackPanel.orderFrontRegardless()
+    if isHapticFeedbackEnabled {
+      NSHapticFeedbackManager.defaultPerformer.perform(
+        hapticPattern(feedback),
+        performanceTime: .now
+      )
+    }
+    feedbackTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .seconds(1.4))
+      guard !Task.isCancelled else { return }
+      self?.feedbackPanel.orderOut(nil)
+    }
+  }
+
+  func setHapticFeedbackEnabled(_ enabled: Bool) {
+    isHapticFeedbackEnabled = enabled
+  }
+
+  private func hapticPattern(
+    _ feedback: GestureFeedback
+  ) -> NSHapticFeedbackManager.FeedbackPattern {
+    switch feedback {
+    case .executed:
+      .alignment
+    case .noMatch, .ambiguous, .actionFailed, .cancelled:
+      .generic
+    }
+  }
+
+  private func feedbackText(_ feedback: GestureFeedback) -> String {
+    switch feedback {
+    case .executed(let mappingName):
+      String(
+        format: String(localized: "Executed: %@"),
+        mappingName
+      )
+    case .noMatch:
+      String(localized: "Gesture not recognized. Try a clearer stroke.")
+    case .ambiguous:
+      String(
+        localized:
+          "Gesture is ambiguous. Adjust or retrain similar gestures."
+      )
+    case .actionFailed(let mappingName):
+      String(
+        format: String(
+          localized: "“%@” matched, but its action failed."
+        ),
+        mappingName
+      )
+    case .cancelled:
+      String(localized: "Gesture cancelled.")
     }
   }
 

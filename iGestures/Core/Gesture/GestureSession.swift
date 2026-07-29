@@ -11,6 +11,9 @@ public struct GestureTriggerButton:
   public static let middle = GestureTriggerButton(buttonNumber: 2)
   public static let button4 = GestureTriggerButton(buttonNumber: 3)
   public static let button5 = GestureTriggerButton(buttonNumber: 4)
+  public static let trackpad = GestureTriggerButton(
+    buttonNumber: UInt32.max
+  )
   public static let commonPresets: [GestureTriggerButton] = [
     .right,
     .middle,
@@ -35,12 +38,21 @@ public struct GestureInputConfiguration: Equatable, Sendable {
 
   public let triggerButton: GestureTriggerButton
   public let triggerDuration: TimeInterval
+  public let isTrackpadGestureEnabled: Bool
+  public let trackpadModifiers: UInt64
 
   public init(
     triggerButton: GestureTriggerButton = .right,
-    triggerDuration: TimeInterval = defaultTriggerDuration
+    triggerDuration: TimeInterval = defaultTriggerDuration,
+    isTrackpadGestureEnabled: Bool = false,
+    trackpadModifiers: UInt64 = 0x8_0000 | 0x4_0000
   ) {
     self.triggerButton = triggerButton
+    self.isTrackpadGestureEnabled = isTrackpadGestureEnabled
+    self.trackpadModifiers =
+      ShortcutRecordingSession.normalizedModifiers(
+        trackpadModifiers
+      )
     let duration =
       triggerDuration.isFinite
       ? triggerDuration
@@ -74,20 +86,27 @@ public enum GestureCancellationReason: Equatable, Sendable {
   case applicationTerminating
   case sessionInconsistent
   case durationExceeded
+  case userCancelled
 }
 
 public struct GestureCandidate: Equatable, Sendable {
   public let points: [GesturePoint]
   public let frontmostBundleID: String?
+  public let triggerButton: GestureTriggerButton
+  public let inputDevice: GestureInputDevice
   public let duration: TimeInterval
 
   public init(
     points: [GesturePoint],
     frontmostBundleID: String?,
+    triggerButton: GestureTriggerButton = .right,
+    inputDevice: GestureInputDevice = .mouse(identifier: nil),
     duration: TimeInterval
   ) {
     self.points = points
     self.frontmostBundleID = frontmostBundleID
+    self.triggerButton = triggerButton
+    self.inputDevice = inputDevice
     self.duration = duration
   }
 }
@@ -148,6 +167,7 @@ public struct GestureSession: Sendable {
   private var points: [GesturePoint]
   private var startedAt: TimeInterval?
   private var frontmostBundleID: String?
+  private var triggerButton: GestureTriggerButton?
   private var accumulatedDistance: Float = 0
 
   public init(configuration: Configuration = Configuration()) {
@@ -161,6 +181,7 @@ public struct GestureSession: Sendable {
     timestamp: TimeInterval,
     frontmostBundleID: String?,
     shouldTrack: Bool,
+    triggerButton: GestureTriggerButton = .right,
     sourceUserData: Int64 = 0
   ) -> GestureSessionResult {
     guard !EventSourceMarker.isSynthetic(sourceUserData) else {
@@ -180,6 +201,7 @@ public struct GestureSession: Sendable {
     state = .pendingClick
     startedAt = timestamp
     self.frontmostBundleID = frontmostBundleID
+    self.triggerButton = triggerButton
     accumulatedDistance = 0
     points.removeAll(keepingCapacity: true)
     points.append(point)
@@ -273,6 +295,11 @@ public struct GestureSession: Sendable {
       let candidate = GestureCandidate(
         points: points,
         frontmostBundleID: frontmostBundleID,
+        triggerButton: triggerButton ?? .right,
+        inputDevice:
+          triggerButton == .trackpad
+          ? .trackpad
+          : .mouse(identifier: nil),
         duration: duration(endingAt: timestamp)
       )
       let result = GestureSessionResult(
@@ -304,6 +331,16 @@ public struct GestureSession: Sendable {
       reason: reason,
       at: point ?? points.last ?? GesturePoint(x: 0, y: 0),
       disposition: .passThrough
+    )
+  }
+
+  public mutating func abandon() -> GestureSessionResult {
+    guard state != .idle else { return .passThrough }
+    let shouldHide = state == .tracking || state == .finishing
+    reset()
+    return GestureSessionResult(
+      disposition: .suppress,
+      commands: shouldHide ? [.hideOverlay] : []
     )
   }
 
@@ -390,6 +427,7 @@ public struct GestureSession: Sendable {
     points.removeAll(keepingCapacity: true)
     startedAt = nil
     frontmostBundleID = nil
+    triggerButton = nil
     accumulatedDistance = 0
   }
 }

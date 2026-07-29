@@ -59,6 +59,147 @@ final class GestureRecognizerTests: XCTestCase {
     XCTAssertEqual(match.mappingID, globalID)
   }
 
+  func testApplicationSpecificLayerWinsBeforeDistanceComparison()
+    throws
+  {
+    let candidate = try template(angle: 0)
+    let specificID = UUID()
+    let globalID = UUID()
+    let mappings = [
+      mapping(
+        id: globalID,
+        template: candidate,
+        scope: .all,
+        priority: 0
+      ),
+      mapping(
+        id: specificID,
+        template: try template(angle: 0.15),
+        scope: .only(["com.apple.Safari"]),
+        priority: 1
+      ),
+    ]
+
+    let decision = GestureRecognizer().recognize(
+      candidate,
+      mappings: mappings,
+      frontmostBundleID: "com.apple.Safari"
+    )
+
+    guard case .matched(let match) = decision else {
+      return XCTFail("Expected a match, got \(decision)")
+    }
+    XCTAssertEqual(match.mappingID, specificID)
+  }
+
+  func testApplicationSpecificNoMatchFallsBackToGlobal() throws {
+    let candidate = try template(angle: 0)
+    let globalID = UUID()
+    let mappings = [
+      mapping(
+        id: UUID(),
+        template: try template(angle: .pi / 2),
+        scope: .only(["com.apple.Safari"])
+      ),
+      mapping(
+        id: globalID,
+        template: candidate,
+        scope: .all
+      ),
+    ]
+
+    let decision = GestureRecognizer().recognize(
+      candidate,
+      mappings: mappings,
+      frontmostBundleID: "com.apple.Safari"
+    )
+
+    guard case .matched(let match) = decision else {
+      return XCTFail("Expected global fallback, got \(decision)")
+    }
+    XCTAssertEqual(match.mappingID, globalID)
+  }
+
+  func testSimilarMappingsInSameSpecificLayerAreAmbiguous()
+    throws
+  {
+    let candidate = try template(angle: 0)
+    let recognizer = GestureRecognizer(
+      configuration: .init(
+        acceptanceThreshold: 1,
+        ambiguityMargin: 1
+      )
+    )
+    let decision = recognizer.recognize(
+      candidate,
+      mappings: [
+        mapping(
+          id: UUID(),
+          template: try template(angle: 0.01),
+          scope: .only(["com.apple.Safari"])
+        ),
+        mapping(
+          id: UUID(),
+          template: try template(angle: 0.02),
+          scope: .only(["com.apple.Safari"])
+        ),
+      ],
+      frontmostBundleID: "com.apple.Safari"
+    )
+
+    guard case .ambiguous = decision else {
+      return XCTFail("Expected ambiguity, got \(decision)")
+    }
+  }
+
+  func testTrackpadSpecificFlowOverridesDeviceAgnosticFlow()
+    throws
+  {
+    let candidate = try template(angle: 0)
+    let anyDeviceID = UUID()
+    let trackpadID = UUID()
+    let decision = GestureRecognizer().recognize(
+      candidate,
+      mappings: [
+        mapping(
+          id: anyDeviceID,
+          template: candidate,
+          deviceScope: .any
+        ),
+        mapping(
+          id: trackpadID,
+          template: try template(angle: 0.1),
+          deviceScope: .trackpad
+        ),
+      ],
+      frontmostBundleID: nil,
+      inputDevice: .trackpad
+    )
+
+    guard case .matched(let match) = decision else {
+      return XCTFail("Expected a trackpad match, got \(decision)")
+    }
+    XCTAssertEqual(match.mappingID, trackpadID)
+  }
+
+  func testMouseFlowDoesNotConsumeTrackpadInput() throws {
+    let candidate = try template(angle: 0)
+    let decision = GestureRecognizer().recognize(
+      candidate,
+      mappings: [
+        mapping(
+          id: UUID(),
+          template: candidate,
+          deviceScope: .mouse(identifier: nil)
+        )
+      ],
+      frontmostBundleID: nil,
+      inputDevice: .trackpad
+    )
+
+    XCTAssertEqual(decision, .noMatch)
+  }
+
   func testAllExceptScopeFailsClosedForExcludedOrUnknownApp()
     throws
   {
@@ -245,7 +386,8 @@ final class GestureRecognizerTests: XCTestCase {
     id: UUID,
     template: GestureTemplate,
     scope: AppScope = .all,
-    priority: Int = 0
+    priority: Int = 0,
+    deviceScope: InputDeviceScope = .any
   ) -> GestureMapping {
     GestureMapping(
       id: id,
@@ -253,6 +395,7 @@ final class GestureRecognizerTests: XCTestCase {
       templates: [template],
       shortcut: shortcut,
       appScope: scope,
+      deviceScope: deviceScope,
       priority: priority
     )
   }

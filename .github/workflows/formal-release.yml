@@ -1,0 +1,262 @@
+name: iGestures Formal Product Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version without a leading v
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: formal-product-release
+  cancel-in-progress: false
+
+jobs:
+  build-notarize-and-release:
+    name: Developer ID build, notarize, and publish
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ inputs.version }}
+      FORMAL_BUNDLE_ID: com.ron159.igestures
+      UPDATE_MANIFEST_URL: https://github.com/${{ github.repository }}/releases/download/product-latest/update-manifest.json
+      UPDATE_PUBLIC_KEY: ${{ vars.IGESTURES_UPDATE_PUBLIC_KEY }}
+      DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+      DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+      P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+      P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+      NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+      NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+      NOTARY_PRIVATE_KEY: ${{ secrets.APPLE_NOTARY_PRIVATE_KEY }}
+      UPDATE_PRIVATE_KEY: ${{ secrets.IGESTURES_UPDATE_PRIVATE_KEY }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Validate release inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test -n "$UPDATE_PUBLIC_KEY"
+          test -n "$DEVELOPER_ID_APPLICATION"
+          test -n "$DEVELOPMENT_TEAM"
+          test -n "$P12_BASE64"
+          test -n "$NOTARY_PRIVATE_KEY"
+          test -n "$UPDATE_PRIVATE_KEY"
+
+      - name: Run release tests
+        run: |
+          swift format lint --strict --recursive \
+            iGestures \
+            iGesturesTests \
+            iGesturesCoreChecks \
+            Package.swift
+          swift run -c release iGesturesCoreChecks
+          xcodebuild \
+            -project iGestures.xcodeproj \
+            -scheme iGestures \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$RUNNER_TEMP/iGesturesTests" \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
+      - name: Import Developer ID certificate
+        id: signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/iGestures-signing.keychain-db"
+          keychain_password="$(/usr/bin/openssl rand -hex 24)"
+          certificate="$RUNNER_TEMP/developer-id.p12"
+
+          printf '%s' "$P12_BASE64" | base64 -D > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" \
+            -k "$keychain" \
+            -P "$P12_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain"
+          security list-keychains -d user -s "$keychain"
+          echo "keychain=$keychain" >> "$GITHUB_OUTPUT"
+
+      - name: Build signed arm64 application
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          derived="$RUNNER_TEMP/iGesturesFormal"
+          xcodebuild \
+            -project iGestures.xcodeproj \
+            -scheme iGestures \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath "$derived" \
+            MARKETING_VERSION="$VERSION" \
+            PRODUCT_BUNDLE_IDENTIFIER="$FORMAL_BUNDLE_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$DEVELOPER_ID_APPLICATION" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            IGESTURES_UPDATE_MANIFEST_URL="$UPDATE_MANIFEST_URL" \
+            IGESTURES_UPDATE_PUBLIC_KEY="$UPDATE_PUBLIC_KEY" \
+            build
+
+          app="$derived/Build/Products/Release/iGestures.app"
+          binary="$app/Contents/MacOS/iGestures"
+          test "$(lipo -archs "$binary")" = "arm64"
+          test "$(/usr/libexec/PlistBuddy -c \
+            'Print :LSMinimumSystemVersion' \
+            "$app/Contents/Info.plist")" = "26.0"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign --display --verbose=4 "$app" 2>&1 |
+            grep -F "Authority=Developer ID Application:"
+          otool -l "$binary" |
+            awk '/LC_BUILD_VERSION/{found=1} found && /minos/{print $2; exit}' |
+            grep -Fx "26.0"
+
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+
+      - name: Submit to Apple notarization
+        shell: bash
+        env:
+          APP: ${{ steps.build.outputs.app }}
+        run: |
+          set -euo pipefail
+          notary_key="$RUNNER_TEMP/AuthKey_$NOTARY_KEY_ID.p8"
+          submission="$RUNNER_TEMP/iGestures-notarization.zip"
+          printf '%s' "$NOTARY_PRIVATE_KEY" > "$notary_key"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$submission"
+          xcrun notarytool submit "$submission" \
+            --key "$notary_key" \
+            --key-id "$NOTARY_KEY_ID" \
+            --issuer "$NOTARY_ISSUER_ID" \
+            --wait
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          spctl --assess --type execute --verbose=4 "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+      - name: Package and sign update manifest
+        id: package
+        shell: bash
+        env:
+          APP: ${{ steps.build.outputs.app }}
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/iGesturesFormalArtifacts"
+          archive="iGestures-$VERSION-macOS-arm64.zip"
+          archive_url="https://github.com/$GITHUB_REPOSITORY/releases/download/product-latest/$archive"
+          mkdir -p "$output"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$APP" "$output/$archive"
+          checksum="$(shasum -a 256 "$output/$archive" | awk '{print $1}')"
+          printf '%s  %s\n' "$checksum" "$archive" \
+            > "$output/$archive.sha256"
+
+          payload="$RUNNER_TEMP/update-payload.txt"
+          private_key="$RUNNER_TEMP/update-private-key.pem"
+          signature="$RUNNER_TEMP/update-signature.bin"
+          openssl_bin="$(brew --prefix openssl@3)/bin/openssl"
+          test -x "$openssl_bin"
+          printf '%s\n26.0\n%s\n%s' \
+            "$VERSION" "$archive_url" "$checksum" > "$payload"
+          printf '%s' "$UPDATE_PRIVATE_KEY" > "$private_key"
+          "$openssl_bin" pkeyutl -sign \
+            -inkey "$private_key" \
+            -rawin \
+            -in "$payload" \
+            -out "$signature"
+          signature_base64="$(base64 < "$signature" | tr -d '\n')"
+          jq -n \
+            --arg version "$VERSION" \
+            --arg minimumSystemVersion "26.0" \
+            --arg archiveURL "$archive_url" \
+            --arg sha256 "$checksum" \
+            --arg signature "$signature_base64" \
+            '{
+              version: $version,
+              minimumSystemVersion: $minimumSystemVersion,
+              archiveURL: $archiveURL,
+              sha256: $sha256,
+              signature: $signature
+            }' > "$output/update-manifest.json"
+
+          echo "output=$output" >> "$GITHUB_OUTPUT"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Publish versioned formal release
+        shell: bash
+        env:
+          OUTPUT: ${{ steps.package.outputs.output }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+        run: |
+          set -euo pipefail
+          tag="product-v$VERSION"
+          notes="Notarized iGestures product release for macOS 26 or later on Apple Silicon.
+
+          Bundle ID: $FORMAL_BUNDLE_ID
+          Signed with Developer ID, hardened, notarized, and stapled."
+          git tag "$tag" "$GITHUB_SHA"
+          git push origin "$tag"
+          gh release create "$tag" \
+            "$OUTPUT/$ARCHIVE" \
+            "$OUTPUT/$ARCHIVE.sha256" \
+            "$OUTPUT/update-manifest.json" \
+            --verify-tag \
+            --title "iGestures $VERSION" \
+            --notes "$notes" \
+            --latest
+
+      - name: Update rolling product endpoint
+        shell: bash
+        env:
+          OUTPUT: ${{ steps.package.outputs.output }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+        run: |
+          set -euo pipefail
+          if gh release view product-latest >/dev/null 2>&1; then
+            gh api --method PATCH \
+              "repos/$GITHUB_REPOSITORY/git/refs/tags/product-latest" \
+              --raw-field sha="$GITHUB_SHA" \
+              --field force=true
+            gh release upload product-latest \
+              "$OUTPUT/$ARCHIVE" \
+              "$OUTPUT/$ARCHIVE.sha256" \
+              "$OUTPUT/update-manifest.json" \
+              --clobber
+            gh release edit product-latest \
+              --target "$GITHUB_SHA" \
+              --title "iGestures Product Update $VERSION" \
+              --notes "Signed update endpoint for iGestures $VERSION." \
+              --latest=false
+          else
+            gh release create product-latest \
+              "$OUTPUT/$ARCHIVE" \
+              "$OUTPUT/$ARCHIVE.sha256" \
+              "$OUTPUT/update-manifest.json" \
+              --target "$GITHUB_SHA" \
+              --title "iGestures Product Update $VERSION" \
+              --notes "Signed update endpoint for iGestures $VERSION." \
+              --latest=false
+          fi
+
+      - name: Remove temporary signing keychain
+        if: always() && steps.signing.outputs.keychain != ''
+        shell: bash
+        env:
+          KEYCHAIN: ${{ steps.signing.outputs.keychain }}
+        run: security delete-keychain "$KEYCHAIN"

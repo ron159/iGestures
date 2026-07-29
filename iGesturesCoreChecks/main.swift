@@ -541,8 +541,8 @@ private final class CoreChecks {
       check(false, "mapping store accepted shortcut flag garbage")
     } catch {
       check(
-        error as? MappingStoreError == .invalidShortcut,
-        "mapping store returned the wrong shortcut validation error"
+        error as? MappingStoreError == .invalidAction,
+        "mapping store returned the wrong action validation error"
       )
     }
 

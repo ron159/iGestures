@@ -5,14 +5,19 @@ struct GestureRecorderSheet: View {
 
   @ObservedObject var model: AppModel
   @State private var name: String
-  @State private var shortcut: KeyboardShortcut
+  @State private var action: GestureAction
+  @State private var appScope: AppScope
+  @State private var triggerButton: GestureTriggerButton?
+  @State private var deviceScope: InputDeviceScope
+  @State private var isEditingScope = false
   @State private var training: GestureTrainingSession
   @State private var points: [GesturePoint] = []
   @State private var feedback: String
 
   private let existingMappings: [GestureMapping]
-  private let initialAppScope: AppScope
   private let initialIsEnabled: Bool
+  private let initialCategory: String?
+  private let initialRepeatModeEnabled: Bool
   private let isEditing: Bool
   private let originalGesture: [GesturePoint]
   let onSave: (GestureMappingDraft) -> Void
@@ -25,8 +30,10 @@ struct GestureRecorderSheet: View {
   ) {
     self.model = model
     self.existingMappings = existingMappings
-    self.initialAppScope = editingMapping?.appScope ?? .all
     self.initialIsEnabled = editingMapping?.isEnabled ?? true
+    self.initialCategory = editingMapping?.category
+    self.initialRepeatModeEnabled =
+      editingMapping?.repeatModeEnabled ?? false
     self.isEditing = editingMapping != nil
     self.originalGesture =
       editingMapping?.templates.first?.points ?? []
@@ -35,15 +42,27 @@ struct GestureRecorderSheet: View {
       initialValue:
         editingMapping?.name ?? String(localized: "New Gesture")
     )
-    _shortcut = State(
+    _action = State(
       initialValue:
-        editingMapping?.shortcut
-        ?? ShortcutRecordingSession.emptyShortcut
+        editingMapping?.action
+        ?? .keyboardShortcut(
+          ShortcutRecordingSession.emptyShortcut
+        )
     )
+    let initialScope = editingMapping?.appScope ?? .all
+    _appScope = State(initialValue: initialScope)
+    let initialTrigger = editingMapping?.triggerButton
+    _triggerButton = State(initialValue: initialTrigger)
+    let initialDeviceScope = editingMapping?.deviceScope ?? .any
+    _deviceScope = State(initialValue: initialDeviceScope)
     _training = State(
       initialValue: GestureTrainingSession(
         existingMappings: existingMappings,
-        editingMappingID: editingMapping?.id
+        editingMappingID: editingMapping?.id,
+        appScope: initialScope,
+        triggerButton: initialTrigger,
+        defaultTriggerButton: model.triggerButton,
+        deviceScope: initialDeviceScope
       )
     )
     _feedback = State(
@@ -88,10 +107,62 @@ struct GestureRecorderSheet: View {
         .foregroundStyle(feedbackColor)
         .frame(maxWidth: .infinity, alignment: .leading)
 
+      TextField(String(localized: "Gesture Name"), text: $name)
+
+      GestureActionEditor(action: $action, model: model)
+
       HStack {
-        TextField(String(localized: "Gesture Name"), text: $name)
-        ShortcutRecorderView(shortcut: $shortcut, model: model)
-          .frame(width: 140)
+        Text(String(localized: "Application Scope"))
+        Spacer()
+        Button(scopeSummary) {
+          isEditingScope = true
+        }
+      }
+
+      Picker(
+        String(localized: "Trigger Mouse Button"),
+        selection: Binding(
+          get: { triggerButton },
+          set: {
+            triggerButton = $0
+            training.setTriggerButton($0)
+            points.removeAll(keepingCapacity: true)
+            feedback = String(
+              localized: "Draw the same gesture three times."
+            )
+          }
+        )
+      ) {
+        Text(String(localized: "Use Global Default"))
+          .tag(GestureTriggerButton?.none)
+        ForEach(GestureTriggerButton.commonPresets) { button in
+          Text(triggerButtonName(button))
+            .tag(GestureTriggerButton?.some(button))
+        }
+        Text(String(localized: "Trackpad Modifier Gesture"))
+          .tag(GestureTriggerButton?.some(.trackpad))
+      }
+
+      Picker(
+        String(localized: "Input Device"),
+        selection: Binding(
+          get: { deviceScope },
+          set: {
+            deviceScope = $0
+            training.setDeviceScope($0)
+            if $0 == .trackpad {
+              triggerButton = .trackpad
+              training.setTriggerButton(.trackpad)
+            }
+          }
+        )
+      ) {
+        Text(String(localized: "Any Device"))
+          .tag(InputDeviceScope.any)
+        Text(String(localized: "Mouse"))
+          .tag(InputDeviceScope.mouse(identifier: nil))
+        Text(String(localized: "Trackpad"))
+          .tag(InputDeviceScope.trackpad)
       }
 
       if let conflict = shortcutConflict {
@@ -122,8 +193,12 @@ struct GestureRecorderSheet: View {
             GestureMappingDraft(
               name: trimmedName,
               templates: training.templates,
-              shortcut: shortcut,
-              appScope: initialAppScope,
+              action: action,
+              appScope: appScope,
+              triggerButton: triggerButton,
+              category: initialCategory,
+              repeatModeEnabled: initialRepeatModeEnabled,
+              deviceScope: deviceScope,
               isEnabled: initialIsEnabled
             )
           )
@@ -135,6 +210,16 @@ struct GestureRecorderSheet: View {
     }
     .padding(24)
     .frame(width: 640)
+    .sheet(isPresented: $isEditingScope) {
+      AppScopeEditor(scope: appScope) { scope in
+        appScope = scope
+        training.setAppScope(scope)
+        points.removeAll(keepingCapacity: true)
+        feedback = String(
+          localized: "Draw the same gesture three times."
+        )
+      }
+    }
   }
 
   @ViewBuilder
@@ -170,11 +255,50 @@ struct GestureRecorderSheet: View {
   private var canSave: Bool {
     training.phase == .readyToSave
       && !trimmedName.isEmpty
-      && shortcut.isValid
+      && action.isValid
   }
 
   private var shortcutConflict: SystemShortcutConflict? {
-    SystemShortcutConflictDetector().conflict(for: shortcut)
+    guard case .keyboardShortcut(let shortcut) = action else {
+      return nil
+    }
+    return SystemShortcutConflictDetector().conflict(for: shortcut)
+  }
+
+  private var scopeSummary: String {
+    switch appScope {
+    case .all:
+      String(localized: "All Apps")
+    case .only(let bundleIDs):
+      String(
+        format: String(localized: "Only %d Apps"),
+        bundleIDs.count
+      )
+    case .allExcept(let bundleIDs):
+      String(
+        format: String(localized: "Except %d Apps"),
+        bundleIDs.count
+      )
+    }
+  }
+
+  private func triggerButtonName(
+    _ button: GestureTriggerButton
+  ) -> String {
+    if button == .trackpad {
+      return String(localized: "Trackpad Modifier Gesture")
+    }
+    return switch button.buttonNumber {
+    case 1:
+      String(localized: "Right Mouse Button")
+    case 2:
+      String(localized: "Middle Mouse Button")
+    default:
+      String(
+        format: String(localized: "Mouse Button %d"),
+        Int(button.buttonNumber) + 1
+      )
+    }
   }
 
   private var feedbackColor: Color {
@@ -217,7 +341,7 @@ struct GestureRecorderSheet: View {
       )
     case .readyToSave:
       return String(
-        localized: "Gesture verified. Choose a shortcut and save."
+        localized: "Gesture verified. Choose an action and save."
       )
     case .sampleRejected(.conflicts(let mappingID, _)):
       let name =

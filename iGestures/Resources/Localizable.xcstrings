@@ -1,12 +1,32 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%.2f s delay": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "延时 %.2f 秒"
+          }
+        }
+      }
+    },
     "%.2f seconds": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "%.2f 秒"
+          }
+        }
+      }
+    },
+    "%@ Copy": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 副本"
           }
         }
       }
@@ -27,6 +47,618 @@
         }
       }
     },
+    "%d of %d samples recorded.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已录制 %d/%d 个样本。"
+          }
+        }
+      }
+    },
+    "%d of %d tests passed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已通过 %d/%d 次测试。"
+          }
+        }
+      }
+    },
+    "%lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
+        }
+      }
+    },
+    "%lld / 4": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / 4"
+          }
+        }
+      }
+    },
+    "%lld.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld."
+          }
+        }
+      }
+    },
+    "Accessibility": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能"
+          }
+        }
+      }
+    },
+    "Accessibility Permission": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能权限"
+          }
+        }
+      }
+    },
+    "Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动作"
+          }
+        }
+      }
+    },
+    "Action Sequence": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动作序列"
+          }
+        }
+      }
+    },
+    "Action Type": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动作类型"
+          }
+        }
+      }
+    },
+    "Action Types": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动作类型"
+          }
+        }
+      }
+    },
+    "Action failed: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动作失败：%@"
+          }
+        }
+      }
+    },
+    "Add Compound Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加复合手势"
+          }
+        }
+      }
+    },
+    "Add Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加手势"
+          }
+        }
+      }
+    },
+    "Add Selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加所选项"
+          }
+        }
+      }
+    },
+    "Add Step": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加步骤"
+          }
+        }
+      }
+    },
+    "Add a Rocker or trigger-button plus wheel binding.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加 Rocker 或“触发键 + 滚轮”绑定。"
+          }
+        }
+      }
+    },
+    "Advanced Input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高级输入"
+          }
+        }
+      }
+    },
+    "Advanced compound input is disabled by default. Unconfigured input always passes through.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高级复合输入默认关闭。未配置的输入始终透传。"
+          }
+        }
+      }
+    },
+    "All Applications": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有应用"
+          }
+        }
+      }
+    },
+    "All Apps": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有应用"
+          }
+        }
+      }
+    },
+    "All Except These Apps": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "除这些应用外全部"
+          }
+        }
+      }
+    },
+    "Any Device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任意设备"
+          }
+        }
+      }
+    },
+    "AppleScript": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AppleScript"
+          }
+        }
+      }
+    },
+    "Application": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用"
+          }
+        }
+      }
+    },
+    "Application Scope": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用范围"
+          }
+        }
+      }
+    },
+    "Application Switcher": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用切换器"
+          }
+        }
+      }
+    },
+    "Applications": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用"
+          }
+        }
+      }
+    },
+    "Back": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后退"
+          }
+        }
+      }
+    },
+    "Brightness Down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "降低亮度"
+          }
+        }
+      }
+    },
+    "Brightness Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提高亮度"
+          }
+        }
+      }
+    },
+    "Browser": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览器"
+          }
+        }
+      }
+    },
+    "Button %d": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按键 %d"
+          }
+        }
+      }
+    },
+    "Button %d + Wheel %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Button %1$d + Wheel %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按键 %d + 滚轮%@"
+          }
+        }
+      }
+    },
+    "Button %d then Button %d": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Button %1$d then Button %2$d"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按键 %d 后按按键 %d"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "Check Again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新检查"
+          }
+        }
+      }
+    },
+    "Check for Updates": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查更新"
+          }
+        }
+      }
+    },
+    "Choose": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择"
+          }
+        }
+      }
+    },
+    "Choose Applications…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择应用…"
+          }
+        }
+      }
+    },
+    "Choose Application…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择应用…"
+          }
+        }
+      }
+    },
+    "Choose Starter Gestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择入门手势"
+          }
+        }
+      }
+    },
+    "Choose a Trigger Button": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择触发键"
+          }
+        }
+      }
+    },
+    "Choose an iGestures JSON configuration to import.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要导入的 iGestures JSON 配置。"
+          }
+        }
+      }
+    },
+    "Choose applications for this gesture scope.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为这个手势范围选择应用。"
+          }
+        }
+      }
+    },
+    "Choose presets to copy into your library. Existing gestures are never replaced.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要复制到手势库的预设。现有手势不会被替换。"
+          }
+        }
+      }
+    },
+    "Choose where to export the gesture configuration.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择手势配置的导出位置。"
+          }
+        }
+      }
+    },
+    "Clear Diagnostics": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除诊断"
+          }
+        }
+      }
+    },
+    "Close Tab": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭标签页"
+          }
+        }
+      }
+    },
+    "Command + Option": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command + Option"
+          }
+        }
+      }
+    },
+    "Configuration": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置"
+          }
+        }
+      }
+    },
+    "Configured compound input takes priority. Unconfigured button and wheel input passes through unchanged.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已配置的复合输入优先。未配置的按键和滚轮输入会原样透传。"
+          }
+        }
+      }
+    },
+    "Conflicts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冲突"
+          }
+        }
+      }
+    },
+    "Continue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续"
+          }
+        }
+      }
+    },
+    "Control + Command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Control + Command"
+          }
+        }
+      }
+    },
+    "Control + Option": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Control + Option"
+          }
+        }
+      }
+    },
+    "Default": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认"
+          }
+        }
+      }
+    },
+    "Delete": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除"
+          }
+        }
+      }
+    },
+    "Delete Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除手势"
+          }
+        }
+      }
+    },
+    "Delete this gesture?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除这个手势？"
+          }
+        }
+      }
+    },
     "Disable": {
       "localizations": {
         "en": {
@@ -39,6 +671,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "停用"
+          }
+        }
+      }
+    },
+    "Disable Results": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停用结果"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        }
+      }
+    },
+    "Down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向下"
+          }
+        }
+      }
+    },
+    "Draw here": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在这里绘制"
+          }
+        }
+      }
+    },
+    "Draw here without executing an action.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此绘制，不会执行动作。"
+          }
+        }
+      }
+    },
+    "Draw over the original gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请参照原手势绘制"
+          }
+        }
+      }
+    },
+    "Draw the same gesture three times.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请连续绘制三次相同手势。"
+          }
+        }
+      }
+    },
+    "Draw the selected gesture to test it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "绘制所选手势进行测试。"
+          }
+        }
+      }
+    },
+    "Draw “%@” in the practice area.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在练习区域绘制“%@”。"
+          }
+        }
+      }
+    },
+    "Duplicate Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制手势"
           }
         }
       }
@@ -59,34 +791,182 @@
         }
       }
     },
-    "Grant Access": {
+    "Enable Results": {
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grant Access"
-          }
-        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "授予权限"
+            "value": "启用结果"
           }
         }
       }
     },
-    "Gesture data could not be loaded.": {
+    "Enable Trackpad Modifier Gestures": {
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gesture data could not be loaded."
-          }
-        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法加载手势数据。"
+            "value": "启用触控板修饰键手势"
+          }
+        }
+      }
+    },
+    "Enable gesture recognition": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用手势识别"
+          }
+        }
+      }
+    },
+    "Enable in %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 %@ 中启用"
+          }
+        }
+      }
+    },
+    "Event Tap": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "事件 Tap"
+          }
+        }
+      }
+    },
+    "Except %d Apps": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排除 %d 个应用"
+          }
+        }
+      }
+    },
+    "Exclude %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排除 %@"
+          }
+        }
+      }
+    },
+    "Exclude Current App for Trigger": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为当前触发键排除当前应用"
+          }
+        }
+      }
+    },
+    "Excluded Applications": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已排除的应用"
+          }
+        }
+      }
+    },
+    "Executed: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已执行：%@"
+          }
+        }
+      }
+    },
+    "Export…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出…"
+          }
+        }
+      }
+    },
+    "Finish": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        }
+      }
+    },
+    "Forward": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前进"
+          }
+        }
+      }
+    },
+    "General": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通用"
+          }
+        }
+      }
+    },
+    "Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势"
+          }
+        }
+      }
+    },
+    "Gesture Name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势名称"
+          }
+        }
+      }
+    },
+    "Gesture Presets": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势预设"
+          }
+        }
+      }
+    },
+    "Gesture cancelled.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势已取消。"
           }
         }
       }
@@ -107,6 +987,72 @@
         }
       }
     },
+    "Gesture data could not be exported.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法导出手势数据。"
+          }
+        }
+      }
+    },
+    "Gesture data could not be imported.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法导入手势数据。"
+          }
+        }
+      }
+    },
+    "Gesture data could not be loaded.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesture data could not be loaded."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载手势数据。"
+          }
+        }
+      }
+    },
+    "Gesture is ambiguous. Adjust or retrain similar gestures.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势结果有歧义。请调整或重新训练相似手势。"
+          }
+        }
+      }
+    },
+    "Gesture not recognized. Try a clearer stroke.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未识别手势。请尝试更清晰的轨迹。"
+          }
+        }
+      }
+    },
+    "Gesture result was ambiguous": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势结果有歧义"
+          }
+        }
+      }
+    },
     "Gesture storage is unavailable.": {
       "localizations": {
         "en": {
@@ -119,6 +1065,752 @@
           "stringUnit": {
             "state": "translated",
             "value": "手势存储不可用。"
+          }
+        }
+      }
+    },
+    "Gesture tracking starts when either this hold duration or the movement threshold is reached.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "达到此按住时长或移动距离阈值中的任一条件后，就会开始跟踪手势。"
+          }
+        }
+      }
+    },
+    "Gesture verified. Choose a shortcut and save.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势已验证。请选择快捷键并保存。"
+          }
+        }
+      }
+    },
+    "Gesture verified. Choose an action and save.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势已验证。请选择动作并保存。"
+          }
+        }
+      }
+    },
+    "Gesture was cancelled": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势已取消"
+          }
+        }
+      }
+    },
+    "Gesture was not recognized": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未识别手势"
+          }
+        }
+      }
+    },
+    "Gestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势"
+          }
+        }
+      }
+    },
+    "Gestures exported successfully.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势已成功导出。"
+          }
+        }
+      }
+    },
+    "Gestures imported successfully.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势已成功导入。"
+          }
+        }
+      }
+    },
+    "Getting Started": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "入门"
+          }
+        }
+      }
+    },
+    "Global Enable Shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全局启停快捷键"
+          }
+        }
+      }
+    },
+    "Grant Access": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grant Access"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "授予权限"
+          }
+        }
+      }
+    },
+    "Granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已授予"
+          }
+        }
+      }
+    },
+    "Haptic Feedback": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触觉反馈"
+          }
+        }
+      }
+    },
+    "Hold the configured trigger button, move the wheel once in the configured direction, then release.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住已配置的触发键，向配置方向滚动一次，然后松开。"
+          }
+        }
+      }
+    },
+    "Hold the first mouse button, press the second button, then release both.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住第一个鼠标键，再按第二个鼠标键，然后全部松开。"
+          }
+        }
+      }
+    },
+    "Hold this button and draw. A normal click is replayed when no gesture starts.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住此按键并绘制。未开始手势时会回放普通点击。"
+          }
+        }
+      }
+    },
+    "I created or reviewed this script and understand it can control this Mac.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我已创建或检查此脚本，并了解它可以控制这台 Mac。"
+          }
+        }
+      }
+    },
+    "Import Preview": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入预览"
+          }
+        }
+      }
+    },
+    "Import complete: %d mappings added.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入完成：已添加 %d 个映射。"
+          }
+        }
+      }
+    },
+    "Imported scripts remain disabled until you review and confirm them.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入的脚本在您检查并确认前保持停用。"
+          }
+        }
+      }
+    },
+    "Import…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入…"
+          }
+        }
+      }
+    },
+    "Input Device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入设备"
+          }
+        }
+      }
+    },
+    "Install and Restart": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装并重新启动"
+          }
+        }
+      }
+    },
+    "Keep diagnostics after quitting": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出后保留诊断"
+          }
+        }
+      }
+    },
+    "Key %d": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按键 %d"
+          }
+        }
+      }
+    },
+    "Keyboard Shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "键盘快捷键"
+          }
+        }
+      }
+    },
+    "Launch at Login": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录时启动"
+          }
+        }
+      }
+    },
+    "Launch at login could not be changed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法更改登录启动设置。"
+          }
+        }
+      }
+    },
+    "Launch at login is unavailable in this build.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此构建无法使用登录启动。"
+          }
+        }
+      }
+    },
+    "Launch at login requires approval in System Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录启动需要在系统设置中批准。"
+          }
+        }
+      }
+    },
+    "Left + Wheel Down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左键 + 滚轮向下"
+          }
+        }
+      }
+    },
+    "Left + Wheel Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "左键 + 滚轮向上"
+          }
+        }
+      }
+    },
+    "Left Mouse Button": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标左键"
+          }
+        }
+      }
+    },
+    "Left then Right": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先左键后右键"
+          }
+        }
+      }
+    },
+    "Listen Event Access": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "监听事件权限"
+          }
+        }
+      }
+    },
+    "Loading Gestures…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载手势…"
+          }
+        }
+      }
+    },
+    "Lock Screen": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "锁定屏幕"
+          }
+        }
+      }
+    },
+    "Loose": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宽松"
+          }
+        }
+      }
+    },
+    "Mappings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "映射"
+          }
+        }
+      }
+    },
+    "Merge": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并"
+          }
+        }
+      }
+    },
+    "Merge is non-destructive. Replace removes the current library after creating an undo backup.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合并不会破坏现有数据。完整替换会先创建撤销备份，再移除当前手势库。"
+          }
+        }
+      }
+    },
+    "Merge keeps existing mappings when stable IDs collide. Similar imported gestures are added and shown for review.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稳定 ID 冲突时，合并会保留现有映射。相似的导入手势会被添加并提示检查。"
+          }
+        }
+      }
+    },
+    "Middle": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中键"
+          }
+        }
+      }
+    },
+    "Middle + Wheel Down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中键 + 滚轮向下"
+          }
+        }
+      }
+    },
+    "Middle + Wheel Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中键 + 滚轮向上"
+          }
+        }
+      }
+    },
+    "Middle Mouse Button": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标中键"
+          }
+        }
+      }
+    },
+    "Missing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缺失"
+          }
+        }
+      }
+    },
+    "Mission Control": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调度中心"
+          }
+        }
+      }
+    },
+    "Mouse": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标"
+          }
+        }
+      }
+    },
+    "Mouse Button %d": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标按键 %d"
+          }
+        }
+      }
+    },
+    "Move Down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下移"
+          }
+        }
+      }
+    },
+    "Move Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上移"
+          }
+        }
+      }
+    },
+    "Mute": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静音"
+          }
+        }
+      }
+    },
+    "Navigation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导航"
+          }
+        }
+      }
+    },
+    "New Compound Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建复合手势"
+          }
+        }
+      }
+    },
+    "New Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新手势"
+          }
+        }
+      }
+    },
+    "New Mappings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增映射"
+          }
+        }
+      }
+    },
+    "New Tab": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建标签页"
+          }
+        }
+      }
+    },
+    "No Applications Selected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未选择应用"
+          }
+        }
+      }
+    },
+    "No Compound Gestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有复合手势"
+          }
+        }
+      }
+    },
+    "No Delay": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无延迟"
+          }
+        }
+      }
+    },
+    "No Gestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无手势"
+          }
+        }
+      }
+    },
+    "No Shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无快捷键"
+          }
+        }
+      }
+    },
+    "No recent gesture diagnostics.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有最近的手势诊断。"
+          }
+        }
+      }
+    },
+    "Not quite. Follow the preview and try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还不够接近。请参照预览重试。"
+          }
+        }
+      }
+    },
+    "On Failure": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失败时"
+          }
+        }
+      }
+    },
+    "Only %d Apps": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅 %d 个应用"
+          }
+        }
+      }
+    },
+    "Only These Apps": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅这些应用"
+          }
+        }
+      }
+    },
+    "Open Application": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开应用"
+          }
+        }
+      }
+    },
+    "Open Setup Guide": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开设置指南"
+          }
+        }
+      }
+    },
+    "Open System Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开系统设置"
+          }
+        }
+      }
+    },
+    "Open URL": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 URL"
+          }
+        }
+      }
+    },
+    "Original Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原手势"
+          }
+        }
+      }
+    },
+    "Permission Status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "权限状态"
           }
         }
       }
@@ -219,658 +1911,6 @@
         }
       }
     },
-    "Quit": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quit"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "退出"
-          }
-        }
-      }
-    },
-    "Settings…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Settings…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设置…"
-          }
-        }
-      }
-    },
-    "Show Gesture Trail": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "显示手势轨迹"
-          }
-        }
-      }
-    },
-    "%d of %d samples recorded.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已录制 %d/%d 个样本。"
-          }
-        }
-      }
-    },
-    "%d of %d tests passed.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已通过 %d/%d 次测试。"
-          }
-        }
-      }
-    },
-    "Accessibility": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "辅助功能"
-          }
-        }
-      }
-    },
-    "Add Gesture": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加手势"
-          }
-        }
-      }
-    },
-    "All Apps": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "所有应用"
-          }
-        }
-      }
-    },
-    "All Except These Apps": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "除这些应用外全部"
-          }
-        }
-      }
-    },
-    "Application Scope": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "应用范围"
-          }
-        }
-      }
-    },
-    "Applications": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "应用"
-          }
-        }
-      }
-    },
-    "Cancel": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取消"
-          }
-        }
-      }
-    },
-    "Check Again": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新检查"
-          }
-        }
-      }
-    },
-    "Choose an iGestures JSON configuration to import.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选择要导入的 iGestures JSON 配置。"
-          }
-        }
-      }
-    },
-    "Choose where to export the gesture configuration.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选择手势配置的导出位置。"
-          }
-        }
-      }
-    },
-    "Choose": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选择"
-          }
-        }
-      }
-    },
-    "Choose Applications…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选择应用…"
-          }
-        }
-      }
-    },
-    "Choose applications for this gesture scope.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "为这个手势范围选择应用。"
-          }
-        }
-      }
-    },
-    "Configuration": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "配置"
-          }
-        }
-      }
-    },
-    "Delete": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "删除"
-          }
-        }
-      }
-    },
-    "Delete Gesture": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "删除手势"
-          }
-        }
-      }
-    },
-    "Delete this gesture?": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "删除这个手势？"
-          }
-        }
-      }
-    },
-    "Draw here": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在这里绘制"
-          }
-        }
-      }
-    },
-    "Draw over the original gesture": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "请参照原手势绘制"
-          }
-        }
-      }
-    },
-    "Draw the same gesture three times.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "请连续绘制三次相同手势。"
-          }
-        }
-      }
-    },
-    "Enable gesture recognition": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "启用手势识别"
-          }
-        }
-      }
-    },
-    "Event Tap": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "事件 Tap"
-          }
-        }
-      }
-    },
-    "Except %d Apps": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "排除 %d 个应用"
-          }
-        }
-      }
-    },
-    "Export…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "导出…"
-          }
-        }
-      }
-    },
-    "General": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "通用"
-          }
-        }
-      }
-    },
-    "Gesture Name": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手势名称"
-          }
-        }
-      }
-    },
-    "Gesture data could not be exported.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法导出手势数据。"
-          }
-        }
-      }
-    },
-    "Gesture data could not be imported.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法导入手势数据。"
-          }
-        }
-      }
-    },
-    "Gestures exported successfully.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手势已成功导出。"
-          }
-        }
-      }
-    },
-    "Gestures imported successfully.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手势已成功导入。"
-          }
-        }
-      }
-    },
-    "Gesture verified. Choose a shortcut and save.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手势已验证。请选择快捷键并保存。"
-          }
-        }
-      }
-    },
-    "Gesture tracking starts when either this hold duration or the movement threshold is reached.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "达到此按住时长或移动距离阈值中的任一条件后，就会开始跟踪手势。"
-          }
-        }
-      }
-    },
-    "Gestures": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手势"
-          }
-        }
-      }
-    },
-    "Granted": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已授予"
-          }
-        }
-      }
-    },
-    "Import…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "导入…"
-          }
-        }
-      }
-    },
-    "Key %d": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按键 %d"
-          }
-        }
-      }
-    },
-    "Loading Gestures…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在加载手势…"
-          }
-        }
-      }
-    },
-    "Listen Event Access": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "监听事件权限"
-          }
-        }
-      }
-    },
-    "Launch at Login": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "登录时启动"
-          }
-        }
-      }
-    },
-    "Launch at login could not be changed.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法更改登录启动设置。"
-          }
-        }
-      }
-    },
-    "Launch at login is unavailable in this build.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此构建无法使用登录启动。"
-          }
-        }
-      }
-    },
-    "Launch at login requires approval in System Settings.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "登录启动需要在系统设置中批准。"
-          }
-        }
-      }
-    },
-    "iGestures needs permission to observe mouse gestures and post the configured shortcut.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "iGestures 需要权限来观察鼠标手势并发送配置的快捷键。"
-          }
-        }
-      }
-    },
-    "Trigger Hold Duration": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "触发时长"
-          }
-        }
-      }
-    },
-    "Middle Mouse Button": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "鼠标中键"
-          }
-        }
-      }
-    },
-    "Left Mouse Button": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "鼠标左键"
-          }
-        }
-      }
-    },
-    "Move Down": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "下移"
-          }
-        }
-      }
-    },
-    "Move Up": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "上移"
-          }
-        }
-      }
-    },
-    "Mouse Button %d": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "鼠标按键 %d"
-          }
-        }
-      }
-    },
-    "No Delay": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无延迟"
-          }
-        }
-      }
-    },
-    "Missing": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "缺失"
-          }
-        }
-      }
-    },
-    "New Gesture": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新手势"
-          }
-        }
-      }
-    },
-    "No Gestures": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂无手势"
-          }
-        }
-      }
-    },
-    "No Applications Selected": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尚未选择应用"
-          }
-        }
-      }
-    },
-    "No Shortcut": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无快捷键"
-          }
-        }
-      }
-    },
-    "Only %d Apps": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "仅 %d 个应用"
-          }
-        }
-      }
-    },
-    "Only These Apps": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "仅这些应用"
-          }
-        }
-      }
-    },
-    "Open System Settings": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "打开系统设置"
-          }
-        }
-      }
-    },
-    "Original Gesture": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "原手势"
-          }
-        }
-      }
-    },
     "Permissions": {
       "localizations": {
         "zh-Hans": {
@@ -881,22 +1921,92 @@
         }
       }
     },
-    "Permission Status": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "权限状态"
-          }
-        }
-      }
-    },
     "Post Event Access": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "发布事件权限"
+          }
+        }
+      }
+    },
+    "Practice": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习"
+          }
+        }
+      }
+    },
+    "Practice Advanced Input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习高级输入"
+          }
+        }
+      }
+    },
+    "Practice Gestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习手势"
+          }
+        }
+      }
+    },
+    "Practice Input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习输入"
+          }
+        }
+      }
+    },
+    "Practice passed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习通过。"
+          }
+        }
+      }
+    },
+    "Practice recognition without running the configured action.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习识别过程，不会运行已配置的动作。"
+          }
+        }
+      }
+    },
+    "Practice the physical sequence below before enabling a binding. This guide does not execute an action.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用绑定前，请练习以下物理操作顺序。此指南不会执行动作。"
+          }
+        }
+      }
+    },
+    "Presets": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预设"
           }
         }
       }
@@ -921,6 +2031,32 @@
         }
       }
     },
+    "Productivity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "效率"
+          }
+        }
+      }
+    },
+    "Quit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出"
+          }
+        }
+      }
+    },
     "Ready": {
       "localizations": {
         "zh-Hans": {
@@ -931,22 +2067,32 @@
         }
       }
     },
+    "Recent Gesture Diagnostics": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近的手势诊断"
+          }
+        }
+      }
+    },
+    "Recognition Sensitivity": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "识别灵敏度"
+          }
+        }
+      }
+    },
     "Record Gesture": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "录制手势"
-          }
-        }
-      }
-    },
-    "Record…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录制…"
           }
         }
       }
@@ -971,6 +2117,36 @@
         }
       }
     },
+    "Record a gesture and bind it to an action.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制手势并绑定动作。"
+          }
+        }
+      }
+    },
+    "Record…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制…"
+          }
+        }
+      }
+    },
+    "Refresh": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新"
+          }
+        }
+      }
+    },
     "Remove Application": {
       "localizations": {
         "zh-Hans": {
@@ -981,12 +2157,62 @@
         }
       }
     },
-    "Running": {
+    "Repeat": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在运行"
+            "value": "重复"
+          }
+        }
+      }
+    },
+    "Repeat the last successful action with another trigger click.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再次单击触发键即可重复上次成功识别的动作。"
+          }
+        }
+      }
+    },
+    "Replace All": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部替换"
+          }
+        }
+      }
+    },
+    "Right": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右键"
+          }
+        }
+      }
+    },
+    "Right + Wheel Down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右键 + 滚轮向下"
+          }
+        }
+      }
+    },
+    "Right + Wheel Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "右键 + 滚轮向上"
           }
         }
       }
@@ -997,6 +2223,76 @@
           "stringUnit": {
             "state": "translated",
             "value": "鼠标右键"
+          }
+        }
+      }
+    },
+    "Right then Left": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先右键后左键"
+          }
+        }
+      }
+    },
+    "Rocker": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rocker"
+          }
+        }
+      }
+    },
+    "Rocker and Wheel Gestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rocker 与滚轮手势"
+          }
+        }
+      }
+    },
+    "Run Apple Shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行 Apple 快捷指令"
+          }
+        }
+      }
+    },
+    "Run Fallback": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行回退动作"
+          }
+        }
+      }
+    },
+    "Run Shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行快捷指令"
+          }
+        }
+      }
+    },
+    "Running": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在运行"
           }
         }
       }
@@ -1021,16 +2317,6 @@
         }
       }
     },
-    "Select one or more applications for this scope.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "请为这个范围选择一个或多个应用。"
-          }
-        }
-      }
-    },
     "Save": {
       "localizations": {
         "zh-Hans": {
@@ -1051,12 +2337,208 @@
         }
       }
     },
+    "Schema": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schema"
+          }
+        }
+      }
+    },
     "Scope": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "范围"
+          }
+        }
+      }
+    },
+    "Script": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本"
+          }
+        }
+      }
+    },
+    "Script Type": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本类型"
+          }
+        }
+      }
+    },
+    "Scripts Require Review": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本需要检查"
+          }
+        }
+      }
+    },
+    "Search gestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索手势"
+          }
+        }
+      }
+    },
+    "Select All": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全选"
+          }
+        }
+      }
+    },
+    "Select one or more applications for this scope.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请为这个范围选择一个或多个应用。"
+          }
+        }
+      }
+    },
+    "Sequence · %d Steps": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "序列 · %d 步"
+          }
+        }
+      }
+    },
+    "Settings…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置…"
+          }
+        }
+      }
+    },
+    "Shell": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shell"
+          }
+        }
+      }
+    },
+    "Shell Script": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shell 脚本"
+          }
+        }
+      }
+    },
+    "Shortcut Name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快捷指令名称"
+          }
+        }
+      }
+    },
+    "Show Desktop": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示桌面"
+          }
+        }
+      }
+    },
+    "Show Gesture Trail": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示手势轨迹"
+          }
+        }
+      }
+    },
+    "Show Recognition Feedback": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示识别反馈"
+          }
+        }
+      }
+    },
+    "Skip Setup": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳过设置"
+          }
+        }
+      }
+    },
+    "Skip This Version": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳过此版本"
+          }
+        }
+      }
+    },
+    "Sleep": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "睡眠"
+          }
+        }
+      }
+    },
+    "Software Update": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "软件更新"
           }
         }
       }
@@ -1071,22 +2553,22 @@
         }
       }
     },
+    "Standard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标准"
+          }
+        }
+      }
+    },
     "Start Over": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "重新开始"
-          }
-        }
-      }
-    },
-    "Starting": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在启动"
           }
         }
       }
@@ -1101,12 +2583,22 @@
         }
       }
     },
-    "Stored Gestures": {
+    "Starting": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已存储手势"
+            "value": "正在启动"
+          }
+        }
+      }
+    },
+    "Stop": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
           }
         }
       }
@@ -1117,6 +2609,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "已停止"
+          }
+        }
+      }
+    },
+    "Stored Gestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已存储手势"
+          }
+        }
+      }
+    },
+    "Strict": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "严格"
+          }
+        }
+      }
+    },
+    "System": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统"
+          }
+        }
+      }
+    },
+    "System Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统动作"
           }
         }
       }
@@ -1141,6 +2673,26 @@
         }
       }
     },
+    "The last import could not be undone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法撤销上次导入。"
+          }
+        }
+      }
+    },
+    "The last import was undone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已撤销上次导入。"
+          }
+        }
+      }
+    },
     "The stroke is too short or incomplete. Try again.": {
       "localizations": {
         "zh-Hans": {
@@ -1161,12 +2713,52 @@
         }
       }
     },
-    "This shortcut is commonly reserved by macOS for app switching.": {
+    "The update check was rejected or could not be completed.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此快捷键通常由 macOS 用于应用切换。"
+            "value": "更新检查被拒绝或无法完成。"
+          }
+        }
+      }
+    },
+    "The update download failed validation. The current version was not changed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新下载未通过验证。当前版本未被更改。"
+          }
+        }
+      }
+    },
+    "The update package was rejected. The current version remains available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新包已被拒绝。当前版本仍可正常使用。"
+          }
+        }
+      }
+    },
+    "The update was installed but could not be restarted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新已安装，但无法重新启动。"
+          }
+        }
+      }
+    },
+    "These are copied into your library and can be disabled, duplicated, or changed later.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些手势会被复制到您的手势库，之后可停用、复制或修改。"
           }
         }
       }
@@ -1201,12 +2793,32 @@
         }
       }
     },
+    "This shortcut is commonly reserved by macOS for app switching.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此快捷键通常由 macOS 用于应用切换。"
+          }
+        }
+      }
+    },
     "This shortcut is commonly reserved by macOS for the character viewer.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "此快捷键通常由 macOS 用于字符检视器。"
+          }
+        }
+      }
+    },
+    "Timeout: %.0f seconds": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超时：%.0f 秒"
           }
         }
       }
@@ -1221,12 +2833,82 @@
         }
       }
     },
+    "Trackpad": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触控板"
+          }
+        }
+      }
+    },
+    "Trackpad Modifier Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触控板修饰键手势"
+          }
+        }
+      }
+    },
+    "Trackpad Modifiers": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触控板修饰键"
+          }
+        }
+      }
+    },
+    "Trigger": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触发键"
+          }
+        }
+      }
+    },
+    "Trigger + Wheel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触发键 + 滚轮"
+          }
+        }
+      }
+    },
+    "Trigger Hold Duration": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触发时长"
+          }
+        }
+      }
+    },
     "Trigger Mouse Button": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "手势触发按键"
+          }
+        }
+      }
+    },
+    "Try a longer, clearer stroke.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请尝试更长、更清晰的轨迹。"
           }
         }
       }
@@ -1241,12 +2923,202 @@
         }
       }
     },
+    "Uncategorized": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未分类"
+          }
+        }
+      }
+    },
+    "Undo Import": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销导入"
+          }
+        }
+      }
+    },
+    "Unnamed Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未命名手势"
+          }
+        }
+      }
+    },
+    "Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "向上"
+          }
+        }
+      }
+    },
+    "Updates are available only in the notarized product build.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新功能仅在经过公证的正式产品版本中可用。"
+          }
+        }
+      }
+    },
+    "Use Global Default": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用全局默认值"
+          }
+        }
+      }
+    },
+    "Version %@ is available.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本 %@ 可用。"
+          }
+        }
+      }
+    },
+    "Version %@ is currently skipped.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前已跳过版本 %@。"
+          }
+        }
+      }
+    },
+    "Version %@ was skipped.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已跳过版本 %@。"
+          }
+        }
+      }
+    },
+    "Volume Down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "降低音量"
+          }
+        }
+      }
+    },
+    "Volume Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提高音量"
+          }
+        }
+      }
+    },
+    "Welcome to iGestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "欢迎使用 iGestures"
+          }
+        }
+      }
+    },
     "another gesture": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "另一个手势"
+          }
+        }
+      }
+    },
+    "https://example.com": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://example.com"
+          }
+        }
+      }
+    },
+    "iGestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iGestures"
+          }
+        }
+      }
+    },
+    "iGestures is up to date.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iGestures 已是最新版本。"
+          }
+        }
+      }
+    },
+    "iGestures needs permission to observe mouse gestures and post the configured shortcut.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iGestures 需要权限来观察鼠标手势并发送配置的快捷键。"
+          }
+        }
+      }
+    },
+    "iGestures observes the configured mouse button and posts only the action you choose. Gesture paths stay on this Mac.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iGestures 仅观察已配置的鼠标按键，并只发送您选择的动作。手势轨迹始终保留在这台 Mac 上。"
+          }
+        }
+      }
+    },
+    "macOS shows the permission prompt only after you choose Grant Access.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有在您选择“授予访问权限”后，macOS 才会显示权限提示。"
+          }
+        }
+      }
+    },
+    "“%@” matched, but its action failed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已匹配“%@”，但动作执行失败。"
           }
         }
       }

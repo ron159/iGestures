@@ -44,7 +44,7 @@ public enum MappingStoreError: Error, Equatable, Sendable {
   case duplicateMappingID
   case invalidMappingName
   case invalidPriority
-  case invalidShortcut
+  case invalidAction
   case invalidTemplateCount(limit: Int)
   case invalidTemplatePointCount(required: Int)
   case nonFiniteTemplate
@@ -55,13 +55,54 @@ public enum MappingStoreError: Error, Equatable, Sendable {
   case fileSystemFailure
 }
 
+public enum MappingImportMode: String, CaseIterable, Sendable {
+  case merge
+  case replace
+}
+
+public enum MappingImportConflict: Equatable, Sendable {
+  case changedStableID(UUID)
+  case similarGesture(existingID: UUID, importedID: UUID)
+}
+
+public struct MappingImportPreview: Equatable, Sendable {
+  public let schemaVersion: Int
+  public let importedMappingCount: Int
+  public let mappingsToAdd: Int
+  public let mappingsToReplace: Int
+  public let actionTypes: [String]
+  public let conflicts: [MappingImportConflict]
+  public let scriptsRequiringConfirmation: [AutomationScript]
+
+  public init(
+    schemaVersion: Int,
+    importedMappingCount: Int,
+    mappingsToAdd: Int,
+    mappingsToReplace: Int,
+    actionTypes: [String],
+    conflicts: [MappingImportConflict],
+    scriptsRequiringConfirmation: [AutomationScript]
+  ) {
+    self.schemaVersion = schemaVersion
+    self.importedMappingCount = importedMappingCount
+    self.mappingsToAdd = mappingsToAdd
+    self.mappingsToReplace = mappingsToReplace
+    self.actionTypes = actionTypes
+    self.conflicts = conflicts
+    self.scriptsRequiringConfirmation = scriptsRequiringConfirmation
+  }
+}
+
 public actor MappingStore {
   public static let defaultFileName = "gesture-mappings.json"
   public static let defaultBackupFileName =
     "gesture-mappings.backup.json"
+  public static let defaultImportUndoFileName =
+    "gesture-mappings.pre-import.json"
 
   public nonisolated let fileURL: URL
   public nonisolated let backupURL: URL
+  public nonisolated let importUndoURL: URL
   public nonisolated let limits: MappingStoreLimits
 
   private let fileManager: FileManager
@@ -78,6 +119,10 @@ public actor MappingStore {
     )
     self.backupURL = directoryURL.appendingPathComponent(
       Self.defaultBackupFileName,
+      isDirectory: false
+    )
+    self.importUndoURL = directoryURL.appendingPathComponent(
+      Self.defaultImportUndoFileName,
       isDirectory: false
     )
     self.limits = limits
@@ -165,7 +210,50 @@ public actor MappingStore {
   }
 
   public func importData(from sourceURL: URL) throws -> GestureDatabase {
-    try replaceWithImportedData(readData(at: sourceURL))
+    try importData(from: sourceURL, mode: .merge)
+  }
+
+  public func previewImport(
+    from sourceURL: URL,
+    mode: MappingImportMode = .merge
+  ) throws -> MappingImportPreview {
+    let imported = try decodeAndValidate(readData(at: sourceURL))
+    return makeImportPlan(imported, mode: mode).preview
+  }
+
+  public func importData(
+    from sourceURL: URL,
+    mode: MappingImportMode
+  ) throws -> GestureDatabase {
+    let imported = try decodeAndValidate(readData(at: sourceURL))
+    let plan = makeImportPlan(imported, mode: mode)
+    try ensureDirectoryExists()
+    try encode(database).write(to: importUndoURL, options: .atomic)
+    do {
+      try save(plan.database)
+      return plan.database
+    } catch {
+      try? fileManager.removeItem(at: importUndoURL)
+      throw error
+    }
+  }
+
+  public func canUndoLastImport() -> Bool {
+    fileManager.fileExists(atPath: importUndoURL.path)
+  }
+
+  public func undoLastImport() throws -> GestureDatabase {
+    guard fileManager.fileExists(atPath: importUndoURL.path) else {
+      throw MappingStoreError.fileSystemFailure
+    }
+    let restored = try decodeAndValidate(readData(at: importUndoURL))
+    try save(restored)
+    do {
+      try fileManager.removeItem(at: importUndoURL)
+    } catch {
+      throw MappingStoreError.fileSystemFailure
+    }
+    return restored
   }
 
   public func exportData(to destinationURL: URL) throws {
@@ -216,6 +304,150 @@ public actor MappingStore {
     }
     try validate(decoded)
     return decoded
+  }
+
+  private func makeImportPlan(
+    _ imported: GestureDatabase,
+    mode: MappingImportMode
+  ) -> (
+    database: GestureDatabase,
+    preview: MappingImportPreview
+  ) {
+    let existingByID = Dictionary(
+      uniqueKeysWithValues: database.mappings.map { ($0.id, $0) }
+    )
+    var conflicts: [MappingImportConflict] = []
+    var additions: [GestureMapping] = []
+    let importedScripts =
+      imported.mappings.flatMap {
+        $0.action.scripts
+      } + imported.compoundBindings.flatMap { $0.action.scripts }
+    let safeImportedMappings = imported.mappings.map { mapping in
+      guard !mapping.action.scripts.isEmpty else { return mapping }
+      var safe = mapping
+      safe.action = safe.action.disablingScripts()
+      safe.isEnabled = false
+      return safe
+    }
+
+    for mapping in safeImportedMappings {
+      if let existing = existingByID[mapping.id] {
+        if existing != mapping {
+          conflicts.append(.changedStableID(mapping.id))
+        }
+        continue
+      }
+      if let similar = similarMapping(to: mapping) {
+        conflicts.append(
+          .similarGesture(
+            existingID: similar.id,
+            importedID: mapping.id
+          )
+        )
+      }
+      additions.append(mapping)
+    }
+
+    let plannedMappings: [GestureMapping]
+    let replacements: Int
+    switch mode {
+    case .merge:
+      plannedMappings = database.mappings + additions
+      replacements = 0
+    case .replace:
+      plannedMappings = safeImportedMappings
+      replacements = database.mappings.count
+    }
+    var normalized = plannedMappings
+    for index in normalized.indices {
+      normalized[index].priority = index
+    }
+    let existingCompoundIDs = Set(
+      database.compoundBindings.map(\.id)
+    )
+    let safeImportedCompound = imported.compoundBindings.map {
+      binding in
+      guard !binding.action.scripts.isEmpty else { return binding }
+      var safe = binding
+      safe.action = safe.action.disablingScripts()
+      safe.isEnabled = false
+      return safe
+    }
+    var plannedCompound =
+      mode == .merge
+      ? database.compoundBindings
+        + safeImportedCompound.filter {
+          !existingCompoundIDs.contains($0.id)
+        }
+      : safeImportedCompound
+    for index in plannedCompound.indices {
+      plannedCompound[index].priority = index
+    }
+    let plannedDatabase = GestureDatabase(
+      mappings: normalized,
+      compoundBindings: plannedCompound
+    )
+    let preview = MappingImportPreview(
+      schemaVersion: imported.schemaVersion,
+      importedMappingCount: imported.mappings.count,
+      mappingsToAdd:
+        mode == .merge
+        ? additions.count
+        : imported.mappings.count,
+      mappingsToReplace: replacements,
+      actionTypes: Array(
+        Set(
+          imported.mappings.map { actionType($0.action) }
+            + imported.compoundBindings.map {
+              actionType($0.action)
+            }
+        )
+      ).sorted(),
+      conflicts: conflicts,
+      scriptsRequiringConfirmation: importedScripts
+    )
+    return (plannedDatabase, preview)
+  }
+
+  private func similarMapping(
+    to imported: GestureMapping
+  ) -> GestureMapping? {
+    let recognizer = GestureRecognizer()
+    return database.mappings.first { existing in
+      guard
+        existing.appScope.competes(with: imported.appScope),
+        existing.triggerButton == imported.triggerButton
+      else {
+        return false
+      }
+      return imported.templates.contains { importedTemplate in
+        existing.templates.contains { existingTemplate in
+          recognizer.distance(
+            from: importedTemplate,
+            to: existingTemplate
+          ) < 0.12
+        }
+      }
+    }
+  }
+
+  private func actionType(_ action: GestureAction) -> String {
+    switch action {
+    case .keyboardShortcut:
+      "keyboardShortcut"
+    case .openURL:
+      "openURL"
+    case .launchApplication:
+      "launchApplication"
+    case .system:
+      "system"
+    case .appleShortcut:
+      "appleShortcut"
+    case .sequence:
+      "sequence"
+    case .script:
+      "script"
+    }
   }
 
   private func readData(at url: URL) throws -> Data {
@@ -276,20 +508,15 @@ public actor MappingStore {
       guard mapping.priority == index else {
         throw MappingStoreError.invalidPriority
       }
-      let isCanonicalEmptyShortcut =
-        mapping.shortcut == ShortcutRecordingSession.emptyShortcut
-      let isCanonicalRecordedShortcut =
-        mapping.shortcut.isValid
-        && mapping.shortcut.modifiers
-          == ShortcutRecordingSession.normalizedModifiers(
-            mapping.shortcut.modifiers
-          )
-      guard
-        isCanonicalRecordedShortcut
-          || (!mapping.isEnabled && isCanonicalEmptyShortcut)
-      else {
-        throw MappingStoreError.invalidShortcut
+      if let category = mapping.category,
+        category.trimmingCharacters(
+          in: .whitespacesAndNewlines
+        ).isEmpty
+          || category.utf8.count > limits.maximumNameLength
+      {
+        throw MappingStoreError.invalidMappingName
       }
+      try validate(mapping.action, isEnabled: mapping.isEnabled)
       guard !mapping.templates.isEmpty,
         mapping.templates.count <= limits.maximumTemplatesPerMapping
       else {
@@ -313,6 +540,63 @@ public actor MappingStore {
         }
       }
       try validate(mapping.appScope)
+    }
+
+    guard
+      Set(database.compoundBindings.map(\.id)).count
+        == database.compoundBindings.count
+    else {
+      throw MappingStoreError.duplicateMappingID
+    }
+    for (index, binding) in database.compoundBindings.enumerated() {
+      guard
+        !binding.name.trimmingCharacters(
+          in: .whitespacesAndNewlines
+        ).isEmpty,
+        binding.name.utf8.count <= limits.maximumNameLength
+      else {
+        throw MappingStoreError.invalidMappingName
+      }
+      guard binding.priority == index else {
+        throw MappingStoreError.invalidPriority
+      }
+      try validate(binding.action, isEnabled: binding.isEnabled)
+      try validate(binding.appScope)
+      if case .rocker(let first, let second) = binding.input,
+        first == second
+      {
+        throw MappingStoreError.invalidData
+      }
+    }
+  }
+
+  private nonisolated func validate(
+    _ action: GestureAction,
+    isEnabled: Bool
+  ) throws {
+    if case .keyboardShortcut(let shortcut) = action {
+      let isCanonicalEmpty =
+        shortcut == ShortcutRecordingSession.emptyShortcut
+      let isCanonicalRecorded =
+        shortcut.isValid
+        && shortcut.modifiers
+          == ShortcutRecordingSession.normalizedModifiers(
+            shortcut.modifiers
+          )
+      guard
+        isCanonicalRecorded || (!isEnabled && isCanonicalEmpty)
+      else {
+        throw MappingStoreError.invalidAction
+      }
+      return
+    }
+    guard
+      action.isValid
+        || (!isEnabled
+          && !action.scripts.isEmpty
+          && action.isValid(allowingUnconfirmedScripts: true))
+    else {
+      throw MappingStoreError.invalidAction
     }
   }
 

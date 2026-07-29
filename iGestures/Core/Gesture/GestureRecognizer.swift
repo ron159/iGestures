@@ -1,5 +1,36 @@
 import Foundation
 
+public enum RecognitionSensitivity:
+  String,
+  Codable,
+  CaseIterable,
+  Sendable
+{
+  case loose
+  case standard
+  case strict
+
+  public var configuration: GestureRecognizer.Configuration {
+    switch self {
+    case .loose:
+      GestureRecognizer.Configuration(
+        acceptanceThreshold: 0.43,
+        ambiguityMargin: 0.04
+      )
+    case .standard:
+      GestureRecognizer.Configuration(
+        acceptanceThreshold: 0.35,
+        ambiguityMargin: 0.04
+      )
+    case .strict:
+      GestureRecognizer.Configuration(
+        acceptanceThreshold: 0.27,
+        ambiguityMargin: 0.04
+      )
+    }
+  }
+}
+
 public struct GestureRecognizer: Sendable {
   public struct DistanceWeights: Hashable, Sendable {
     public let points: Float
@@ -37,18 +68,22 @@ public struct GestureRecognizer: Sendable {
   }
 
   public struct Match: Equatable, Sendable {
-    public let mappingID: UUID
-    public let shortcut: KeyboardShortcut
+    public let request: ActionRequest
     public let distance: Float
 
     public init(
-      mappingID: UUID,
-      shortcut: KeyboardShortcut,
+      request: ActionRequest,
       distance: Float
     ) {
-      self.mappingID = mappingID
-      self.shortcut = shortcut
+      self.request = request
       self.distance = distance
+    }
+
+    public var mappingID: UUID { request.mappingID }
+    public var action: GestureAction { request.action }
+    public var shortcut: KeyboardShortcut {
+      request.action.keyboardShortcut
+        ?? ShortcutRecordingSession.emptyShortcut
     }
   }
 
@@ -72,12 +107,81 @@ public struct GestureRecognizer: Sendable {
   public func recognize(
     _ gesture: GestureTemplate,
     mappings: [GestureMapping],
+    frontmostBundleID: String?,
+    inputDevice: GestureInputDevice? = nil
+  ) -> Decision {
+    let enabled = mappings.filter {
+      $0.isEnabled
+        && $0.action.isValid
+        && $0.appScope.includes(bundleID: frontmostBundleID)
+    }
+    if let inputDevice {
+      let deviceApplicable = enabled.filter {
+        $0.deviceScope.includes(inputDevice)
+      }
+      let deviceSpecific = deviceApplicable.filter {
+        $0.deviceScope.isDeviceSpecific
+      }
+      if !deviceSpecific.isEmpty {
+        let decision = recognizeByApplication(
+          gesture,
+          mappings: deviceSpecific,
+          frontmostBundleID: frontmostBundleID
+        )
+        if decision != .noMatch {
+          return decision
+        }
+      }
+      return recognizeByApplication(
+        gesture,
+        mappings: deviceApplicable.filter {
+          !$0.deviceScope.isDeviceSpecific
+        },
+        frontmostBundleID: frontmostBundleID
+      )
+    }
+    return recognizeByApplication(
+      gesture,
+      mappings: enabled,
+      frontmostBundleID: frontmostBundleID
+    )
+  }
+
+  private func recognizeByApplication(
+    _ gesture: GestureTemplate,
+    mappings: [GestureMapping],
     frontmostBundleID: String?
+  ) -> Decision {
+    let applicable = mappings.filter {
+      $0.appScope.includes(bundleID: frontmostBundleID)
+    }
+    let applicationSpecific = applicable.filter {
+      $0.appScope.isApplicationSpecific(for: frontmostBundleID)
+    }
+    if !applicationSpecific.isEmpty {
+      let decision = recognize(
+        gesture,
+        candidatesFrom: applicationSpecific
+      )
+      if decision != .noMatch {
+        return decision
+      }
+    }
+    return recognize(
+      gesture,
+      candidatesFrom: applicable.filter {
+        !$0.appScope.isApplicationSpecific(for: frontmostBundleID)
+      }
+    )
+  }
+
+  private func recognize(
+    _ gesture: GestureTemplate,
+    candidatesFrom mappings: [GestureMapping]
   ) -> Decision {
     let candidates = mappings.compactMap { mapping -> Candidate? in
       guard mapping.isEnabled,
-        mapping.shortcut.isValid,
-        mapping.appScope.includes(bundleID: frontmostBundleID)
+        mapping.action.isValid
       else {
         return nil
       }
@@ -118,8 +222,12 @@ public struct GestureRecognizer: Sendable {
 
     return .matched(
       Match(
-        mappingID: best.mapping.id,
-        shortcut: best.mapping.shortcut,
+        request: ActionRequest(
+          mappingID: best.mapping.id,
+          mappingName: best.mapping.name,
+          action: best.mapping.action,
+          repeatModeEnabled: best.mapping.repeatModeEnabled
+        ),
         distance: best.distance
       )
     )

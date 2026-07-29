@@ -16,6 +16,7 @@ public final class EventTapManager: @unchecked Sendable {
     @Sendable (_ keyCode: UInt16, _ modifiers: UInt64) -> Void
   public typealias TriggerButtonRecordingHandler =
     @Sendable (GestureTriggerButton) -> Void
+  public typealias GlobalToggleHandler = @Sendable () -> Void
 
   private let lifecycleLock = NSLock()
   private static let performanceLog = OSLog(
@@ -23,10 +24,11 @@ public final class EventTapManager: @unchecked Sendable {
     category: "Performance"
   )
   private let frontmostAppProvider: any FrontmostAppProviding
-  private let shortcutExecutor: any ShortcutExecuting
+  private let actionDispatcher: ActionDispatcher
   private let overlaySink: any GestureOverlaySinking
+  private let feedbackSink: any GestureFeedbackSinking
   private let normalizer: GestureNormalizer
-  private let recognizer: GestureRecognizer
+  private var recognizer: GestureRecognizer
 
   private var thread: Thread?
   private var runLoop: CFRunLoop?
@@ -34,6 +36,9 @@ public final class EventTapManager: @unchecked Sendable {
   private var pendingEnabled = false
   private var pendingInputConfiguration =
     GestureInputConfiguration.default
+  private var pendingRecognitionConfiguration =
+    GestureRecognizer.Configuration()
+  private var pendingExclusionRules: Set<ApplicationExclusionRule> = []
   private var stopRequested = false
   private var stateHandler: StateHandler?
   private var shortcutCaptureState = ShortcutCaptureState()
@@ -46,27 +51,63 @@ public final class EventTapManager: @unchecked Sendable {
     (
       id: UUID, handler: TriggerButtonRecordingHandler
     )?
+  private var globalToggleShortcut =
+    KeyboardShortcut(
+      keyCode: 5,
+      modifiers:
+        CGEventFlags.maskCommand.rawValue
+        | CGEventFlags.maskAlternate.rawValue
+        | CGEventFlags.maskControl.rawValue
+    )
+  private var globalToggleHandler: GlobalToggleHandler?
 
   // The following properties are confined to the Event Tap thread.
   private var eventTap: CFMachPort?
   private var runLoopSource: CFRunLoopSource?
   private var session = GestureSession()
   private var pendingMouseDown: CGEvent?
+  private var activeTriggerButton: GestureTriggerButton?
   private var mappingSnapshot = CompiledMappingSnapshot.empty
   private var isEnabled = false
   private var inputConfiguration = GestureInputConfiguration.default
   private var activeSessionSignpostID: OSSignpostID?
+  private var exclusionRules: Set<ApplicationExclusionRule> = []
+  private var isSuppressingEscape = false
+  private var isSuppressingGlobalToggle = false
+  private var heldButtons: [GestureTriggerButton] = []
+  private var suppressedCompoundButtons: Set<GestureTriggerButton> = []
+  private var repeatState: RepeatState?
+  private var pendingRepeatRequest: ActionRequest?
 
   public init(
     frontmostAppProvider: any FrontmostAppProviding =
       SystemFrontmostAppProvider(),
-    shortcutExecutor: any ShortcutExecuting = SystemShortcutExecutor(),
+    actionExecutor: any ActionExecuting = SystemGestureActionExecutor(),
+    actionResultHandler: ActionDispatcher.ResultHandler? = nil,
     overlaySink: any GestureOverlaySinking = NoOpGestureOverlaySink(),
+    feedbackSink: any GestureFeedbackSinking =
+      NoOpGestureFeedbackSink(),
     normalizer: GestureNormalizer = GestureNormalizer(),
     recognizer: GestureRecognizer = GestureRecognizer()
   ) {
     self.frontmostAppProvider = frontmostAppProvider
-    self.shortcutExecutor = shortcutExecutor
+    self.feedbackSink = feedbackSink
+    self.actionDispatcher = ActionDispatcher(
+      executor: actionExecutor,
+      resultHandler: { request, result in
+        switch result {
+        case .succeeded:
+          feedbackSink.show(
+            .executed(mappingName: request.mappingName)
+          )
+        case .failed:
+          feedbackSink.show(
+            .actionFailed(mappingName: request.mappingName)
+          )
+        }
+        actionResultHandler?(request, result)
+      }
+    )
     self.overlaySink = overlaySink
     self.normalizer = normalizer
     self.recognizer = recognizer
@@ -117,6 +158,16 @@ public final class EventTapManager: @unchecked Sendable {
       triggerButtonRecording = nil
       triggerButtonCaptureState.cancel()
     }
+    lifecycleLock.unlock()
+  }
+
+  public func configureGlobalToggle(
+    shortcut: KeyboardShortcut,
+    handler: GlobalToggleHandler?
+  ) {
+    lifecycleLock.lock()
+    globalToggleShortcut = shortcut
+    globalToggleHandler = handler
     lifecycleLock.unlock()
   }
 
@@ -226,6 +277,45 @@ public final class EventTapManager: @unchecked Sendable {
     CFRunLoopWakeUp(runLoop)
   }
 
+  public func updateRecognitionSensitivity(
+    _ sensitivity: RecognitionSensitivity
+  ) {
+    let configuration = sensitivity.configuration
+    lifecycleLock.lock()
+    pendingRecognitionConfiguration = configuration
+    let runLoop = self.runLoop
+    lifecycleLock.unlock()
+
+    guard let runLoop else { return }
+    CFRunLoopPerformBlock(
+      runLoop,
+      CFRunLoopMode.defaultMode!.rawValue as CFTypeRef
+    ) { [self] in
+      recognizer = GestureRecognizer(configuration: configuration)
+    }
+    CFRunLoopWakeUp(runLoop)
+  }
+
+  public func updateApplicationExclusions(
+    _ rules: Set<ApplicationExclusionRule>
+  ) {
+    lifecycleLock.lock()
+    pendingExclusionRules = rules
+    let runLoop = self.runLoop
+    lifecycleLock.unlock()
+
+    guard let runLoop else { return }
+    CFRunLoopPerformBlock(
+      runLoop,
+      CFRunLoopMode.defaultMode!.rawValue as CFTypeRef
+    ) { [self] in
+      let result = session.cancel(.configurationInvalid)
+      apply(result.commands, currentEvent: nil)
+      exclusionRules = rules
+    }
+    CFRunLoopWakeUp(runLoop)
+  }
+
   private func runEventLoop() {
     autoreleasepool {
       let currentRunLoop = CFRunLoopGetCurrent()
@@ -234,6 +324,10 @@ public final class EventTapManager: @unchecked Sendable {
       mappingSnapshot = pendingSnapshot
       isEnabled = pendingEnabled
       inputConfiguration = pendingInputConfiguration
+      recognizer = GestureRecognizer(
+        configuration: pendingRecognitionConfiguration
+      )
+      exclusionRules = pendingExclusionRules
       session = GestureSession(
         configuration: .init(
           minimumTriggerDuration: inputConfiguration.triggerDuration
@@ -351,7 +445,85 @@ public final class EventTapManager: @unchecked Sendable {
       return nil
     }
 
-    guard let phase = triggerEventPhase(type: type, event: event) else {
+    if type == .scrollWheel {
+      return handleCompoundScroll(event)
+    }
+
+    guard
+      let triggerEvent = triggerEvent(type: type, event: event)
+    else {
+      return Unmanaged.passUnretained(event)
+    }
+    let phase = triggerEvent.phase
+    let triggerButton = triggerEvent.button
+    let inputDevice: GestureInputDevice =
+      triggerButton == .trackpad
+      ? .trackpad
+      : .mouse(identifier: nil)
+    let bundleID = frontmostAppProvider.currentBundleID()
+
+    if phase == .up,
+      activeTriggerButton == triggerButton,
+      let request = pendingRepeatRequest
+    {
+      pendingRepeatRequest = nil
+      heldButtons.removeAll { $0 == triggerButton }
+      abandonSessionForCompoundAction()
+      repeatState = RepeatState(
+        request: request,
+        triggerButton: triggerButton,
+        bundleID: bundleID,
+        expiresAt: ProcessInfo.processInfo.systemUptime + 2
+      )
+      dispatchAction(request)
+      return nil
+    }
+
+    if phase == .dragged, pendingRepeatRequest != nil {
+      pendingRepeatRequest = nil
+      repeatState = nil
+    }
+
+    if phase == .up {
+      heldButtons.removeAll { $0 == triggerButton }
+      if suppressedCompoundButtons.remove(triggerButton) != nil {
+        return nil
+      }
+    }
+
+    if phase == .down {
+      if let state = repeatState {
+        let now = ProcessInfo.processInfo.systemUptime
+        if now <= state.expiresAt,
+          state.triggerButton == triggerButton,
+          state.bundleID == bundleID
+        {
+          pendingRepeatRequest = state.request
+        } else {
+          repeatState = nil
+        }
+      }
+      if let first = heldButtons.last,
+        let request = mappingSnapshot.compoundAction(
+          for: .rocker(first: first, second: triggerButton),
+          bundleID: frontmostAppProvider.currentBundleID()
+        )
+      {
+        heldButtons.append(triggerButton)
+        suppressedCompoundButtons.formUnion([first, triggerButton])
+        abandonSessionForCompoundAction()
+        dispatchAction(request)
+        return nil
+      }
+      if activeTriggerButton != nil {
+        return Unmanaged.passUnretained(event)
+      }
+      heldButtons.append(triggerButton)
+    }
+
+    if phase != .down,
+      activeTriggerButton != triggerButton
+    {
       return Unmanaged.passUnretained(event)
     }
 
@@ -367,13 +539,22 @@ public final class EventTapManager: @unchecked Sendable {
 
     switch phase {
     case .down:
-      let bundleID = frontmostAppProvider.currentBundleID()
       result = session.mouseDown(
         at: point,
         timestamp: timestamp,
         frontmostBundleID: bundleID,
         shouldTrack: isEnabled
-          && mappingSnapshot.hasApplicableMapping(for: bundleID),
+          && !isExcluded(
+            bundleID: bundleID,
+            triggerButton: triggerButton
+          )
+          && mappingSnapshot.hasApplicableMapping(
+            for: bundleID,
+            triggerButton: triggerButton,
+            default: inputConfiguration.triggerButton,
+            inputDevice: inputDevice
+          ),
+        triggerButton: triggerButton,
         sourceUserData: sourceUserData
       )
       if result.disposition == .suppress {
@@ -383,6 +564,7 @@ public final class EventTapManager: @unchecked Sendable {
           return Unmanaged.passUnretained(event)
         }
         pendingMouseDown = copy
+        activeTriggerButton = triggerButton
         beginSessionSignpost()
       }
     case .dragged:
@@ -419,8 +601,17 @@ public final class EventTapManager: @unchecked Sendable {
     let keyCode = UInt16(
       event.getIntegerValueField(.keyboardEventKeycode)
     )
+    if handleEscape(
+      type: type,
+      keyCode: keyCode
+    ) {
+      return nil
+    }
+
     let result: ShortcutCaptureResult
     var handler: ShortcutRecordingHandler?
+    var toggleHandler: GlobalToggleHandler?
+    var didSuppressGlobalToggle = false
 
     lifecycleLock.lock()
     switch type {
@@ -438,14 +629,85 @@ public final class EventTapManager: @unchecked Sendable {
     default:
       result = .passThrough
     }
+    if result == .passThrough {
+      switch type {
+      case .keyDown:
+        let modifiers =
+          ShortcutRecordingSession.normalizedModifiers(
+            event.flags.rawValue
+          )
+        if keyCode == globalToggleShortcut.keyCode,
+          modifiers == globalToggleShortcut.modifiers
+        {
+          isSuppressingGlobalToggle = true
+          toggleHandler = globalToggleHandler
+          didSuppressGlobalToggle = true
+        }
+      case .keyUp:
+        if isSuppressingGlobalToggle,
+          keyCode == globalToggleShortcut.keyCode
+        {
+          isSuppressingGlobalToggle = false
+          didSuppressGlobalToggle = true
+        }
+      default:
+        break
+      }
+    }
     lifecycleLock.unlock()
 
     if case .captured(let keyCode, let modifiers) = result {
       handler?(keyCode, modifiers)
     }
+    toggleHandler?()
+    if didSuppressGlobalToggle {
+      return nil
+    }
     return result == .passThrough
       ? Unmanaged.passUnretained(event)
       : nil
+  }
+
+  private func handleEscape(
+    type: CGEventType,
+    keyCode: UInt16
+  ) -> Bool {
+    guard keyCode == 53 else { return false }
+    if type == .keyUp, isSuppressingEscape {
+      isSuppressingEscape = false
+      return true
+    }
+    guard type == .keyDown else {
+      return false
+    }
+    lifecycleLock.lock()
+    let isRecording = shortcutRecording != nil
+    lifecycleLock.unlock()
+    guard !isRecording else { return false }
+
+    if session.state != .idle {
+      if let activeTriggerButton {
+        suppressedCompoundButtons.insert(activeTriggerButton)
+      }
+      isSuppressingEscape = true
+      let result = session.abandon()
+      apply(result.commands, currentEvent: nil)
+      pendingMouseDown = nil
+      activeTriggerButton = nil
+      pendingRepeatRequest = nil
+      repeatState = nil
+      endSessionSignpost()
+      feedbackSink.show(.cancelled)
+      return true
+    }
+    if repeatState != nil {
+      repeatState = nil
+      pendingRepeatRequest = nil
+      isSuppressingEscape = true
+      feedbackSink.show(.cancelled)
+      return true
+    }
+    return false
   }
 
   private func handleTriggerButtonRecordingEvent(
@@ -498,6 +760,14 @@ public final class EventTapManager: @unchecked Sendable {
     _ commands: [GestureSessionCommand],
     currentEvent: CGEvent?
   ) {
+    if commands.contains(where: {
+      if case .didFailOpen = $0 {
+        return true
+      }
+      return false
+    }), let activeTriggerButton {
+      suppressedCompoundButtons.insert(activeTriggerButton)
+    }
     for command in commands {
       switch command {
       case .showOverlay(let point):
@@ -511,12 +781,16 @@ public final class EventTapManager: @unchecked Sendable {
           mouseUpLocation: location,
           currentEvent: currentEvent
         )
+        activeTriggerButton = nil
         endSessionSignpost()
       case .recognize(let candidate):
         pendingMouseDown = nil
+        activeTriggerButton = nil
         endSessionSignpost()
         enqueueRecognition(candidate)
       case .didFailOpen:
+        feedbackSink.show(.cancelled)
+        activeTriggerButton = nil
         endSessionSignpost()
       }
     }
@@ -531,14 +805,15 @@ public final class EventTapManager: @unchecked Sendable {
 
     let mouseUp: CGEvent?
     if let currentEvent,
-      triggerEventPhase(
+      triggerEvent(
         type: currentEvent.type,
         event: currentEvent
-      ) == .up
+      )?.phase == .up
     {
       mouseUp = currentEvent.copy()
     } else {
-      let triggerButton = inputConfiguration.triggerButton
+      let triggerButton =
+        activeTriggerButton ?? inputConfiguration.triggerButton
       mouseUp = CGEvent(
         mouseEventSource: nil,
         mouseType: triggerButton.mouseUpEventType,
@@ -604,7 +879,10 @@ public final class EventTapManager: @unchecked Sendable {
         name: "Normalization",
         signpostID: normalizationID
       )
-      guard let gesture else { return }
+      guard let gesture else {
+        feedbackSink.show(.noMatch)
+        return
+      }
 
       let recognitionID = OSSignpostID(log: Self.performanceLog)
       os_signpost(
@@ -615,8 +893,12 @@ public final class EventTapManager: @unchecked Sendable {
       )
       let decision = recognizer.recognize(
         gesture,
-        mappings: snapshot.mappings,
-        frontmostBundleID: candidate.frontmostBundleID
+        mappings: snapshot.mappings(
+          for: candidate.triggerButton,
+          default: inputConfiguration.triggerButton
+        ),
+        frontmostBundleID: candidate.frontmostBundleID,
+        inputDevice: candidate.inputDevice
       )
       os_signpost(
         .end,
@@ -624,24 +906,90 @@ public final class EventTapManager: @unchecked Sendable {
         name: "Recognition",
         signpostID: recognitionID
       )
+      switch decision {
+      case .noMatch:
+        feedbackSink.show(.noMatch)
+        return
+      case .ambiguous:
+        feedbackSink.show(.ambiguous)
+        return
+      case .matched:
+        break
+      }
       guard case .matched(let match) = decision else { return }
+      repeatState =
+        match.request.repeatModeEnabled
+        ? RepeatState(
+          request: match.request,
+          triggerButton: candidate.triggerButton,
+          bundleID: candidate.frontmostBundleID,
+          expiresAt: ProcessInfo.processInfo.systemUptime + 2
+        )
+        : nil
 
-      let shortcutID = OSSignpostID(log: Self.performanceLog)
+      let actionID = OSSignpostID(log: Self.performanceLog)
       os_signpost(
         .begin,
         log: Self.performanceLog,
-        name: "ShortcutPost",
-        signpostID: shortcutID
+        name: "ActionDispatch",
+        signpostID: actionID
       )
-      _ = shortcutExecutor.execute(match.shortcut)
+      Task { [actionDispatcher] in
+        await actionDispatcher.submit(match.request)
+      }
       os_signpost(
         .end,
         log: Self.performanceLog,
-        name: "ShortcutPost",
-        signpostID: shortcutID
+        name: "ActionDispatch",
+        signpostID: actionID
       )
     }
     CFRunLoopWakeUp(runLoop)
+  }
+
+  private func handleCompoundScroll(
+    _ event: CGEvent
+  ) -> Unmanaged<CGEvent>? {
+    guard let triggerButton = heldButtons.last else {
+      return Unmanaged.passUnretained(event)
+    }
+    let delta = event.getDoubleValueField(.scrollWheelEventDeltaAxis1)
+    guard delta != 0 else {
+      return Unmanaged.passUnretained(event)
+    }
+    let direction: CompoundScrollDirection =
+      delta > 0 ? .up : .down
+    guard
+      let request = mappingSnapshot.compoundAction(
+        for: .wheel(
+          trigger: triggerButton,
+          direction: direction
+        ),
+        bundleID: frontmostAppProvider.currentBundleID()
+      )
+    else {
+      return Unmanaged.passUnretained(event)
+    }
+    suppressedCompoundButtons.insert(triggerButton)
+    abandonSessionForCompoundAction()
+    dispatchAction(request)
+    return nil
+  }
+
+  private func abandonSessionForCompoundAction() {
+    let result = session.abandon()
+    apply(result.commands, currentEvent: nil)
+    pendingMouseDown = nil
+    pendingRepeatRequest = nil
+    repeatState = nil
+    activeTriggerButton = nil
+    endSessionSignpost()
+  }
+
+  private func dispatchAction(_ request: ActionRequest) {
+    Task { [actionDispatcher] in
+      await actionDispatcher.submit(request)
+    }
   }
 
   private func beginSessionSignpost() {
@@ -674,16 +1022,51 @@ public final class EventTapManager: @unchecked Sendable {
     handler?(state)
   }
 
-  private func triggerEventPhase(
+  private func triggerEvent(
     type: CGEventType,
     event: CGEvent
-  ) -> TriggerEventPhase? {
-    inputConfiguration.triggerButton.eventPhase(
-      for: type,
-      buttonNumber: event.getIntegerValueField(
-        .mouseEventButtonNumber
-      )
+  ) -> (button: GestureTriggerButton, phase: TriggerEventPhase)? {
+    let number = event.getIntegerValueField(
+      .mouseEventButtonNumber
     )
+    guard number >= 0, UInt64(number) <= UInt64(UInt32.max) else {
+      return nil
+    }
+    let normalizedModifiers =
+      ShortcutRecordingSession.normalizedModifiers(
+        event.flags.rawValue
+      )
+    let isTrackpadTrigger =
+      inputConfiguration.isTrackpadGestureEnabled
+      && number == 0
+      && (normalizedModifiers == inputConfiguration.trackpadModifiers
+        || (activeTriggerButton == .trackpad
+          && type != .leftMouseDown))
+    let button =
+      isTrackpadTrigger
+      ? GestureTriggerButton.trackpad
+      : GestureTriggerButton(buttonNumber: UInt32(number))
+    guard
+      let phase = button.eventPhase(
+        for: type,
+        buttonNumber: number
+      )
+    else {
+      return nil
+    }
+    return (button, phase)
+  }
+
+  private func isExcluded(
+    bundleID: String?,
+    triggerButton: GestureTriggerButton
+  ) -> Bool {
+    guard let bundleID else { return false }
+    return exclusionRules.contains {
+      $0.bundleIdentifier == bundleID
+        && ($0.triggerButton == nil
+          || $0.triggerButton == triggerButton)
+    }
   }
 
   private static let eventMask: CGEventMask = [
@@ -698,9 +1081,17 @@ public final class EventTapManager: @unchecked Sendable {
     .otherMouseUp,
     .keyDown,
     .keyUp,
+    .scrollWheel,
   ].reduce(0) { mask, type in
     mask | (1 << type.rawValue)
   }
+}
+
+private struct RepeatState {
+  let request: ActionRequest
+  let triggerButton: GestureTriggerButton
+  let bundleID: String?
+  let expiresAt: TimeInterval
 }
 
 enum TriggerEventPhase: Equatable {
@@ -711,7 +1102,10 @@ enum TriggerEventPhase: Equatable {
 
 extension GestureTriggerButton {
   fileprivate var mouseUpEventType: CGEventType {
-    switch buttonNumber {
+    if self == .trackpad {
+      return .leftMouseUp
+    }
+    return switch buttonNumber {
     case 0:
       .leftMouseUp
     case 1:
@@ -725,6 +1119,18 @@ extension GestureTriggerButton {
     for type: CGEventType,
     buttonNumber eventButtonNumber: Int64
   ) -> TriggerEventPhase? {
+    if self == .trackpad {
+      switch type {
+      case .leftMouseDown:
+        return .down
+      case .leftMouseDragged:
+        return .dragged
+      case .leftMouseUp:
+        return .up
+      default:
+        return nil
+      }
+    }
     switch buttonNumber {
     case 0:
       switch type {

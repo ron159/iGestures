@@ -134,7 +134,47 @@ final class OverlayEventBufferTests: XCTestCase {
     XCTAssertEqual(localPoint.y, 980, accuracy: 0.001)
   }
 
+  func testDiagnosticsUseFIFOWithoutCapturingGestureContent() {
+    let buffer = GestureDiagnosticsBuffer(capacity: 3)
+    let recorder = DiagnosticSnapshotRecorder()
+    buffer.setHandler { records in
+      recorder.record(records)
+    }
+
+    buffer.show(.noMatch)
+    buffer.show(.ambiguous)
+    buffer.show(.executed(mappingName: "Back"))
+    buffer.show(.actionFailed(mappingName: "Open"))
+
+    let records = recorder.latest
+    XCTAssertEqual(records.count, 3)
+    XCTAssertEqual(
+      records.map(\.outcome),
+      [.ambiguous, .executed, .actionFailed]
+    )
+    XCTAssertEqual(records[1].mappingName, "Back")
+  }
+
   private func point(_ x: Float, _ y: Float) -> GesturePoint {
     GesturePoint(x: x, y: y)
+  }
+}
+
+private final class DiagnosticSnapshotRecorder:
+  @unchecked Sendable
+{
+  private let lock = NSLock()
+  private var records: [GestureDiagnosticRecord] = []
+
+  var latest: [GestureDiagnosticRecord] {
+    lock.lock()
+    defer { lock.unlock() }
+    return records
+  }
+
+  func record(_ records: [GestureDiagnosticRecord]) {
+    lock.lock()
+    self.records = records
+    lock.unlock()
   }
 }

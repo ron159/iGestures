@@ -10,14 +10,20 @@ iGestures 是一款原生 macOS 菜单栏鼠标手势工具：按住自定义触
 
 - 录制任意单笔轨迹，每个手势最多保存五个训练样本；
 - 绑定物理键码以及 Command、Option、Control、Shift、Fn 修饰键；
+- 支持 URL、应用、系统动作、Apple 快捷指令、动作序列和明确确认的受控脚本；
 - 为映射设置全局、仅指定应用或排除指定应用的作用域；
+- 应用专用映射优先，全局映射自动回退；
 - 可从常用鼠标按键预设快速选择，或直接录制任意物理鼠标按键作为触发键；
+- 每个映射可独立选择触发键、输入设备和 Repeat Mode；
+- 支持默认关闭的 Rocker、“触发键 + 滚轮”与触控板修饰键手势；
 - 自定义触发键按住时长；按住时长或移动距离任一达到阈值即可开始手势；
-- 在 SwiftUI 设置中创建、重命名、重录、启停、排序和删除映射，重录时显示原手势参考；
+- 内置八个可预览、复制和修改的预设，并提供首次引导与无动作练习模式；
+- 在 SwiftUI 设置中创建、复制、搜索、分类、重录、批量启停、排序和删除映射；
 - 通过系统应用选择器配置作用域，无需手工填写 Bundle Identifier；
-- 支持多显示器的实时轨迹覆盖层，可随时关闭；
-- 版本化 JSON 数据库、原子写入、损坏恢复、导入和导出；
+- 支持多显示器轨迹、识别结果反馈、三档灵敏度和可关闭的触觉反馈；
+- 版本化 JSON 数据库、原子写入、损坏恢复、导入预览、合并、替换和撤销；
 - Accessibility、Listen Event、Post Event 和 Event Tap 分项诊断；
+- 本机有限诊断记录默认不跨启动保留，不记录轨迹、键入文本或窗口内容；
 - 使用 `SMAppService.mainApp` 管理登录时启动；
 - 英文和简体中文界面。
 
@@ -56,6 +62,26 @@ shasum -a 256 -c iGestures-<版本>-macOS-arm64.zip.sha256
 > 社区版是可供测试和日常使用的免费构建，不是经过 Apple 公证的正式分发版本。
 > 受管理的 Mac 可能禁止手动放行未知开发者应用。
 
+## 正式产品版
+
+仓库同时保留独立的 `iGestures Formal Product Release` 工作流。它使用稳定 Bundle ID
+`com.ron159.igestures`，执行 Developer ID Application 签名、Hardened Runtime、
+Apple Notarization、Staple、Gatekeeper、arm64 和 macOS 26 最低版本验证，并生成
+Ed25519 签名的更新清单。社区版工作流不会被标记为正式产品版。
+
+正式工作流通过手动输入版本号触发，所需配置如下：
+
+- GitHub Variables：`IGESTURES_UPDATE_PUBLIC_KEY`，内容为 32 字节 Ed25519 公钥的
+  Base64；
+- GitHub Secrets：`DEVELOPER_ID_APPLICATION`、`APPLE_DEVELOPMENT_TEAM`、
+  `DEVELOPER_ID_P12_BASE64`、`DEVELOPER_ID_P12_PASSWORD`、
+  `APPLE_NOTARY_KEY_ID`、`APPLE_NOTARY_ISSUER_ID`、
+  `APPLE_NOTARY_PRIVATE_KEY` 和 `IGESTURES_UPDATE_PRIVATE_KEY`。
+
+正式构建会内嵌只读的更新清单地址。应用自动检查或手动检查更新时，会依次验证 HTTPS、
+清单签名、语义版本、系统版本、SHA-256、Bundle ID 和当前 Developer ID 的指定要求；
+任一检查失败都不会替换当前应用。
+
 ## 构建与验证
 
 用 Xcode 27 打开 `iGestures.xcodeproj`，选择共享 Scheme
@@ -83,7 +109,7 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-当前基线已通过 Debug/Release 构建、78 项 XCTest、Xcode Analyze、arm64 产物检查和
+当前基线已通过 Debug/Release 构建、99 项 XCTest、Xcode Analyze、arm64 产物检查和
 本地临时签名验证。GitHub Actions 会复跑格式、本地化、仓库卫生检查、核心检查、
 XCTest 和 Release 构建。每次成功推送到 `main` 后，CI 会更新 `continuous`
 预发布中的 ZIP 与 SHA-256 校验文件。
@@ -91,11 +117,11 @@ XCTest 和 Release 构建。每次成功推送到 `main` 后，CI 会更新 `con
 推送与 `MARKETING_VERSION` 对应的版本标签会另外创建正式社区版 Release。例如：
 
 ```shell
-git tag -a v0.2.0 -m "iGestures 0.2.0"
-git push origin v0.2.0
+git tag -a v0.3.0 -m "iGestures 0.3.0"
+git push origin v0.3.0
 ```
 
-正式 Release 工作流会验证标签与工程版本一致，运行格式检查、核心检查和 XCTest，
+社区 Release 工作流会验证标签与工程版本一致，运行格式检查、核心检查和 XCTest，
 构建 ad-hoc 签名的 arm64 应用，并发布版本化的 ZIP 与 SHA-256 校验文件。
 
 ## 设计概要

@@ -78,7 +78,7 @@ final class GestureLibraryTests: XCTestCase {
     ) {
       XCTAssertEqual(
         $0 as? GestureLibraryError,
-        .missingShortcut
+        .missingAction
       )
     }
 

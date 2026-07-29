@@ -87,6 +87,49 @@ final class GestureTrainingSessionTests: XCTestCase {
     )
   }
 
+  func testApplicationSpecificMappingCanOverrideGlobalGesture()
+    throws
+  {
+    let existing = GestureMapping(
+      name: "Global",
+      templates: [try normalized(angle: 0)],
+      shortcut: KeyboardShortcut(keyCode: 12, modifiers: 0),
+      appScope: .all
+    )
+    var session = GestureTrainingSession(
+      existingMappings: [existing],
+      appScope: .only(["com.apple.Safari"])
+    )
+
+    XCTAssertEqual(
+      session.recordSample(line(angle: 0, offset: 20)),
+      .sampleAccepted(count: 1, required: 3)
+    )
+  }
+
+  func testOverlappingApplicationSpecificGestureConflicts()
+    throws
+  {
+    let existingID = UUID()
+    let existing = GestureMapping(
+      id: existingID,
+      name: "Safari",
+      templates: [try normalized(angle: 0)],
+      shortcut: KeyboardShortcut(keyCode: 12, modifiers: 0),
+      appScope: .only(["com.apple.Safari"])
+    )
+    var session = GestureTrainingSession(
+      existingMappings: [existing],
+      appScope: .only(["com.apple.Safari", "com.apple.finder"])
+    )
+
+    let result = session.recordSample(line(angle: 0, offset: 20))
+    guard case .sampleRejected(.conflicts(let id, _)) = result else {
+      return XCTFail("Expected a conflict, got \(result)")
+    }
+    XCTAssertEqual(id, existingID)
+  }
+
   func testAdditionalSamplesAreCapped() {
     var session = GestureTrainingSession(
       existingMappings: [],

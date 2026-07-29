@@ -53,23 +53,35 @@ public struct GestureTrainingSession: Sendable {
     sampleCount: 0
   )
   public private(set) var templates: [GestureTemplate] = []
+  public private(set) var appScope: AppScope
+  public private(set) var triggerButton: GestureTriggerButton?
+  public private(set) var deviceScope: InputDeviceScope
   public let configuration: Configuration
 
   private let existingMappings: [GestureMapping]
   private let editingMappingID: UUID?
   private let normalizer: GestureNormalizer
   private let recognizer: GestureRecognizer
+  private let defaultTriggerButton: GestureTriggerButton
   private var successfulTestCount = 0
 
   public init(
     existingMappings: [GestureMapping],
     editingMappingID: UUID? = nil,
+    appScope: AppScope = .all,
+    triggerButton: GestureTriggerButton? = nil,
+    defaultTriggerButton: GestureTriggerButton = .right,
+    deviceScope: InputDeviceScope = .any,
     configuration: Configuration = Configuration(),
     normalizer: GestureNormalizer = GestureNormalizer(),
     recognizer: GestureRecognizer = GestureRecognizer()
   ) {
     self.existingMappings = existingMappings
     self.editingMappingID = editingMappingID
+    self.appScope = appScope
+    self.triggerButton = triggerButton
+    self.defaultTriggerButton = defaultTriggerButton
+    self.deviceScope = deviceScope
     self.configuration = configuration
     self.normalizer = normalizer
     self.recognizer = recognizer
@@ -143,6 +155,28 @@ public struct GestureTrainingSession: Sendable {
     phase = .collecting(sampleCount: 0)
   }
 
+  public mutating func setAppScope(_ appScope: AppScope) {
+    guard self.appScope != appScope else { return }
+    self.appScope = appScope
+    reset()
+  }
+
+  public mutating func setTriggerButton(
+    _ triggerButton: GestureTriggerButton?
+  ) {
+    guard self.triggerButton != triggerButton else { return }
+    self.triggerButton = triggerButton
+    reset()
+  }
+
+  public mutating func setDeviceScope(
+    _ deviceScope: InputDeviceScope
+  ) {
+    guard self.deviceScope != deviceScope else { return }
+    self.deviceScope = deviceScope
+    reset()
+  }
+
   private mutating func acceptSample(
     _ points: [GesturePoint],
     remainInTesting: Bool = false
@@ -205,6 +239,12 @@ public struct GestureTrainingSession: Sendable {
     existingMappings
       .lazy
       .filter { $0.id != editingMappingID }
+      .filter { $0.appScope.competes(with: appScope) }
+      .filter {
+        ($0.triggerButton ?? defaultTriggerButton)
+          == (triggerButton ?? defaultTriggerButton)
+      }
+      .filter { $0.deviceScope.competes(with: deviceScope) }
       .compactMap { mapping -> (UUID, Float)? in
         guard
           let distance = mapping.templates
