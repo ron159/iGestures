@@ -1,8 +1,60 @@
 import Foundation
 
+public struct GestureTriggerButton:
+  Codable,
+  Hashable,
+  Identifiable,
+  Sendable
+{
+  public static let left = GestureTriggerButton(buttonNumber: 0)
+  public static let right = GestureTriggerButton(buttonNumber: 1)
+  public static let middle = GestureTriggerButton(buttonNumber: 2)
+  public static let button4 = GestureTriggerButton(buttonNumber: 3)
+  public static let button5 = GestureTriggerButton(buttonNumber: 4)
+  public static let commonPresets: [GestureTriggerButton] = [
+    .right,
+    .middle,
+    .button4,
+    .button5,
+  ]
+
+  public let buttonNumber: UInt32
+
+  public init(buttonNumber: UInt32) {
+    self.buttonNumber = buttonNumber
+  }
+
+  public var id: UInt32 { buttonNumber }
+}
+
+public struct GestureInputConfiguration: Equatable, Sendable {
+  public static let defaultTriggerDuration: TimeInterval = 0.15
+  public static let minimumTriggerDuration: TimeInterval = 0
+  public static let maximumTriggerDuration: TimeInterval = 2
+  public static let `default` = GestureInputConfiguration()
+
+  public let triggerButton: GestureTriggerButton
+  public let triggerDuration: TimeInterval
+
+  public init(
+    triggerButton: GestureTriggerButton = .right,
+    triggerDuration: TimeInterval = defaultTriggerDuration
+  ) {
+    self.triggerButton = triggerButton
+    let duration =
+      triggerDuration.isFinite
+      ? triggerDuration
+      : Self.defaultTriggerDuration
+    self.triggerDuration = min(
+      Self.maximumTriggerDuration,
+      max(Self.minimumTriggerDuration, duration)
+    )
+  }
+}
+
 public enum GestureSessionState: Equatable, Sendable {
   case idle
-  case pendingRightClick
+  case pendingClick
   case tracking
   case finishing
   case cancelled
@@ -44,7 +96,7 @@ public enum GestureSessionCommand: Equatable, Sendable {
   case showOverlay(at: GesturePoint)
   case appendOverlayPoint(GesturePoint)
   case hideOverlay
-  case replayPendingRightClick(mouseUpLocation: GesturePoint)
+  case replayPendingClick(mouseUpLocation: GesturePoint)
   case recognize(GestureCandidate)
   case didFailOpen(GestureCancellationReason)
 }
@@ -69,17 +121,21 @@ public struct GestureSessionResult: Equatable, Sendable {
 public struct GestureSession: Sendable {
   public struct Configuration: Equatable, Sendable {
     public let activationDistance: Float
+    public let minimumTriggerDuration: TimeInterval
     public let minimumSampleDistance: Float
     public let maximumPointCount: Int
     public let maximumDuration: TimeInterval
 
     public init(
       activationDistance: Float = 24,
+      minimumTriggerDuration: TimeInterval =
+        GestureInputConfiguration.defaultTriggerDuration,
       minimumSampleDistance: Float = 0.5,
       maximumPointCount: Int = 1_024,
       maximumDuration: TimeInterval = 10
     ) {
       self.activationDistance = max(0, activationDistance)
+      self.minimumTriggerDuration = max(0, minimumTriggerDuration)
       self.minimumSampleDistance = max(0, minimumSampleDistance)
       self.maximumPointCount = max(8, maximumPointCount)
       self.maximumDuration = max(0.1, maximumDuration)
@@ -100,7 +156,7 @@ public struct GestureSession: Sendable {
     self.points.reserveCapacity(configuration.maximumPointCount)
   }
 
-  public mutating func rightMouseDown(
+  public mutating func mouseDown(
     at point: GesturePoint,
     timestamp: TimeInterval,
     frontmostBundleID: String?,
@@ -121,7 +177,7 @@ public struct GestureSession: Sendable {
       return .passThrough
     }
 
-    state = .pendingRightClick
+    state = .pendingClick
     startedAt = timestamp
     self.frontmostBundleID = frontmostBundleID
     accumulatedDistance = 0
@@ -130,7 +186,7 @@ public struct GestureSession: Sendable {
     return GestureSessionResult(disposition: .suppress)
   }
 
-  public mutating func rightMouseDragged(
+  public mutating func mouseDragged(
     to point: GesturePoint,
     timestamp: TimeInterval,
     sourceUserData: Int64 = 0
@@ -142,7 +198,7 @@ public struct GestureSession: Sendable {
     switch state {
     case .idle:
       return .passThrough
-    case .pendingRightClick, .tracking:
+    case .pendingClick, .tracking:
       guard isWithinDuration(timestamp) else {
         return failOpen(
           reason: .durationExceeded,
@@ -152,8 +208,8 @@ public struct GestureSession: Sendable {
       }
 
       let appended = append(point)
-      if state == .pendingRightClick,
-        accumulatedDistance >= configuration.activationDistance
+      if state == .pendingClick,
+        hasReachedActivationThreshold(timestamp)
       {
         state = .tracking
         return GestureSessionResult(
@@ -180,7 +236,7 @@ public struct GestureSession: Sendable {
     }
   }
 
-  public mutating func rightMouseUp(
+  public mutating func mouseUp(
     at point: GesturePoint,
     timestamp: TimeInterval,
     sourceUserData: Int64 = 0
@@ -192,7 +248,7 @@ public struct GestureSession: Sendable {
     switch state {
     case .idle:
       return .passThrough
-    case .pendingRightClick, .tracking:
+    case .pendingClick, .tracking:
       guard isWithinDuration(timestamp) else {
         return failOpen(
           reason: .durationExceeded,
@@ -202,12 +258,12 @@ public struct GestureSession: Sendable {
       }
 
       _ = append(point)
-      if state == .pendingRightClick,
-        accumulatedDistance < configuration.activationDistance
+      if state == .pendingClick,
+        !hasReachedActivationThreshold(timestamp)
       {
         let result = GestureSessionResult(
           disposition: .suppress,
-          commands: [.replayPendingRightClick(mouseUpLocation: point)]
+          commands: [.replayPendingClick(mouseUpLocation: point)]
         )
         reset()
         return result
@@ -289,6 +345,20 @@ public struct GestureSession: Sendable {
     duration(endingAt: timestamp) <= configuration.maximumDuration
   }
 
+  private func hasReachedTriggerDuration(
+    _ timestamp: TimeInterval
+  ) -> Bool {
+    duration(endingAt: timestamp)
+      >= configuration.minimumTriggerDuration
+  }
+
+  private func hasReachedActivationThreshold(
+    _ timestamp: TimeInterval
+  ) -> Bool {
+    accumulatedDistance >= configuration.activationDistance
+      || hasReachedTriggerDuration(timestamp)
+  }
+
   private func duration(endingAt timestamp: TimeInterval) -> TimeInterval {
     guard let startedAt else { return 0 }
     return max(0, timestamp - startedAt)
@@ -302,7 +372,7 @@ public struct GestureSession: Sendable {
     let wasTracking = state == .tracking || state == .finishing
     state = .cancelled
     var commands: [GestureSessionCommand] = [
-      .replayPendingRightClick(mouseUpLocation: point)
+      .replayPendingClick(mouseUpLocation: point)
     ]
     if wasTracking {
       commands.append(.hideOverlay)

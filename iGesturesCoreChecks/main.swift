@@ -234,7 +234,7 @@ private final class CoreChecks {
     var session = GestureSession(
       configuration: .init(activationDistance: 20)
     )
-    let down = session.rightMouseDown(
+    let down = session.mouseDown(
       at: GesturePoint(x: 0, y: 0),
       timestamp: 0,
       frontmostBundleID: "com.apple.finder",
@@ -242,11 +242,11 @@ private final class CoreChecks {
     )
     check(
       down.disposition == .suppress
-        && session.state == .pendingRightClick,
+        && session.state == .pendingClick,
       "right mouse down did not start a pending session"
     )
 
-    let drag = session.rightMouseDragged(
+    let drag = session.mouseDragged(
       to: GesturePoint(x: 30, y: 0),
       timestamp: 0.1
     )
@@ -257,7 +257,7 @@ private final class CoreChecks {
       "crossing the dead zone did not start tracking"
     )
 
-    let up = session.rightMouseUp(
+    let up = session.mouseUp(
       at: GesturePoint(x: 40, y: 0),
       timestamp: 0.2
     )
@@ -269,14 +269,14 @@ private final class CoreChecks {
       "mouse up did not finish and reset the gesture session"
     )
     check(
-      session.rightMouseUp(
+      session.mouseUp(
         at: GesturePoint(x: 40, y: 0),
         timestamp: 0.3
       ) == .passThrough,
       "a second mouse up completed the session twice"
     )
 
-    _ = session.rightMouseDown(
+    _ = session.mouseDown(
       at: GesturePoint(x: 10, y: 10),
       timestamp: 1,
       frontmostBundleID: nil,
@@ -288,7 +288,7 @@ private final class CoreChecks {
     )
     check(
       failure.commands.contains(
-        .replayPendingRightClick(
+        .replayPendingClick(
           mouseUpLocation: GesturePoint(x: 10, y: 10)
         )
       ) && session.state == .idle,
@@ -298,13 +298,13 @@ private final class CoreChecks {
     var durationLimited = GestureSession(
       configuration: .init(maximumDuration: 0.1)
     )
-    _ = durationLimited.rightMouseDown(
+    _ = durationLimited.mouseDown(
       at: GesturePoint(x: 0, y: 0),
       timestamp: 1,
       frontmostBundleID: nil,
       shouldTrack: true
     )
-    let durationFailure = durationLimited.rightMouseDragged(
+    let durationFailure = durationLimited.mouseDragged(
       to: GesturePoint(x: 30, y: 0),
       timestamp: 1.2
     )
@@ -313,6 +313,57 @@ private final class CoreChecks {
         .didFailOpen(.durationExceeded)
       ) && durationLimited.state == .idle,
       "an overlong gesture did not fail open"
+    )
+
+    var triggerDelayed = GestureSession(
+      configuration: .init(
+        activationDistance: 20,
+        minimumTriggerDuration: 0.2
+      )
+    )
+    _ = triggerDelayed.mouseDown(
+      at: GesturePoint(x: 0, y: 0),
+      timestamp: 0,
+      frontmostBundleID: nil,
+      shouldTrack: true
+    )
+    let earlyDrag = triggerDelayed.mouseDragged(
+      to: GesturePoint(x: 10, y: 0),
+      timestamp: 0.1
+    )
+    let activatedDrag = triggerDelayed.mouseDragged(
+      to: GesturePoint(x: 11, y: 0),
+      timestamp: 0.2
+    )
+    check(
+      earlyDrag.commands.isEmpty
+        && activatedDrag.commands.contains(
+          .showOverlay(at: GesturePoint(x: 0, y: 0))
+        ),
+      "the hold duration did not independently activate gesture tracking"
+    )
+
+    var movementActivated = GestureSession(
+      configuration: .init(
+        activationDistance: 20,
+        minimumTriggerDuration: 0.2
+      )
+    )
+    _ = movementActivated.mouseDown(
+      at: GesturePoint(x: 0, y: 0),
+      timestamp: 0,
+      frontmostBundleID: nil,
+      shouldTrack: true
+    )
+    let fastDrag = movementActivated.mouseDragged(
+      to: GesturePoint(x: 30, y: 0),
+      timestamp: 0.1
+    )
+    check(
+      fastDrag.commands.contains(
+        .showOverlay(at: GesturePoint(x: 0, y: 0))
+      ),
+      "the movement threshold did not independently activate gesture tracking"
     )
   }
 
@@ -360,14 +411,26 @@ private final class CoreChecks {
 
     let store = AppPreferencesStore(userDefaults: userDefaults)
     check(
-      store.recognitionEnabled && store.overlayEnabled,
+      store.recognitionEnabled
+        && store.overlayEnabled
+        && store.triggerButton == .right
+        && store.triggerDuration
+          == GestureInputConfiguration.defaultTriggerDuration,
       "general preferences did not use enabled defaults"
     )
     store.setRecognitionEnabled(false)
     store.setOverlayEnabled(false)
+    store.setTriggerButton(
+      GestureTriggerButton(buttonNumber: 8)
+    )
+    store.setTriggerDuration(0.4)
     let reloaded = AppPreferencesStore(userDefaults: userDefaults)
     check(
-      !reloaded.recognitionEnabled && !reloaded.overlayEnabled,
+      !reloaded.recognitionEnabled
+        && !reloaded.overlayEnabled
+        && reloaded.triggerButton
+          == GestureTriggerButton(buttonNumber: 8)
+        && reloaded.triggerDuration == 0.4,
       "general preferences did not persist"
     )
   }

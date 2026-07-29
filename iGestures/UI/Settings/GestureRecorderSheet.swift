@@ -14,6 +14,7 @@ struct GestureRecorderSheet: View {
   private let initialAppScope: AppScope
   private let initialIsEnabled: Bool
   private let isEditing: Bool
+  private let originalGesture: [GesturePoint]
   let onSave: (GestureMappingDraft) -> Void
 
   init(
@@ -27,6 +28,8 @@ struct GestureRecorderSheet: View {
     self.initialAppScope = editingMapping?.appScope ?? .all
     self.initialIsEnabled = editingMapping?.isEnabled ?? true
     self.isEditing = editingMapping != nil
+    self.originalGesture =
+      editingMapping?.templates.first?.points ?? []
     self.onSave = onSave
     _name = State(
       initialValue:
@@ -65,7 +68,18 @@ struct GestureRecorderSheet: View {
           .foregroundStyle(.secondary)
       }
 
-      GestureDrawingPad(points: $points) {
+      if !originalGesture.isEmpty {
+        Label(
+          String(localized: "Original Gesture"),
+          systemImage: "scribble"
+        )
+        .font(.headline)
+      }
+
+      GestureDrawingPad(
+        points: $points,
+        guidePoints: originalGesture
+      ) {
         handleStroke($0)
       }
       .frame(height: 300)
@@ -234,6 +248,7 @@ struct GestureRecorderSheet: View {
 
 private struct GestureDrawingPad: View {
   @Binding var points: [GesturePoint]
+  let guidePoints: [GesturePoint]
   let onComplete: ([GesturePoint]) -> Void
 
   @State private var isDrawing = false
@@ -250,6 +265,25 @@ private struct GestureDrawingPad: View {
         with: .color(.secondary.opacity(0.35)),
         lineWidth: 1
       )
+
+      let scaledGuide = scaledGuidePoints(in: size)
+      if let firstGuidePoint = scaledGuide.first {
+        var guidePath = Path()
+        guidePath.move(to: firstGuidePoint)
+        for point in scaledGuide.dropFirst() {
+          guidePath.addLine(to: point)
+        }
+        context.stroke(
+          guidePath,
+          with: .color(.secondary.opacity(0.65)),
+          style: StrokeStyle(
+            lineWidth: 3,
+            lineCap: .round,
+            lineJoin: .round,
+            dash: [7, 5]
+          )
+        )
+      }
 
       guard let first = points.first else { return }
       var path = Path()
@@ -273,12 +307,20 @@ private struct GestureDrawingPad: View {
     }
     .contentShape(Rectangle())
     .overlay {
-      if points.isEmpty {
+      if points.isEmpty && guidePoints.isEmpty {
         Label(
           String(localized: "Draw here"),
           systemImage: "cursorarrow.motionlines"
         )
         .foregroundStyle(.secondary)
+      }
+    }
+    .overlay(alignment: .bottomLeading) {
+      if points.isEmpty && !guidePoints.isEmpty {
+        Text(String(localized: "Draw over the original gesture"))
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .padding(10)
       }
     }
     .gesture(
@@ -306,5 +348,27 @@ private struct GestureDrawingPad: View {
           onComplete(points)
         }
     )
+  }
+
+  private func scaledGuidePoints(in size: CGSize) -> [CGPoint] {
+    guard !guidePoints.isEmpty else { return [] }
+    let minX = guidePoints.map(\.x).min() ?? 0
+    let maxX = guidePoints.map(\.x).max() ?? 0
+    let minY = guidePoints.map(\.y).min() ?? 0
+    let maxY = guidePoints.map(\.y).max() ?? 0
+    let width = max(CGFloat(maxX - minX), 0.001)
+    let height = max(CGFloat(maxY - minY), 0.001)
+    let horizontalScale = max(1, size.width - 56) / width
+    let verticalScale = max(1, size.height - 56) / height
+    let scale = min(horizontalScale, verticalScale)
+    let centerX = CGFloat(minX + maxX) / 2
+    let centerY = CGFloat(minY + maxY) / 2
+
+    return guidePoints.map {
+      CGPoint(
+        x: size.width / 2 + (CGFloat($0.x) - centerX) * scale,
+        y: size.height / 2 + (CGFloat($0.y) - centerY) * scale
+      )
+    }
   }
 }

@@ -56,6 +56,58 @@ private struct GeneralSettingsView: View {
         )
       )
 
+      LabeledContent(String(localized: "Trigger Mouse Button")) {
+        HStack {
+          Picker(
+            "",
+            selection: Binding(
+              get: { model.triggerButton },
+              set: { model.setTriggerButton($0) }
+            )
+          ) {
+            ForEach(GestureTriggerButton.commonPresets) { button in
+              Text(triggerButtonLabel(button)).tag(button)
+            }
+            if !GestureTriggerButton.commonPresets.contains(
+              model.triggerButton
+            ) {
+              Text(triggerButtonLabel(model.triggerButton))
+                .tag(model.triggerButton)
+            }
+          }
+          .labelsHidden()
+          .frame(width: 170)
+
+          TriggerButtonRecorderView(model: model)
+        }
+      }
+
+      LabeledContent(
+        String(localized: "Trigger Hold Duration")
+      ) {
+        Stepper(
+          value: Binding(
+            get: { model.triggerDuration },
+            set: { model.setTriggerDuration($0) }
+          ),
+          in: triggerDurationRange,
+          step: 0.05
+        ) {
+          Text(
+            triggerDurationLabel(model.triggerDuration)
+          )
+          .monospacedDigit()
+        }
+      }
+      Text(
+        String(
+          localized:
+            "Gesture tracking starts when either this hold duration or the movement threshold is reached."
+        )
+      )
+      .font(.callout)
+      .foregroundStyle(.secondary)
+
       Toggle(
         String(localized: "Launch at Login"),
         isOn: Binding(
@@ -160,6 +212,77 @@ private struct GeneralSettingsView: View {
     }
     model.exportMappings(to: url)
   }
+
+  private func triggerButtonLabel(
+    _ button: GestureTriggerButton
+  ) -> String {
+    switch button.buttonNumber {
+    case 0:
+      String(localized: "Left Mouse Button")
+    case 1:
+      String(localized: "Right Mouse Button")
+    case 2:
+      String(localized: "Middle Mouse Button")
+    default:
+      String(
+        format: String(localized: "Mouse Button %d"),
+        Int(button.buttonNumber) + 1
+      )
+    }
+  }
+
+  private func triggerDurationLabel(_ duration: TimeInterval) -> String {
+    guard duration > 0 else {
+      return String(localized: "No Delay")
+    }
+    return String(
+      format: String(localized: "%.2f seconds"),
+      duration
+    )
+  }
+
+  private var triggerDurationRange: ClosedRange<TimeInterval> {
+    let minimum = GestureInputConfiguration.minimumTriggerDuration
+    let maximum = GestureInputConfiguration.maximumTriggerDuration
+    return minimum...maximum
+  }
+}
+
+private struct TriggerButtonRecorderView: View {
+  @ObservedObject var model: AppModel
+  @State private var recordingID: UUID?
+
+  var body: some View {
+    Button(
+      recordingID == nil
+        ? String(localized: "Record…")
+        : String(localized: "Press a Mouse Button…")
+    ) {
+      beginRecording()
+    }
+    .disabled(
+      recordingID == nil && model.eventTapState != .running
+    )
+    .onDisappear {
+      cancelRecording()
+    }
+  }
+
+  private func beginRecording() {
+    guard recordingID == nil else { return }
+    recordingID = model.beginTriggerButtonRecording { button in
+      Task { @MainActor in
+        model.setTriggerButton(button)
+        recordingID = nil
+      }
+    }
+  }
+
+  private func cancelRecording() {
+    guard let recordingID else { return }
+    model.endTriggerButtonRecording(id: recordingID)
+    self.recordingID = nil
+  }
 }
 
 private struct PermissionsSettingsView: View {
@@ -209,7 +332,7 @@ private struct PermissionsSettingsView: View {
       Text(
         String(
           localized:
-            "iGestures needs permission to observe right-button gestures and post the configured shortcut."
+            "iGestures needs permission to observe mouse gestures and post the configured shortcut."
         )
       )
       .foregroundStyle(.secondary)

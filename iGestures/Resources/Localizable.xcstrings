@@ -1,6 +1,16 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%.2f seconds": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%.2f 秒"
+          }
+        }
+      }
+    },
     "%d gestures loaded": {
       "localizations": {
         "en": {
@@ -451,6 +461,16 @@
         }
       }
     },
+    "Draw over the original gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请参照原手势绘制"
+          }
+        }
+      }
+    },
     "Draw the same gesture three times.": {
       "localizations": {
         "zh-Hans": {
@@ -571,6 +591,16 @@
         }
       }
     },
+    "Gesture tracking starts when either this hold duration or the movement threshold is reached.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "达到此按住时长或移动距离阈值中的任一条件后，就会开始跟踪手势。"
+          }
+        }
+      }
+    },
     "Gestures": {
       "localizations": {
         "zh-Hans": {
@@ -671,12 +701,42 @@
         }
       }
     },
-    "iGestures needs permission to observe right-button gestures and post the configured shortcut.": {
+    "iGestures needs permission to observe mouse gestures and post the configured shortcut.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "iGestures 需要权限来观察右键手势并发送配置的快捷键。"
+            "value": "iGestures 需要权限来观察鼠标手势并发送配置的快捷键。"
+          }
+        }
+      }
+    },
+    "Trigger Hold Duration": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触发时长"
+          }
+        }
+      }
+    },
+    "Middle Mouse Button": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标中键"
+          }
+        }
+      }
+    },
+    "Left Mouse Button": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标左键"
           }
         }
       }
@@ -697,6 +757,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "上移"
+          }
+        }
+      }
+    },
+    "Mouse Button %d": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标按键 %d"
+          }
+        }
+      }
+    },
+    "No Delay": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无延迟"
           }
         }
       }
@@ -781,6 +861,16 @@
         }
       }
     },
+    "Original Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原手势"
+          }
+        }
+      }
+    },
     "Permissions": {
       "localizations": {
         "zh-Hans": {
@@ -821,6 +911,16 @@
         }
       }
     },
+    "Press a Mouse Button…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请按下鼠标按键…"
+          }
+        }
+      }
+    },
     "Ready": {
       "localizations": {
         "zh-Hans": {
@@ -837,6 +937,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "录制手势"
+          }
+        }
+      }
+    },
+    "Record…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制…"
           }
         }
       }
@@ -877,6 +987,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在运行"
+          }
+        }
+      }
+    },
+    "Right Mouse Button": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标右键"
           }
         }
       }
@@ -1097,6 +1217,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "与“%@”过于相似，请重试。"
+          }
+        }
+      }
+    },
+    "Trigger Mouse Button": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势触发按键"
           }
         }
       }

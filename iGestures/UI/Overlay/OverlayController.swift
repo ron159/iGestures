@@ -6,46 +6,18 @@ import os
 final class OverlayController {
   let eventSink: OverlayEventBuffer
 
-  private let panel: NSPanel
   private static let performanceLog = OSLog(
     subsystem: "com.ron159.igestures",
     category: "Performance"
   )
-  private let pathView: GesturePathView
   private var displayLink: CADisplayLink!
   private var screenLayout = ScreenLayout.current
+  private var screenOverlays: [ScreenOverlay]
 
   init(eventSink: OverlayEventBuffer = OverlayEventBuffer()) {
     self.eventSink = eventSink
-    self.pathView = GesturePathView(frame: .zero)
-    self.panel = NSPanel(
-      contentRect: .zero,
-      styleMask: .borderless,
-      backing: .buffered,
-      defer: false
-    )
-
-    panel.isOpaque = false
-    panel.backgroundColor = .clear
-    panel.hasShadow = false
-    panel.ignoresMouseEvents = true
-    panel.hidesOnDeactivate = false
-    panel.isReleasedWhenClosed = false
-    panel.level = .statusBar
-    panel.collectionBehavior = [
-      .canJoinAllSpaces,
-      .fullScreenAuxiliary,
-      .stationary,
-      .ignoresCycle,
-    ]
-    panel.contentView = pathView
-
-    displayLink = panel.displayLink(
-      target: self,
-      selector: #selector(displayLinkDidFire)
-    )
-    displayLink.add(to: .main, forMode: .common)
-    displayLink.isPaused = true
+    self.screenOverlays = screenLayout.screens.map(ScreenOverlay.init)
+    configureDisplayLink(isPaused: true)
 
     eventSink.setWakeHandler { [weak self] in
       Task { @MainActor [weak self] in
@@ -83,41 +55,109 @@ final class OverlayController {
     }
 
     if let startPoint = update.startPoint {
-      screenLayout = .current
-      panel.setFrame(screenLayout.appKitUnionFrame, display: false)
-      pathView.frame = NSRect(
-        origin: .zero,
-        size: screenLayout.appKitUnionFrame.size
-      )
-      pathView.begin(
-        at: screenLayout.localPoint(for: startPoint),
-        scale: screenLayout.maximumScale
-      )
-      panel.orderFrontRegardless()
+      updateScreenOverlays(for: .current)
+      for overlay in screenOverlays {
+        overlay.pathView.begin(
+          at: screenLayout.localPoint(
+            for: startPoint,
+            relativeTo: overlay.screen.appKitFrame
+          ),
+          scale: overlay.screen.scale
+        )
+        overlay.panel.orderFrontRegardless()
+      }
     }
     if !update.points.isEmpty {
-      pathView.append(
-        update.points.map(screenLayout.localPoint(for:))
-      )
+      for overlay in screenOverlays {
+        overlay.pathView.append(
+          update.points.map {
+            screenLayout.localPoint(
+              for: $0,
+              relativeTo: overlay.screen.appKitFrame
+            )
+          }
+        )
+      }
     }
     if update.shouldHide {
-      pathView.clear()
-      panel.orderOut(nil)
+      for overlay in screenOverlays {
+        overlay.pathView.clear()
+        overlay.panel.orderOut(nil)
+      }
       displayLink.isPaused = true
     }
   }
+
+  private func updateScreenOverlays(for layout: ScreenLayout) {
+    guard layout != screenLayout else { return }
+    let wasPaused = displayLink.isPaused
+    displayLink.invalidate()
+    for overlay in screenOverlays {
+      overlay.panel.orderOut(nil)
+    }
+    screenLayout = layout
+    screenOverlays = layout.screens.map(ScreenOverlay.init)
+    configureDisplayLink(isPaused: wasPaused)
+  }
+
+  private func configureDisplayLink(isPaused: Bool) {
+    guard let panel = screenOverlays.first?.panel else {
+      preconditionFailure("A screen overlay is required")
+    }
+    displayLink = panel.displayLink(
+      target: self,
+      selector: #selector(displayLinkDidFire)
+    )
+    displayLink.add(to: .main, forMode: .common)
+    displayLink.isPaused = isPaused
+  }
 }
 
-private struct ScreenLayout {
+@MainActor
+private final class ScreenOverlay {
+  let screen: ScreenLayout.Screen
+  let panel: NSPanel
+  let pathView: GesturePathView
+
+  init(screen: ScreenLayout.Screen) {
+    self.screen = screen
+    self.pathView = GesturePathView(
+      frame: NSRect(origin: .zero, size: screen.appKitFrame.size)
+    )
+    self.panel = NSPanel(
+      contentRect: screen.appKitFrame,
+      styleMask: .borderless,
+      backing: .buffered,
+      defer: false
+    )
+
+    panel.isOpaque = false
+    panel.backgroundColor = .clear
+    panel.hasShadow = false
+    panel.ignoresMouseEvents = true
+    panel.hidesOnDeactivate = false
+    panel.isReleasedWhenClosed = false
+    panel.level = .statusBar
+    panel.collectionBehavior = [
+      .canJoinAllSpaces,
+      .fullScreenAuxiliary,
+      .stationary,
+      .ignoresCycle,
+    ]
+    pathView.autoresizingMask = [.width, .height]
+    panel.contentView = pathView
+  }
+}
+
+struct ScreenLayout: Equatable {
   struct Screen {
+    let displayID: CGDirectDisplayID
     let appKitFrame: CGRect
     let quartzFrame: CGRect
     let scale: CGFloat
   }
 
   let screens: [Screen]
-  let appKitUnionFrame: CGRect
-  let maximumScale: CGFloat
 
   static var current: ScreenLayout {
     let screens = NSScreen.screens.compactMap { screen -> Screen? in
@@ -129,6 +169,7 @@ private struct ScreenLayout {
         return nil
       }
       return Screen(
+        displayID: CGDirectDisplayID(number.uint32Value),
         appKitFrame: screen.frame,
         quartzFrame: CGDisplayBounds(
           CGDirectDisplayID(number.uint32Value)
@@ -136,44 +177,82 @@ private struct ScreenLayout {
         scale: screen.backingScaleFactor
       )
     }
-    let fallbackFrame = NSScreen.main?.frame ?? .zero
-    let union =
-      screens
-      .map(\.appKitFrame)
-      .reduce(fallbackFrame) { $0.union($1) }
-    return ScreenLayout(
-      screens: screens,
-      appKitUnionFrame: union,
-      maximumScale: screens.map(\.scale).max() ?? 2
-    )
+    if !screens.isEmpty {
+      return ScreenLayout(screens: screens)
+    }
+
+    let fallbackFrame =
+      NSScreen.main?.frame
+      ?? CGRect(x: 0, y: 0, width: 1, height: 1)
+    return ScreenLayout(screens: [
+      Screen(
+        displayID: 0,
+        appKitFrame: fallbackFrame,
+        quartzFrame: CGRect(
+          x: fallbackFrame.minX,
+          y: 0,
+          width: fallbackFrame.width,
+          height: fallbackFrame.height
+        ),
+        scale: NSScreen.main?.backingScaleFactor ?? 2
+      )
+    ])
   }
 
-  func localPoint(for point: GesturePoint) -> CGPoint {
+  static func == (lhs: ScreenLayout, rhs: ScreenLayout) -> Bool {
+    guard lhs.screens.count == rhs.screens.count else {
+      return false
+    }
+    return zip(lhs.screens, rhs.screens).allSatisfy {
+      $0.displayID == $1.displayID
+        && $0.appKitFrame == $1.appKitFrame
+        && $0.quartzFrame == $1.quartzFrame
+        && $0.scale == $1.scale
+    }
+  }
+
+  func localPoint(
+    for point: GesturePoint,
+    relativeTo frame: CGRect
+  ) -> CGPoint {
     let quartzPoint = CGPoint(
       x: CGFloat(point.x),
       y: CGFloat(point.y)
     )
-    if let screen = screens.first(where: {
-      $0.quartzFrame.contains(quartzPoint)
-    }) {
-      let appKitPoint = CGPoint(
-        x: screen.appKitFrame.minX
-          + quartzPoint.x
-          - screen.quartzFrame.minX,
-        y: screen.appKitFrame.maxY
-          - quartzPoint.y
-          + screen.quartzFrame.minY
-      )
-      return CGPoint(
-        x: appKitPoint.x - appKitUnionFrame.minX,
-        y: appKitPoint.y - appKitUnionFrame.minY
-      )
-    }
-
-    return CGPoint(
-      x: quartzPoint.x - appKitUnionFrame.minX,
-      y: appKitUnionFrame.maxY - quartzPoint.y
+    let screen =
+      screens.first(where: {
+        $0.quartzFrame.contains(quartzPoint)
+      }) ?? screens.min {
+        distance(from: quartzPoint, to: $0.quartzFrame)
+          < distance(from: quartzPoint, to: $1.quartzFrame)
+      }!
+    let appKitPoint = CGPoint(
+      x: screen.appKitFrame.minX
+        + quartzPoint.x
+        - screen.quartzFrame.minX,
+      y: screen.appKitFrame.maxY
+        - quartzPoint.y
+        + screen.quartzFrame.minY
     )
+    return CGPoint(
+      x: appKitPoint.x - frame.minX,
+      y: appKitPoint.y - frame.minY
+    )
+  }
+
+  private func distance(
+    from point: CGPoint,
+    to rect: CGRect
+  ) -> CGFloat {
+    let xDistance = max(
+      0,
+      max(rect.minX - point.x, point.x - rect.maxX)
+    )
+    let yDistance = max(
+      0,
+      max(rect.minY - point.y, point.y - rect.maxY)
+    )
+    return hypot(xDistance, yDistance)
   }
 }
 

@@ -5,6 +5,9 @@ import Foundation
 final class AppModel: ObservableObject {
   @Published private(set) var isEnabled = false
   @Published private(set) var isOverlayEnabled = true
+  @Published private(set) var triggerButton: GestureTriggerButton = .right
+  @Published private(set) var triggerDuration =
+    GestureInputConfiguration.defaultTriggerDuration
   @Published private(set) var permissionState: PermissionState = .unknown
   @Published private(set) var eventTapState: EventTapManagerState = .stopped
   @Published private(set) var mappingCount = 0
@@ -41,6 +44,8 @@ final class AppModel: ObservableObject {
     self.preferencesStore = preferencesStore
     self.isEnabled = preferencesStore.recognitionEnabled
     self.isOverlayEnabled = preferencesStore.overlayEnabled
+    self.triggerButton = preferencesStore.triggerButton
+    self.triggerDuration = preferencesStore.triggerDuration
     let loginItemController =
       loginItemController ?? LoginItemController()
     self.loginItemController = loginItemController
@@ -56,6 +61,9 @@ final class AppModel: ObservableObject {
           ?? "com.ron159.igestures.dev"
       ))
     overlayController.eventSink.setEnabled(isOverlayEnabled)
+    self.eventTapManager.updateInputConfiguration(
+      gestureInputConfiguration
+    )
     self.eventTapManager.setStateHandler { [weak self] state in
       Task { @MainActor [weak self] in
         self?.handleEventTapState(state)
@@ -170,6 +178,38 @@ final class AppModel: ObservableObject {
     isOverlayEnabled = isEnabled
     preferencesStore.setOverlayEnabled(isEnabled)
     overlayController.eventSink.setEnabled(isEnabled)
+  }
+
+  func setTriggerButton(_ triggerButton: GestureTriggerButton) {
+    self.triggerButton = triggerButton
+    preferencesStore.setTriggerButton(triggerButton)
+    eventTapManager.updateInputConfiguration(
+      gestureInputConfiguration
+    )
+  }
+
+  func setTriggerDuration(_ duration: TimeInterval) {
+    let configuration = GestureInputConfiguration(
+      triggerButton: triggerButton,
+      triggerDuration: duration
+    )
+    triggerDuration = configuration.triggerDuration
+    preferencesStore.setTriggerDuration(
+      configuration.triggerDuration
+    )
+    eventTapManager.updateInputConfiguration(configuration)
+  }
+
+  @discardableResult
+  func beginTriggerButtonRecording(
+    _ handler:
+      @escaping EventTapManager.TriggerButtonRecordingHandler
+  ) -> UUID {
+    eventTapManager.beginTriggerButtonRecording(handler)
+  }
+
+  func endTriggerButtonRecording(id: UUID) {
+    eventTapManager.endTriggerButtonRecording(id: id)
   }
 
   @discardableResult
@@ -425,5 +465,12 @@ final class AppModel: ObservableObject {
         refreshLoginItemStatus()
       }
     }
+  }
+
+  private var gestureInputConfiguration: GestureInputConfiguration {
+    GestureInputConfiguration(
+      triggerButton: triggerButton,
+      triggerDuration: triggerDuration
+    )
   }
 }

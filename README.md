@@ -1,6 +1,6 @@
 # iGestures
 
-iGestures 是一款原生 macOS 菜单栏鼠标手势工具：按住右键绘制自定义单笔轨迹，
+iGestures 是一款原生 macOS 菜单栏鼠标手势工具：按住自定义触发鼠标键绘制单笔轨迹，
 松开后即可在当前应用中执行绑定的键盘快捷键。
 
 项目采用原生 Swift 架构，围绕低延迟事件处理、可训练的自由轨迹、明确的失败回退
@@ -11,9 +11,11 @@ iGestures 是一款原生 macOS 菜单栏鼠标手势工具：按住右键绘制
 - 录制任意单笔轨迹，每个手势最多保存五个训练样本；
 - 绑定物理键码以及 Command、Option、Control、Shift、Fn 修饰键；
 - 为映射设置全局、仅指定应用或排除指定应用的作用域；
-- 在 SwiftUI 设置中创建、重命名、重录、启停、排序和删除映射；
+- 可从常用鼠标按键预设快速选择，或直接录制任意物理鼠标按键作为触发键；
+- 自定义触发键按住时长；按住时长或移动距离任一达到阈值即可开始手势；
+- 在 SwiftUI 设置中创建、重命名、重录、启停、排序和删除映射，重录时显示原手势参考；
 - 通过系统应用选择器配置作用域，无需手工填写 Bundle Identifier；
-- 实时轨迹覆盖层，可随时关闭；
+- 支持多显示器的实时轨迹覆盖层，可随时关闭；
 - 版本化 JSON 数据库、原子写入、损坏恢复、导入和导出；
 - Accessibility、Listen Event、Post Event 和 Event Tap 分项诊断；
 - 使用 `SMAppService.mainApp` 管理登录时启动；
@@ -81,7 +83,7 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-当前基线已通过 Debug/Release 构建、71 项 XCTest、Xcode Analyze、arm64 产物检查和
+当前基线已通过 Debug/Release 构建、78 项 XCTest、Xcode Analyze、arm64 产物检查和
 本地临时签名验证。GitHub Actions 会复跑格式、本地化、仓库卫生检查、核心检查、
 XCTest 和 Release 构建。每次成功推送到 `main` 后，CI 会更新 `continuous`
 预发布中的 ZIP 与 SHA-256 校验文件。
@@ -99,10 +101,10 @@ git push origin v0.2.0
 ## 设计概要
 
 - `EventTapManager` 在专用高优先级 RunLoop 上处理鼠标事件；
-- `GestureSession` 明确区分普通右键、轨迹跟踪、识别和 Fail-open 回放；
+- `GestureSession` 明确区分普通触发键点击、轨迹跟踪、识别和 Fail-open 回放；
 - `GestureNormalizer` 将输入归一化为固定点数，`GestureRecognizer` 使用轻量模板匹配；
 - 设置修改通过不可变 `CompiledMappingSnapshot` 发布到事件线程；
-- `OverlayEventBuffer` 合并跨线程更新，`OverlayController` 按显示帧绘制；
+- `OverlayEventBuffer` 合并跨线程更新，`OverlayController` 使用逐屏窗口按显示帧绘制；
 - `MappingStore` 使用 actor 隔离、完整校验、原子替换和恢复副本；
 - 日常手势轨迹仅在内存中处理，不写入磁盘，不收集或上传用户数据。
 

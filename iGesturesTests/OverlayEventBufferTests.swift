@@ -88,6 +88,52 @@ final class OverlayEventBufferTests: XCTestCase {
     XCTAssertEqual(batch?.points.last, point(1_000, 1_000))
   }
 
+  func testSecondaryScreenPointUsesItsOwnCoordinateSpace() {
+    let secondaryFrame = CGRect(
+      x: -1_280,
+      y: 0,
+      width: 1_280,
+      height: 1_024
+    )
+    let layout = ScreenLayout(screens: [
+      .init(
+        displayID: 1,
+        appKitFrame: CGRect(
+          x: 0,
+          y: 0,
+          width: 1_920,
+          height: 1_080
+        ),
+        quartzFrame: CGRect(
+          x: 0,
+          y: 0,
+          width: 1_920,
+          height: 1_080
+        ),
+        scale: 2
+      ),
+      .init(
+        displayID: 2,
+        appKitFrame: secondaryFrame,
+        quartzFrame: CGRect(
+          x: -1_280,
+          y: 56,
+          width: 1_280,
+          height: 1_024
+        ),
+        scale: 1
+      ),
+    ])
+
+    let localPoint = layout.localPoint(
+      for: point(-1_200, 100),
+      relativeTo: secondaryFrame
+    )
+
+    XCTAssertEqual(localPoint.x, 80, accuracy: 0.001)
+    XCTAssertEqual(localPoint.y, 980, accuracy: 0.001)
+  }
+
   private func point(_ x: Float, _ y: Float) -> GesturePoint {
     GesturePoint(x: x, y: y)
   }

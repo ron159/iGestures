@@ -14,6 +14,8 @@ public final class EventTapManager: @unchecked Sendable {
     @Sendable (EventTapManagerState) -> Void
   public typealias ShortcutRecordingHandler =
     @Sendable (_ keyCode: UInt16, _ modifiers: UInt64) -> Void
+  public typealias TriggerButtonRecordingHandler =
+    @Sendable (GestureTriggerButton) -> Void
 
   private let lifecycleLock = NSLock()
   private static let performanceLog = OSLog(
@@ -30,21 +32,29 @@ public final class EventTapManager: @unchecked Sendable {
   private var runLoop: CFRunLoop?
   private var pendingSnapshot = CompiledMappingSnapshot.empty
   private var pendingEnabled = false
+  private var pendingInputConfiguration =
+    GestureInputConfiguration.default
   private var stopRequested = false
   private var stateHandler: StateHandler?
   private var shortcutCaptureState = ShortcutCaptureState()
+  private var triggerButtonCaptureState = TriggerButtonCaptureState()
   private var shortcutRecording:
     (
       id: UUID, handler: ShortcutRecordingHandler
+    )?
+  private var triggerButtonRecording:
+    (
+      id: UUID, handler: TriggerButtonRecordingHandler
     )?
 
   // The following properties are confined to the Event Tap thread.
   private var eventTap: CFMachPort?
   private var runLoopSource: CFRunLoopSource?
   private var session = GestureSession()
-  private var pendingRightMouseDown: CGEvent?
+  private var pendingMouseDown: CGEvent?
   private var mappingSnapshot = CompiledMappingSnapshot.empty
   private var isEnabled = false
+  private var inputConfiguration = GestureInputConfiguration.default
   private var activeSessionSignpostID: OSSignpostID?
 
   public init(
@@ -85,6 +95,27 @@ public final class EventTapManager: @unchecked Sendable {
     if shortcutRecording?.id == id {
       shortcutRecording = nil
       shortcutCaptureState.cancel()
+    }
+    lifecycleLock.unlock()
+  }
+
+  @discardableResult
+  public func beginTriggerButtonRecording(
+    _ handler: @escaping TriggerButtonRecordingHandler
+  ) -> UUID {
+    let id = UUID()
+    lifecycleLock.lock()
+    triggerButtonCaptureState.begin()
+    triggerButtonRecording = (id, handler)
+    lifecycleLock.unlock()
+    return id
+  }
+
+  public func endTriggerButtonRecording(id: UUID) {
+    lifecycleLock.lock()
+    if triggerButtonRecording?.id == id {
+      triggerButtonRecording = nil
+      triggerButtonCaptureState.cancel()
     }
     lifecycleLock.unlock()
   }
@@ -170,6 +201,31 @@ public final class EventTapManager: @unchecked Sendable {
     CFRunLoopWakeUp(runLoop)
   }
 
+  public func updateInputConfiguration(
+    _ configuration: GestureInputConfiguration
+  ) {
+    lifecycleLock.lock()
+    pendingInputConfiguration = configuration
+    let runLoop = self.runLoop
+    lifecycleLock.unlock()
+
+    guard let runLoop else { return }
+    CFRunLoopPerformBlock(
+      runLoop,
+      CFRunLoopMode.defaultMode!.rawValue as CFTypeRef
+    ) { [self] in
+      let result = session.cancel(.configurationInvalid)
+      apply(result.commands, currentEvent: nil)
+      inputConfiguration = configuration
+      session = GestureSession(
+        configuration: .init(
+          minimumTriggerDuration: configuration.triggerDuration
+        )
+      )
+    }
+    CFRunLoopWakeUp(runLoop)
+  }
+
   private func runEventLoop() {
     autoreleasepool {
       let currentRunLoop = CFRunLoopGetCurrent()
@@ -177,6 +233,12 @@ public final class EventTapManager: @unchecked Sendable {
       runLoop = currentRunLoop
       mappingSnapshot = pendingSnapshot
       isEnabled = pendingEnabled
+      inputConfiguration = pendingInputConfiguration
+      session = GestureSession(
+        configuration: .init(
+          minimumTriggerDuration: inputConfiguration.triggerDuration
+        )
+      )
       let shouldStop = stopRequested
       lifecycleLock.unlock()
 
@@ -237,6 +299,8 @@ public final class EventTapManager: @unchecked Sendable {
     thread = nil
     shortcutRecording = nil
     shortcutCaptureState.reset()
+    triggerButtonRecording = nil
+    triggerButtonCaptureState.reset()
     lifecycleLock.unlock()
   }
 
@@ -275,10 +339,19 @@ public final class EventTapManager: @unchecked Sendable {
       apply(result.commands, currentEvent: nil)
       lifecycleLock.lock()
       shortcutCaptureState.releaseSuppressedKeys()
+      triggerButtonCaptureState.releaseSuppressedButton()
       lifecycleLock.unlock()
       if let eventTap {
         CGEvent.tapEnable(tap: eventTap, enable: true)
       }
+      return Unmanaged.passUnretained(event)
+    }
+
+    if handleTriggerButtonRecordingEvent(type: type, event: event) {
+      return nil
+    }
+
+    guard let phase = triggerEventPhase(type: type, event: event) else {
       return Unmanaged.passUnretained(event)
     }
 
@@ -292,10 +365,10 @@ public final class EventTapManager: @unchecked Sendable {
     let timestamp = TimeInterval(event.timestamp) / 1_000_000_000
     let result: GestureSessionResult
 
-    switch type {
-    case .rightMouseDown:
+    switch phase {
+    case .down:
       let bundleID = frontmostAppProvider.currentBundleID()
-      result = session.rightMouseDown(
+      result = session.mouseDown(
         at: point,
         timestamp: timestamp,
         frontmostBundleID: bundleID,
@@ -309,23 +382,21 @@ public final class EventTapManager: @unchecked Sendable {
           apply(failure.commands, currentEvent: nil)
           return Unmanaged.passUnretained(event)
         }
-        pendingRightMouseDown = copy
+        pendingMouseDown = copy
         beginSessionSignpost()
       }
-    case .rightMouseDragged:
-      result = session.rightMouseDragged(
+    case .dragged:
+      result = session.mouseDragged(
         to: point,
         timestamp: timestamp,
         sourceUserData: sourceUserData
       )
-    case .rightMouseUp:
-      result = session.rightMouseUp(
+    case .up:
+      result = session.mouseUp(
         at: point,
         timestamp: timestamp,
         sourceUserData: sourceUserData
       )
-    default:
-      return Unmanaged.passUnretained(event)
     }
 
     apply(result.commands, currentEvent: event)
@@ -377,6 +448,52 @@ public final class EventTapManager: @unchecked Sendable {
       : nil
   }
 
+  private func handleTriggerButtonRecordingEvent(
+    type: CGEventType,
+    event: CGEvent
+  ) -> Bool {
+    guard
+      !EventSourceMarker.isSynthetic(
+        event.getIntegerValueField(.eventSourceUserData)
+      )
+    else {
+      return false
+    }
+    let buttonNumber = event.getIntegerValueField(
+      .mouseEventButtonNumber
+    )
+    let result: TriggerButtonCaptureResult
+    var handler: TriggerButtonRecordingHandler?
+
+    lifecycleLock.lock()
+    switch type {
+    case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+      result = triggerButtonCaptureState.handleMouseDown(
+        buttonNumber: buttonNumber
+      )
+      if case .captured = result {
+        handler = triggerButtonRecording?.handler
+        triggerButtonRecording = nil
+      }
+    case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
+      result = triggerButtonCaptureState.handleMouseDragged(
+        buttonNumber: buttonNumber
+      )
+    case .leftMouseUp, .rightMouseUp, .otherMouseUp:
+      result = triggerButtonCaptureState.handleMouseUp(
+        buttonNumber: buttonNumber
+      )
+    default:
+      result = .passThrough
+    }
+    lifecycleLock.unlock()
+
+    if case .captured(let triggerButton) = result {
+      handler?(triggerButton)
+    }
+    return result != .passThrough
+  }
+
   private func apply(
     _ commands: [GestureSessionCommand],
     currentEvent: CGEvent?
@@ -389,14 +506,14 @@ public final class EventTapManager: @unchecked Sendable {
         overlaySink.append(point)
       case .hideOverlay:
         overlaySink.hide()
-      case .replayPendingRightClick(let location):
-        replayRightClick(
+      case .replayPendingClick(let location):
+        replayClick(
           mouseUpLocation: location,
           currentEvent: currentEvent
         )
         endSessionSignpost()
       case .recognize(let candidate):
-        pendingRightMouseDown = nil
+        pendingMouseDown = nil
         endSessionSignpost()
         enqueueRecognition(candidate)
       case .didFailOpen:
@@ -405,27 +522,34 @@ public final class EventTapManager: @unchecked Sendable {
     }
   }
 
-  private func replayRightClick(
+  private func replayClick(
     mouseUpLocation: GesturePoint,
     currentEvent: CGEvent?
   ) {
-    guard let mouseDown = pendingRightMouseDown else { return }
-    pendingRightMouseDown = nil
+    guard let mouseDown = pendingMouseDown else { return }
+    pendingMouseDown = nil
 
     let mouseUp: CGEvent?
     if let currentEvent,
-      currentEvent.type == .rightMouseUp
+      triggerEventPhase(
+        type: currentEvent.type,
+        event: currentEvent
+      ) == .up
     {
       mouseUp = currentEvent.copy()
     } else {
+      let triggerButton = inputConfiguration.triggerButton
       mouseUp = CGEvent(
         mouseEventSource: nil,
-        mouseType: .rightMouseUp,
+        mouseType: triggerButton.mouseUpEventType,
         mouseCursorPosition: CGPoint(
           x: CGFloat(mouseUpLocation.x),
           y: CGFloat(mouseUpLocation.y)
         ),
-        mouseButton: .right
+        mouseButton:
+          CGMouseButton(
+            rawValue: triggerButton.buttonNumber
+          ) ?? .right
       )
     }
 
@@ -550,14 +674,162 @@ public final class EventTapManager: @unchecked Sendable {
     handler?(state)
   }
 
+  private func triggerEventPhase(
+    type: CGEventType,
+    event: CGEvent
+  ) -> TriggerEventPhase? {
+    inputConfiguration.triggerButton.eventPhase(
+      for: type,
+      buttonNumber: event.getIntegerValueField(
+        .mouseEventButtonNumber
+      )
+    )
+  }
+
   private static let eventMask: CGEventMask = [
+    CGEventType.leftMouseDown,
+    .leftMouseDragged,
+    .leftMouseUp,
     CGEventType.rightMouseDown,
     .rightMouseDragged,
     .rightMouseUp,
+    .otherMouseDown,
+    .otherMouseDragged,
+    .otherMouseUp,
     .keyDown,
     .keyUp,
   ].reduce(0) { mask, type in
     mask | (1 << type.rawValue)
+  }
+}
+
+enum TriggerEventPhase: Equatable {
+  case down
+  case dragged
+  case up
+}
+
+extension GestureTriggerButton {
+  fileprivate var mouseUpEventType: CGEventType {
+    switch buttonNumber {
+    case 0:
+      .leftMouseUp
+    case 1:
+      .rightMouseUp
+    default:
+      .otherMouseUp
+    }
+  }
+
+  func eventPhase(
+    for type: CGEventType,
+    buttonNumber eventButtonNumber: Int64
+  ) -> TriggerEventPhase? {
+    switch buttonNumber {
+    case 0:
+      switch type {
+      case .leftMouseDown:
+        return .down
+      case .leftMouseDragged:
+        return .dragged
+      case .leftMouseUp:
+        return .up
+      default:
+        return nil
+      }
+    case 1:
+      switch type {
+      case .rightMouseDown:
+        return .down
+      case .rightMouseDragged:
+        return .dragged
+      case .rightMouseUp:
+        return .up
+      default:
+        return nil
+      }
+    default:
+      guard eventButtonNumber == Int64(buttonNumber) else {
+        return nil
+      }
+      switch type {
+      case .otherMouseDown:
+        return .down
+      case .otherMouseDragged:
+        return .dragged
+      case .otherMouseUp:
+        return .up
+      default:
+        return nil
+      }
+    }
+  }
+}
+
+enum TriggerButtonCaptureResult: Equatable {
+  case passThrough
+  case suppress
+  case captured(GestureTriggerButton)
+}
+
+struct TriggerButtonCaptureState {
+  private(set) var isRecording = false
+  private var suppressedButtonNumber: Int64?
+
+  mutating func begin() {
+    isRecording = true
+  }
+
+  mutating func cancel() {
+    isRecording = false
+  }
+
+  mutating func releaseSuppressedButton() {
+    suppressedButtonNumber = nil
+  }
+
+  mutating func reset() {
+    isRecording = false
+    releaseSuppressedButton()
+  }
+
+  mutating func handleMouseDown(
+    buttonNumber: Int64
+  ) -> TriggerButtonCaptureResult {
+    if suppressedButtonNumber == buttonNumber {
+      return .suppress
+    }
+    guard
+      isRecording,
+      buttonNumber >= 0,
+      UInt64(buttonNumber) <= UInt64(UInt32.max)
+    else {
+      return .passThrough
+    }
+
+    isRecording = false
+    suppressedButtonNumber = buttonNumber
+    return .captured(
+      GestureTriggerButton(buttonNumber: UInt32(buttonNumber))
+    )
+  }
+
+  mutating func handleMouseDragged(
+    buttonNumber: Int64
+  ) -> TriggerButtonCaptureResult {
+    suppressedButtonNumber == buttonNumber
+      ? .suppress
+      : .passThrough
+  }
+
+  mutating func handleMouseUp(
+    buttonNumber: Int64
+  ) -> TriggerButtonCaptureResult {
+    guard suppressedButtonNumber == buttonNumber else {
+      return .passThrough
+    }
+    suppressedButtonNumber = nil
+    return .suppress
   }
 }
 
