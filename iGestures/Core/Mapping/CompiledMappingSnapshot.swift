@@ -4,12 +4,8 @@ public struct CompiledMappingSnapshot: Sendable {
   public let mappings: [GestureMapping]
   private let inheritedTriggerMappings: [GestureMapping]
   private let mappingsByTrigger: [GestureTriggerButton: [GestureMapping]]
-  private let compoundBindings: [CompoundGestureBinding]
 
-  public init(
-    mappings: [GestureMapping],
-    compoundBindings: [CompoundGestureBinding] = []
-  ) {
+  public init(mappings: [GestureMapping]) {
     self.mappings = mappings
     inheritedTriggerMappings = mappings.filter {
       $0.triggerButton == nil
@@ -21,38 +17,6 @@ public struct CompiledMappingSnapshot: Sendable {
       by: \.0
     )
     .mapValues { $0.map(\.1) }
-    self.compoundBindings = compoundBindings
-  }
-
-  public func compoundAction(
-    for input: CompoundGestureInput,
-    bundleID: String?
-  ) -> ActionRequest? {
-    let applicable = compoundBindings.filter {
-      $0.isEnabled
-        && $0.action.isValid
-        && $0.input == input
-        && $0.appScope.includes(bundleID: bundleID)
-    }
-    let specific = applicable.filter {
-      $0.appScope.isApplicationSpecific(for: bundleID)
-    }
-    let candidates = specific.isEmpty ? applicable : specific
-    guard
-      let binding = candidates.min(by: {
-        if $0.priority != $1.priority {
-          return $0.priority < $1.priority
-        }
-        return $0.id.uuidString < $1.id.uuidString
-      })
-    else {
-      return nil
-    }
-    return ActionRequest(
-      mappingID: binding.id,
-      mappingName: binding.name,
-      action: binding.action
-    )
   }
 
   public func mappings(

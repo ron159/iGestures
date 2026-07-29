@@ -50,6 +50,7 @@ public enum MappingStoreError: Error, Equatable, Sendable {
   case nonFiniteTemplate
   case tooManyBundleIDs(limit: Int)
   case invalidBundleID
+  case invalidApplicationGroup
   case invalidData
   case recoveryFailed
   case fileSystemFailure
@@ -318,10 +319,9 @@ public actor MappingStore {
     )
     var conflicts: [MappingImportConflict] = []
     var additions: [GestureMapping] = []
-    let importedScripts =
-      imported.mappings.flatMap {
-        $0.action.scripts
-      } + imported.compoundBindings.flatMap { $0.action.scripts }
+    let importedScripts = imported.mappings.flatMap {
+      $0.action.scripts
+    }
     let safeImportedMappings = imported.mappings.map { mapping in
       guard !mapping.action.scripts.isEmpty else { return mapping }
       var safe = mapping
@@ -362,30 +362,33 @@ public actor MappingStore {
     for index in normalized.indices {
       normalized[index].priority = index
     }
-    let existingCompoundIDs = Set(
-      database.compoundBindings.map(\.id)
-    )
-    let safeImportedCompound = imported.compoundBindings.map {
-      binding in
-      guard !binding.action.scripts.isEmpty else { return binding }
-      var safe = binding
-      safe.action = safe.action.disablingScripts()
-      safe.isEnabled = false
-      return safe
-    }
-    var plannedCompound =
-      mode == .merge
-      ? database.compoundBindings
-        + safeImportedCompound.filter {
-          !existingCompoundIDs.contains($0.id)
+    let plannedGroups: [GestureApplicationGroup]
+    let plannedApplications: [String]
+    switch mode {
+    case .merge:
+      let existingGroupIDs = Set(database.applicationGroups.map(\.id))
+      plannedGroups =
+        database.applicationGroups
+        + imported.applicationGroups.filter {
+          !existingGroupIDs.contains($0.id)
         }
-      : safeImportedCompound
-    for index in plannedCompound.indices {
-      plannedCompound[index].priority = index
+      plannedApplications = normalizedBundleIdentifiers(
+        database.managedApplicationBundleIdentifiers
+          + imported.managedApplicationBundleIdentifiers
+          + plannedGroups.flatMap(\.bundleIdentifiers)
+      )
+    case .replace:
+      plannedGroups = imported.applicationGroups
+      plannedApplications = imported.managedApplicationBundleIdentifiers
     }
+    synchronizeGroupScopes(
+      in: &normalized,
+      applicationGroups: plannedGroups
+    )
     let plannedDatabase = GestureDatabase(
       mappings: normalized,
-      compoundBindings: plannedCompound
+      applicationGroups: plannedGroups,
+      managedApplicationBundleIdentifiers: plannedApplications
     )
     let preview = MappingImportPreview(
       schemaVersion: imported.schemaVersion,
@@ -396,12 +399,7 @@ public actor MappingStore {
         : imported.mappings.count,
       mappingsToReplace: replacements,
       actionTypes: Array(
-        Set(
-          imported.mappings.map { actionType($0.action) }
-            + imported.compoundBindings.map {
-              actionType($0.action)
-            }
-        )
+        Set(imported.mappings.map { actionType($0.action) })
       ).sorted(),
       conflicts: conflicts,
       scriptsRequiringConfirmation: importedScripts
@@ -416,6 +414,7 @@ public actor MappingStore {
     return database.mappings.first { existing in
       guard
         existing.appScope.competes(with: imported.appScope),
+        existing.applicationGroupID == imported.applicationGroupID,
         existing.triggerButton == imported.triggerButton
       else {
         return false
@@ -543,29 +542,57 @@ public actor MappingStore {
     }
 
     guard
-      Set(database.compoundBindings.map(\.id)).count
-        == database.compoundBindings.count
+      Set(database.applicationGroups.map(\.id)).count
+        == database.applicationGroups.count
     else {
-      throw MappingStoreError.duplicateMappingID
+      throw MappingStoreError.invalidApplicationGroup
     }
-    for (index, binding) in database.compoundBindings.enumerated() {
+    var groupedBundleIdentifiers: Set<String> = []
+    for group in database.applicationGroups {
       guard
-        !binding.name.trimmingCharacters(
+        !group.name.trimmingCharacters(
           in: .whitespacesAndNewlines
         ).isEmpty,
-        binding.name.utf8.count <= limits.maximumNameLength
+        group.name.utf8.count <= limits.maximumNameLength,
+        Set(group.bundleIdentifiers).count
+          == group.bundleIdentifiers.count
       else {
-        throw MappingStoreError.invalidMappingName
+        throw MappingStoreError.invalidApplicationGroup
       }
-      guard binding.priority == index else {
-        throw MappingStoreError.invalidPriority
+      try validateBundleIdentifiers(group.bundleIdentifiers)
+      guard
+        groupedBundleIdentifiers.isDisjoint(
+          with: group.bundleIdentifiers
+        )
+      else {
+        throw MappingStoreError.invalidApplicationGroup
       }
-      try validate(binding.action, isEnabled: binding.isEnabled)
-      try validate(binding.appScope)
-      if case .rocker(let first, let second) = binding.input,
-        first == second
-      {
-        throw MappingStoreError.invalidData
+      groupedBundleIdentifiers.formUnion(group.bundleIdentifiers)
+    }
+
+    guard
+      Set(database.managedApplicationBundleIdentifiers).count
+        == database.managedApplicationBundleIdentifiers.count
+    else {
+      throw MappingStoreError.invalidBundleID
+    }
+    try validateBundleIdentifiers(
+      database.managedApplicationBundleIdentifiers
+    )
+
+    let groupsByID = Dictionary(
+      uniqueKeysWithValues: database.applicationGroups.map {
+        ($0.id, $0)
+      }
+    )
+    for mapping in database.mappings {
+      guard let groupID = mapping.applicationGroupID else { continue }
+      guard
+        let group = groupsByID[groupID],
+        case .only(let bundleIdentifiers) = mapping.appScope,
+        bundleIdentifiers == group.bundleIdentifiers
+      else {
+        throw MappingStoreError.invalidApplicationGroup
       }
     }
   }
@@ -609,18 +636,56 @@ public actor MappingStore {
       bundleIDs = values
     }
 
-    guard bundleIDs.count <= limits.maximumBundleIDsPerScope else {
+    try validateBundleIdentifiers(bundleIDs)
+  }
+
+  private nonisolated func validateBundleIdentifiers(
+    _ bundleIdentifiers: [String]
+  ) throws {
+    guard
+      bundleIdentifiers.count <= limits.maximumBundleIDsPerScope
+    else {
       throw MappingStoreError.tooManyBundleIDs(
         limit: limits.maximumBundleIDsPerScope
       )
     }
     guard
-      bundleIDs.allSatisfy({
+      bundleIdentifiers.allSatisfy({
         !$0.isEmpty && $0.utf8.count <= limits.maximumBundleIDLength
       })
     else {
       throw MappingStoreError.invalidBundleID
     }
+  }
+
+  private func synchronizeGroupScopes(
+    in mappings: inout [GestureMapping],
+    applicationGroups: [GestureApplicationGroup]
+  ) {
+    let groupsByID = Dictionary(
+      uniqueKeysWithValues: applicationGroups.map { ($0.id, $0) }
+    )
+    for index in mappings.indices {
+      guard
+        let groupID = mappings[index].applicationGroupID,
+        let group = groupsByID[groupID]
+      else {
+        continue
+      }
+      mappings[index].appScope = .only(group.bundleIdentifiers)
+    }
+  }
+
+  private func normalizedBundleIdentifiers(
+    _ bundleIdentifiers: [String]
+  ) -> [String] {
+    Array(
+      Set(
+        bundleIdentifiers.map {
+          $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+      )
+    ).sorted()
   }
 
   private func writePrimary(

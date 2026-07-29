@@ -121,6 +121,33 @@ final class GestureLibraryTests: XCTestCase {
     XCTAssertFalse(mapping.isEnabled)
   }
 
+  func testCustomTriggerButtonCanBeAssignedToMapping() throws {
+    let template = try makeTemplate(angle: 0)
+    var library = GestureLibrary()
+    let id = library.create(
+      draft(name: "Custom Trigger", template: template)
+    )
+    let customButton = GestureTriggerButton(buttonNumber: 7)
+
+    try library.setTriggerButton(id: id, customButton)
+
+    let mapping = try XCTUnwrap(library.database.mappings.first)
+    XCTAssertEqual(mapping.triggerButton, customButton)
+    XCTAssertEqual(
+      library.database.compiledSnapshot.mappings(
+        for: customButton,
+        default: .right
+      ).map(\.id),
+      [id]
+    )
+    XCTAssertTrue(
+      library.database.compiledSnapshot.mappings(
+        for: .right,
+        default: .right
+      ).isEmpty
+    )
+  }
+
   private func draft(
     name: String,
     template: GestureTemplate

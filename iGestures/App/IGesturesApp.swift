@@ -6,30 +6,228 @@ struct IGesturesApp: App {
   @StateObject private var model = AppModel()
 
   var body: some Scene {
+    #if UI_PREVIEW
+      WindowGroup("iGestures UI Preview", id: "ui-preview") {
+        PreviewSettingsHost(model: model)
+      }
+      .defaultSize(width: 1_100, height: 700)
+      .windowResizability(.contentMinSize)
+    #endif
+
     MenuBarExtra {
       MenuBarContent(model: model)
     } label: {
-      Label {
-        Text("iGestures")
-      } icon: {
-        Image(
-          systemName: model.isEnabled
-            ? "cursorarrow.motionlines"
-            : "cursorarrow.slash")
-      }
+      MenuBarIcon(isEnabled: model.isEnabled)
+        .accessibilityLabel("iGestures")
     }
 
     Settings {
       SettingsRootView(model: model)
     }
+    .defaultSize(width: 1_100, height: 700)
+    .windowResizability(.contentMinSize)
 
-    Window(
-      String(localized: "Welcome to iGestures"),
-      id: "onboarding"
-    ) {
-      OnboardingView(model: model)
+    #if !UI_PREVIEW
+      Window(
+        String(localized: "Welcome to iGestures"),
+        id: "onboarding"
+      ) {
+        OnboardingView(model: model)
+      }
+      .defaultSize(width: 660, height: 560)
+    #endif
+  }
+}
+
+#if UI_PREVIEW
+  private struct PreviewSettingsHost: View {
+    @ObservedObject var model: AppModel
+    @State private var didPrepareSampleGestures = false
+
+    var body: some View {
+      SettingsRootView(model: model)
+        .onChange(
+          of: model.isLoadingMappings,
+          initial: true
+        ) {
+          prepareSampleGesturesIfNeeded()
+        }
     }
-    .defaultSize(width: 660, height: 560)
+
+    private func prepareSampleGesturesIfNeeded() {
+      guard !model.isLoadingMappings,
+        !didPrepareSampleGestures
+      else {
+        return
+      }
+
+      didPrepareSampleGestures = true
+      if model.mappings.isEmpty {
+        model.installPresets(GesturePresetLibrary.builtIn)
+      }
+    }
+  }
+#endif
+
+private struct MenuBarIcon: View {
+  let isEnabled: Bool
+
+  var body: some View {
+    Image(nsImage: MenuBarTemplateImage.icon)
+      .renderingMode(.template)
+      .frame(width: 22, height: 18)
+      .opacity(isEnabled ? 1 : 0.82)
+  }
+}
+
+private enum MenuBarTemplateImage {
+  static let icon = make()
+
+  private static func make() -> NSImage {
+    let image = NSImage(
+      size: NSSize(width: 22, height: 18),
+      flipped: true
+    ) { _ in
+      NSColor.black.setStroke()
+      NSColor.black.setFill()
+
+      func stroke(_ path: NSBezierPath, width: CGFloat) {
+        path.lineWidth = width
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        path.stroke()
+      }
+
+      let leftEar = NSBezierPath(
+        ovalIn: NSRect(x: 4.2, y: 2.8, width: 5.2, height: 5.2)
+      )
+      stroke(leftEar, width: 1.2)
+      let rightEar = NSBezierPath(
+        ovalIn: NSRect(x: 12.6, y: 2.8, width: 5.2, height: 5.2)
+      )
+      stroke(rightEar, width: 1.2)
+
+      let leftInnerEar = NSBezierPath()
+      leftInnerEar.move(to: NSPoint(x: 5.5, y: 5.8))
+      leftInnerEar.curve(
+        to: NSPoint(x: 8, y: 5.2),
+        controlPoint1: NSPoint(x: 5.9, y: 4.3),
+        controlPoint2: NSPoint(x: 7.5, y: 4.1)
+      )
+      stroke(leftInnerEar, width: 0.65)
+
+      let rightInnerEar = NSBezierPath()
+      rightInnerEar.move(to: NSPoint(x: 14, y: 5.2))
+      rightInnerEar.curve(
+        to: NSPoint(x: 16.5, y: 5.8),
+        controlPoint1: NSPoint(x: 14.5, y: 4.1),
+        controlPoint2: NSPoint(x: 16.1, y: 4.3)
+      )
+      stroke(rightInnerEar, width: 0.65)
+
+      let body = NSBezierPath()
+      body.move(to: NSPoint(x: 8.1, y: 12.9))
+      body.curve(
+        to: NSPoint(x: 5.3, y: 17.3),
+        controlPoint1: NSPoint(x: 6.5, y: 13.8),
+        controlPoint2: NSPoint(x: 5.5, y: 15.4)
+      )
+      body.line(to: NSPoint(x: 16.7, y: 17.3))
+      body.curve(
+        to: NSPoint(x: 13.9, y: 12.9),
+        controlPoint1: NSPoint(x: 16.5, y: 15.4),
+        controlPoint2: NSPoint(x: 15.5, y: 13.8)
+      )
+      stroke(body, width: 1.2)
+
+      let face = NSBezierPath()
+      face.move(to: NSPoint(x: 7.2, y: 6))
+      face.line(to: NSPoint(x: 8.3, y: 4.9))
+      face.line(to: NSPoint(x: 8.6, y: 5.9))
+      face.line(to: NSPoint(x: 10, y: 4.7))
+      face.line(to: NSPoint(x: 10.2, y: 5.8))
+      face.line(to: NSPoint(x: 11.7, y: 4.8))
+      face.line(to: NSPoint(x: 11.9, y: 6))
+      face.curve(
+        to: NSPoint(x: 16, y: 10.2),
+        controlPoint1: NSPoint(x: 14.4, y: 6.3),
+        controlPoint2: NSPoint(x: 15.8, y: 8)
+      )
+      face.curve(
+        to: NSPoint(x: 14.1, y: 13.3),
+        controlPoint1: NSPoint(x: 16.1, y: 11.7),
+        controlPoint2: NSPoint(x: 15.2, y: 12.7)
+      )
+      face.curve(
+        to: NSPoint(x: 11, y: 14.2),
+        controlPoint1: NSPoint(x: 13.1, y: 13.9),
+        controlPoint2: NSPoint(x: 12, y: 14.2)
+      )
+      face.curve(
+        to: NSPoint(x: 7.9, y: 13.3),
+        controlPoint1: NSPoint(x: 10, y: 14.2),
+        controlPoint2: NSPoint(x: 8.9, y: 13.9)
+      )
+      face.curve(
+        to: NSPoint(x: 6, y: 10.2),
+        controlPoint1: NSPoint(x: 6.8, y: 12.7),
+        controlPoint2: NSPoint(x: 5.9, y: 11.7)
+      )
+      face.curve(
+        to: NSPoint(x: 7.2, y: 6),
+        controlPoint1: NSPoint(x: 6.2, y: 8),
+        controlPoint2: NSPoint(x: 6.7, y: 6.8)
+      )
+      face.close()
+      stroke(face, width: 1.25)
+
+      NSBezierPath(
+        ovalIn: NSRect(x: 7.7, y: 8, width: 1.8, height: 2.5)
+      ).fill()
+      NSBezierPath(
+        ovalIn: NSRect(x: 12.5, y: 8, width: 1.8, height: 2.5)
+      ).fill()
+      NSBezierPath(
+        ovalIn: NSRect(x: 10.25, y: 10.55, width: 1.5, height: 1.05)
+      ).fill()
+
+      let mouth = NSBezierPath()
+      mouth.move(to: NSPoint(x: 11, y: 11.5))
+      mouth.curve(
+        to: NSPoint(x: 9.4, y: 12.5),
+        controlPoint1: NSPoint(x: 10.7, y: 12.2),
+        controlPoint2: NSPoint(x: 10.1, y: 12.5)
+      )
+      mouth.move(to: NSPoint(x: 11, y: 11.5))
+      mouth.curve(
+        to: NSPoint(x: 12.6, y: 12.5),
+        controlPoint1: NSPoint(x: 11.3, y: 12.2),
+        controlPoint2: NSPoint(x: 11.9, y: 12.5)
+      )
+      stroke(mouth, width: 0.7)
+
+      let whiskers = NSBezierPath()
+      whiskers.move(to: NSPoint(x: 7.4, y: 11.3))
+      whiskers.line(to: NSPoint(x: 4.8, y: 10.9))
+      whiskers.move(to: NSPoint(x: 7.4, y: 12))
+      whiskers.line(to: NSPoint(x: 4.7, y: 12.5))
+      whiskers.move(to: NSPoint(x: 14.6, y: 11.3))
+      whiskers.line(to: NSPoint(x: 17.2, y: 10.9))
+      whiskers.move(to: NSPoint(x: 14.6, y: 12))
+      whiskers.line(to: NSPoint(x: 17.3, y: 12.5))
+      stroke(whiskers, width: 0.5)
+
+      NSBezierPath(
+        ovalIn: NSRect(x: 6.2, y: 13.1, width: 3.4, height: 2.4)
+      ).fill()
+      NSBezierPath(
+        ovalIn: NSRect(x: 13.2, y: 14, width: 3.1, height: 2.2)
+      ).fill()
+
+      return true
+    }
+    image.isTemplate = true
+    return image
   }
 }
 
@@ -104,7 +302,7 @@ private struct OnboardingView: View {
   private var permissionStep: some View {
     VStack(alignment: .leading, spacing: 16) {
       Label(
-        String(localized: "Accessibility Permission"),
+        String(localized: "Required Permissions"),
         systemImage: "hand.raised.fill"
       )
       .font(.title2)
@@ -119,7 +317,7 @@ private struct OnboardingView: View {
       Text(
         String(
           localized:
-            "macOS shows the permission prompt only after you choose Grant Access."
+            "macOS shows the required permission prompts only after you choose Grant Access."
         )
       )
       .foregroundStyle(.secondary)

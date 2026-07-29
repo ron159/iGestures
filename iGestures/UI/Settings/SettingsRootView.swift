@@ -31,231 +31,13 @@ struct SettingsRootView: View {
           )
         }
 
-      CompoundGesturesSettingsView(model: model)
-        .tabItem {
-          Label(
-            String(localized: "Advanced Input"),
-            systemImage: "computermouse.and.input.cursorarrow"
-          )
-        }
     }
-    .frame(width: 760, height: 520)
-  }
-}
-
-private struct CompoundGesturesSettingsView: View {
-  @ObservedObject var model: AppModel
-  @State private var isPracticePresented = false
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      HStack {
-        VStack(alignment: .leading) {
-          Text(String(localized: "Rocker and Wheel Gestures"))
-            .font(.title2)
-            .fontWeight(.semibold)
-          Text(
-            String(
-              localized:
-                "Advanced compound input is disabled by default. Unconfigured input always passes through."
-            )
-          )
-          .foregroundStyle(.secondary)
-        }
-        Spacer()
-        Button(String(localized: "Practice Input")) {
-          isPracticePresented = true
-        }
-        Menu(String(localized: "Add Compound Gesture")) {
-          Button(String(localized: "Left then Right")) {
-            model.addCompoundBinding(
-              .rocker(first: .left, second: .right)
-            )
-          }
-          Button(String(localized: "Right then Left")) {
-            model.addCompoundBinding(
-              .rocker(first: .right, second: .left)
-            )
-          }
-          Button(String(localized: "Right + Wheel Up")) {
-            model.addCompoundBinding(
-              .wheel(trigger: .right, direction: .up)
-            )
-          }
-          Button(String(localized: "Right + Wheel Down")) {
-            model.addCompoundBinding(
-              .wheel(trigger: .right, direction: .down)
-            )
-          }
-          Divider()
-          Button(String(localized: "Left + Wheel Up")) {
-            model.addCompoundBinding(
-              .wheel(trigger: .left, direction: .up)
-            )
-          }
-          Button(String(localized: "Left + Wheel Down")) {
-            model.addCompoundBinding(
-              .wheel(trigger: .left, direction: .down)
-            )
-          }
-          Button(String(localized: "Middle + Wheel Up")) {
-            model.addCompoundBinding(
-              .wheel(trigger: .middle, direction: .up)
-            )
-          }
-          Button(String(localized: "Middle + Wheel Down")) {
-            model.addCompoundBinding(
-              .wheel(trigger: .middle, direction: .down)
-            )
-          }
-        }
-      }
-
-      if model.compoundBindings.isEmpty {
-        ContentUnavailableView {
-          Label(
-            String(localized: "No Compound Gestures"),
-            systemImage: "computermouse"
-          )
-        } description: {
-          Text(
-            String(
-              localized:
-                "Add a Rocker or trigger-button plus wheel binding."
-            )
-          )
-        }
-      } else {
-        List(model.compoundBindings) { binding in
-          CompoundGestureRow(model: model, binding: binding)
-        }
-        .listStyle(.inset)
-      }
-    }
-    .padding()
-    .sheet(isPresented: $isPracticePresented) {
-      AdvancedInputPracticeView()
-    }
-  }
-}
-
-private struct AdvancedInputPracticeView: View {
-  @Environment(\.dismiss) private var dismiss
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      Text(String(localized: "Practice Advanced Input"))
-        .font(.title2)
-        .fontWeight(.semibold)
-      Text(
-        String(
-          localized:
-            "Practice the physical sequence below before enabling a binding. This guide does not execute an action."
-        )
-      )
-      .foregroundStyle(.secondary)
-      GroupBox(String(localized: "Rocker")) {
-        Text(
-          String(
-            localized:
-              "Hold the first mouse button, press the second button, then release both."
-          )
-        )
-        .frame(maxWidth: .infinity, alignment: .leading)
-      }
-      GroupBox(String(localized: "Trigger + Wheel")) {
-        Text(
-          String(
-            localized:
-              "Hold the configured trigger button, move the wheel once in the configured direction, then release."
-          )
-        )
-        .frame(maxWidth: .infinity, alignment: .leading)
-      }
-      Text(
-        String(
-          localized:
-            "Configured compound input takes priority. Unconfigured button and wheel input passes through unchanged."
-        )
-      )
-      .foregroundStyle(.orange)
-      HStack {
-        Spacer()
-        Button(String(localized: "Done")) {
-          dismiss()
-        }
-        .keyboardShortcut(.defaultAction)
-      }
-    }
-    .padding(24)
-    .frame(width: 500)
-  }
-}
-
-private struct CompoundGestureRow: View {
-  @ObservedObject var model: AppModel
-  let binding: CompoundGestureBinding
-  @State private var isEditingAction = false
-
-  var body: some View {
-    HStack {
-      Toggle(
-        "",
-        isOn: Binding(
-          get: { binding.isEnabled },
-          set: {
-            model.updateCompoundBinding(
-              id: binding.id,
-              isEnabled: $0
-            )
-          }
-        )
-      )
-      .labelsHidden()
-      Text(compoundInputName(binding.input))
-      Spacer()
-      Button(GestureActionSummary.text(for: binding.action)) {
-        isEditingAction = true
-      }
-      Button(role: .destructive) {
-        model.deleteCompoundBinding(id: binding.id)
-      } label: {
-        Image(systemName: "trash")
-      }
-      .buttonStyle(.borderless)
-    }
-    .sheet(isPresented: $isEditingAction) {
-      GestureActionEditorSheet(
-        action: binding.action,
-        model: model
-      ) {
-        model.updateCompoundBinding(
-          id: binding.id,
-          action: $0
-        )
-      }
-    }
-  }
-
-  private func compoundInputName(
-    _ input: CompoundGestureInput
-  ) -> String {
-    switch input {
-    case .rocker(let first, let second):
-      return String(
-        format: String(localized: "Button %d then Button %d"),
-        Int(first.buttonNumber) + 1,
-        Int(second.buttonNumber) + 1
-      )
-    case .wheel(let trigger, let direction):
-      return String(
-        format: String(localized: "Button %d + Wheel %@"),
-        Int(trigger.buttonNumber) + 1,
-        direction == .up
-          ? String(localized: "Up")
-          : String(localized: "Down")
-      )
-    }
+    .frame(
+      minWidth: 760,
+      idealWidth: 1_100,
+      minHeight: 520,
+      idealHeight: 700
+    )
   }
 }
 
@@ -322,58 +104,6 @@ private struct GeneralSettingsView: View {
         Text(conflict.localizedDescription)
           .foregroundStyle(.orange)
       }
-
-      LabeledContent(String(localized: "Trigger Mouse Button")) {
-        HStack {
-          Picker(
-            "",
-            selection: Binding(
-              get: { model.triggerButton },
-              set: { model.setTriggerButton($0) }
-            )
-          ) {
-            ForEach(GestureTriggerButton.commonPresets) { button in
-              Text(triggerButtonLabel(button)).tag(button)
-            }
-            if !GestureTriggerButton.commonPresets.contains(
-              model.triggerButton
-            ) {
-              Text(triggerButtonLabel(model.triggerButton))
-                .tag(model.triggerButton)
-            }
-          }
-          .labelsHidden()
-          .frame(width: 170)
-
-          TriggerButtonRecorderView(model: model)
-        }
-      }
-
-      LabeledContent(
-        String(localized: "Trigger Hold Duration")
-      ) {
-        Stepper(
-          value: Binding(
-            get: { model.triggerDuration },
-            set: { model.setTriggerDuration($0) }
-          ),
-          in: triggerDurationRange,
-          step: 0.05
-        ) {
-          Text(
-            triggerDurationLabel(model.triggerDuration)
-          )
-          .monospacedDigit()
-        }
-      }
-      Text(
-        String(
-          localized:
-            "Gesture tracking starts when either this hold duration or the movement threshold is reached."
-        )
-      )
-      .font(.callout)
-      .foregroundStyle(.secondary)
 
       Toggle(
         String(localized: "Enable Trackpad Modifier Gestures"),
@@ -467,10 +197,17 @@ private struct GeneralSettingsView: View {
             Button(String(localized: "Skip This Version")) {
               model.skipAvailableUpdate()
             }
-            Button(String(localized: "Install and Restart")) {
-              model.installAvailableUpdate()
+            if model.canInstallAvailableUpdate {
+              Button(String(localized: "Install and Restart")) {
+                model.installAvailableUpdate()
+              }
+              .buttonStyle(.borderedProminent)
+            } else if model.canOpenAvailableGitHubRelease {
+              Button(String(localized: "View Release")) {
+                model.openAvailableGitHubRelease()
+              }
+              .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
           }
         }
       }
@@ -638,22 +375,6 @@ private struct GeneralSettingsView: View {
       return applicationName
     }
     return "\(applicationName) · \(triggerButtonLabel(triggerButton))"
-  }
-
-  private func triggerDurationLabel(_ duration: TimeInterval) -> String {
-    guard duration > 0 else {
-      return String(localized: "No Delay")
-    }
-    return String(
-      format: String(localized: "%.2f seconds"),
-      duration
-    )
-  }
-
-  private var triggerDurationRange: ClosedRange<TimeInterval> {
-    let minimum = GestureInputConfiguration.minimumTriggerDuration
-    let maximum = GestureInputConfiguration.maximumTriggerDuration
-    return minimum...maximum
   }
 
   private var isUpdateOperationInProgress: Bool {
@@ -832,20 +553,33 @@ private struct MappingImportPreviewView: View {
   }
 }
 
-private struct TriggerButtonRecorderView: View {
+struct TriggerButtonRecorderView: View {
   @ObservedObject var model: AppModel
+  let onRecord: (GestureTriggerButton) -> Void
   @State private var recordingID: UUID?
 
   var body: some View {
-    Button(
-      recordingID == nil
-        ? String(localized: "Record…")
-        : String(localized: "Press a Mouse Button…")
-    ) {
+    Button {
       beginRecording()
+    } label: {
+      Label(
+        recordingID == nil
+          ? String(localized: "Record Button…")
+          : String(localized: "Press a Mouse Button…"),
+        systemImage:
+          recordingID == nil ? "record.circle" : "record.circle.fill"
+      )
     }
     .disabled(
-      recordingID == nil && model.eventTapState != .running
+      recordingID != nil || model.eventTapState != .running
+    )
+    .help(
+      recordingID == nil
+        ? String(localized: "Record a custom physical mouse button.")
+        : String(
+          localized:
+            "Press any physical mouse button to use it as the trigger."
+        )
     )
     .onDisappear {
       cancelRecording()
@@ -856,7 +590,7 @@ private struct TriggerButtonRecorderView: View {
     guard recordingID == nil else { return }
     recordingID = model.beginTriggerButtonRecording { button in
       Task { @MainActor in
-        model.setTriggerButton(button)
+        onRecord(button)
         recordingID = nil
       }
     }
@@ -878,26 +612,26 @@ private struct PermissionsSettingsView: View {
         Text(model.permissionStatusText)
       }
 
-      LabeledContent(String(localized: "Accessibility")) {
-        diagnosticLabel(
-          isGranted:
-            model.permissionDiagnostics.accessibilityTrusted
-        )
-      }
+      permissionRow(
+        String(localized: "Accessibility"),
+        isGranted:
+          model.permissionDiagnostics.accessibilityTrusted,
+        action: model.requestAccessibilityAccess
+      )
 
-      LabeledContent(String(localized: "Listen Event Access")) {
-        diagnosticLabel(
-          isGranted:
-            model.permissionDiagnostics.listenEventAccess
-        )
-      }
+      permissionRow(
+        String(localized: "Listen Event Access"),
+        isGranted:
+          model.permissionDiagnostics.listenEventAccess,
+        action: model.requestListenEventAccess
+      )
 
-      LabeledContent(String(localized: "Post Event Access")) {
-        diagnosticLabel(
-          isGranted:
-            model.permissionDiagnostics.postEventAccess
-        )
-      }
+      permissionRow(
+        String(localized: "Post Event Access"),
+        isGranted:
+          model.permissionDiagnostics.postEventAccess,
+        action: model.requestPostEventAccess
+      )
 
       LabeledContent(String(localized: "Event Tap")) {
         Text(eventTapStatus)
@@ -934,12 +668,6 @@ private struct PermissionsSettingsView: View {
               }
             }
           }
-        }
-      }
-
-      if model.canRequestAccess {
-        Button(String(localized: "Grant Access")) {
-          model.requestAccess()
         }
       }
 
@@ -985,6 +713,21 @@ private struct PermissionsSettingsView: View {
         : "exclamationmark.triangle.fill"
     )
     .foregroundStyle(isGranted ? .green : .orange)
+  }
+
+  private func permissionRow(
+    _ title: String,
+    isGranted: Bool,
+    action: @escaping () -> Void
+  ) -> some View {
+    LabeledContent(title) {
+      HStack(spacing: 10) {
+        diagnosticLabel(isGranted: isGranted)
+        if !isGranted {
+          Button(String(localized: "Grant Access"), action: action)
+        }
+      }
+    }
   }
 
   private func diagnosticSummary(

@@ -36,8 +36,40 @@ final class MappingStoreTests: XCTestCase {
     XCTAssertEqual(reloaded, database)
     XCTAssertTrue(json.contains(#""type" : "only""#))
     XCTAssertTrue(json.contains(#""type" : "keyboardShortcut""#))
-    XCTAssertTrue(json.contains(#""schemaVersion" : 2"#))
+    XCTAssertTrue(json.contains(#""schemaVersion" : 3"#))
     XCTAssertFalse(json.contains(#""_0""#))
+  }
+
+  func testApplicationGroupsRoundTripWithManagedScope()
+    async throws
+  {
+    let group = GestureApplicationGroup(
+      name: "Browsers",
+      bundleIdentifiers: [
+        "com.apple.Safari",
+        "com.microsoft.edgemac",
+      ]
+    )
+    var database = try makeDatabase(name: "Group Back")
+    database.applicationGroups = [group]
+    database.managedApplicationBundleIdentifiers =
+      group.bundleIdentifiers
+    database.mappings[0].applicationGroupID = group.id
+    database.mappings[0].appScope = .only(group.bundleIdentifiers)
+    let store = MappingStore(directoryURL: directoryURL)
+
+    try await store.save(database)
+    let reloaded = try await store.load()
+
+    XCTAssertEqual(reloaded, database)
+    XCTAssertEqual(
+      reloaded.applicationGroups.first?.bundleIdentifiers,
+      group.bundleIdentifiers
+    )
+    XCTAssertEqual(
+      reloaded.mappings.first?.applicationGroupID,
+      group.id
+    )
   }
 
   func testSchemaV1ShortcutMigratesWithoutChangingMapping()
@@ -105,62 +137,36 @@ final class MappingStoreTests: XCTestCase {
     XCTAssertEqual(reloaded, database)
   }
 
-  func testCompoundBindingsRoundTripAndPreferApplicationScope()
+  func testRemovedCompoundBindingsAreIgnoredDuringLoad()
     async throws
   {
-    var database = try makeDatabase(name: "Base")
-    let input = CompoundGestureInput.rocker(
-      first: .right,
-      second: .left
+    let database = try makeDatabase(name: "Base")
+    let encoded = try JSONEncoder().encode(database)
+    var object = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: encoded)
+        as? [String: Any]
     )
-    database.compoundBindings = [
-      CompoundGestureBinding(
-        name: "Global desktop",
-        isEnabled: true,
-        input: input,
-        action: .system(.showDesktop)
-      ),
-      CompoundGestureBinding(
-        name: "Finder mission control",
-        isEnabled: true,
-        input: input,
-        action: .system(.missionControl),
-        appScope: .only(["com.apple.finder"]),
-        priority: 1
-      ),
+    let legacyBinding: [String: Any] = [
+      "id": UUID().uuidString,
+      "name": "Legacy Rocker",
+      "isEnabled": true,
+      "input": ["type": "rocker"],
     ]
+    object["compoundBindings"] = [legacyBinding]
+    let legacyData = try JSONSerialization.data(
+      withJSONObject: object
+    )
     let store = MappingStore(directoryURL: directoryURL)
 
-    try await store.save(database)
-    let reloaded = try await store.load()
+    let migrated = try await store.replaceWithImportedData(legacyData)
     let exported = try await store.exportData()
     let json = try XCTUnwrap(
       String(data: exported, encoding: .utf8)
     )
 
-    XCTAssertEqual(reloaded, database)
-    XCTAssertEqual(
-      reloaded.compiledSnapshot.compoundAction(
-        for: input,
-        bundleID: "com.apple.finder"
-      )?.action,
-      .system(.missionControl)
-    )
-    XCTAssertEqual(
-      reloaded.compiledSnapshot.compoundAction(
-        for: input,
-        bundleID: "com.apple.Safari"
-      )?.action,
-      .system(.showDesktop)
-    )
-    XCTAssertNil(
-      reloaded.compiledSnapshot.compoundAction(
-        for: .wheel(trigger: .right, direction: .up),
-        bundleID: "com.apple.finder"
-      )
-    )
-    XCTAssertTrue(json.contains(#""type" : "rocker""#))
-    XCTAssertFalse(json.contains(#""_0""#))
+    XCTAssertEqual(migrated, database)
+    XCTAssertFalse(json.contains(#""compoundBindings""#))
+    XCTAssertFalse(json.contains("Legacy Rocker"))
   }
 
   func testUnknownSchemaDoesNotOverwriteCurrentDatabase() async throws {
@@ -472,6 +478,26 @@ final class MappingStoreTests: XCTestCase {
     }
     let persisted = await store.currentDatabase()
     XCTAssertEqual(persisted, current)
+  }
+
+  func testGroupMappingScopeMustMatchManagedApplications() throws {
+    let group = GestureApplicationGroup(
+      name: "Browsers",
+      bundleIdentifiers: ["com.apple.Safari"]
+    )
+    var database = try makeDatabase(name: "Invalid Group")
+    database.applicationGroups = [group]
+    database.mappings[0].applicationGroupID = group.id
+    database.mappings[0].appScope = .only(["com.apple.finder"])
+
+    XCTAssertThrowsError(
+      try MappingStore(directoryURL: directoryURL).validate(database)
+    ) { error in
+      XCTAssertEqual(
+        error as? MappingStoreError,
+        .invalidApplicationGroup
+      )
+    }
   }
 
   private func makeDatabase(name: String) throws -> GestureDatabase {

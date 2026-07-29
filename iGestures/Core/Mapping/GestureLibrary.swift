@@ -7,6 +7,7 @@ public struct GestureMappingDraft: Sendable {
   public var appScope: AppScope
   public var triggerButton: GestureTriggerButton?
   public var category: String?
+  public var applicationGroupID: UUID?
   public var repeatModeEnabled: Bool
   public var deviceScope: InputDeviceScope
   public var isEnabled: Bool
@@ -18,6 +19,7 @@ public struct GestureMappingDraft: Sendable {
     appScope: AppScope = .all,
     triggerButton: GestureTriggerButton? = nil,
     category: String? = nil,
+    applicationGroupID: UUID? = nil,
     repeatModeEnabled: Bool = false,
     deviceScope: InputDeviceScope = .any,
     isEnabled: Bool = true
@@ -28,6 +30,7 @@ public struct GestureMappingDraft: Sendable {
     self.appScope = appScope
     self.triggerButton = triggerButton
     self.category = category
+    self.applicationGroupID = applicationGroupID
     self.repeatModeEnabled = repeatModeEnabled
     self.deviceScope = deviceScope
     self.isEnabled = isEnabled
@@ -40,6 +43,7 @@ public struct GestureMappingDraft: Sendable {
     appScope: AppScope = .all,
     triggerButton: GestureTriggerButton? = nil,
     category: String? = nil,
+    applicationGroupID: UUID? = nil,
     repeatModeEnabled: Bool = false,
     deviceScope: InputDeviceScope = .any,
     isEnabled: Bool = true
@@ -51,6 +55,7 @@ public struct GestureMappingDraft: Sendable {
       appScope: appScope,
       triggerButton: triggerButton,
       category: category,
+      applicationGroupID: applicationGroupID,
       repeatModeEnabled: repeatModeEnabled,
       deviceScope: deviceScope,
       isEnabled: isEnabled
@@ -87,6 +92,7 @@ public struct GestureLibrary: Sendable {
         appScope: draft.appScope,
         triggerButton: draft.triggerButton,
         category: draft.category,
+        applicationGroupID: draft.applicationGroupID,
         repeatModeEnabled: draft.repeatModeEnabled,
         deviceScope: draft.deviceScope,
         priority: database.mappings.count
@@ -115,6 +121,7 @@ public struct GestureLibrary: Sendable {
       $0.appScope = draft.appScope
       $0.triggerButton = draft.triggerButton
       $0.category = draft.category
+      $0.applicationGroupID = draft.applicationGroupID
       $0.repeatModeEnabled = draft.repeatModeEnabled
       $0.deviceScope = draft.deviceScope
       $0.isEnabled = draft.isEnabled && draft.action.isValid
@@ -163,6 +170,15 @@ public struct GestureLibrary: Sendable {
   ) throws {
     try update(id: id) {
       $0.appScope = appScope
+    }
+  }
+
+  public mutating func setApplicationGroup(
+    id: UUID,
+    _ applicationGroupID: UUID?
+  ) throws {
+    try update(id: id) {
+      $0.applicationGroupID = applicationGroupID
     }
   }
 

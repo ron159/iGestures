@@ -158,10 +158,25 @@ public struct GestureRecognizer: Sendable {
     let applicationSpecific = applicable.filter {
       $0.appScope.isApplicationSpecific(for: frontmostBundleID)
     }
-    if !applicationSpecific.isEmpty {
+    let directApplicationMappings = applicationSpecific.filter {
+      $0.applicationGroupID == nil
+    }
+    if !directApplicationMappings.isEmpty {
       let decision = recognize(
         gesture,
-        candidatesFrom: applicationSpecific
+        candidatesFrom: directApplicationMappings
+      )
+      if decision != .noMatch {
+        return decision
+      }
+    }
+    let groupMappings = applicationSpecific.filter {
+      $0.applicationGroupID != nil
+    }
+    if !groupMappings.isEmpty {
+      let decision = recognize(
+        gesture,
+        candidatesFrom: groupMappings
       )
       if decision != .noMatch {
         return decision

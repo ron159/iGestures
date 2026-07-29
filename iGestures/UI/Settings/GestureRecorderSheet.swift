@@ -17,6 +17,8 @@ struct GestureRecorderSheet: View {
   private let existingMappings: [GestureMapping]
   private let initialIsEnabled: Bool
   private let initialCategory: String?
+  private let applicationGroupID: UUID?
+  private let applicationGroupName: String?
   private let initialRepeatModeEnabled: Bool
   private let isEditing: Bool
   private let originalGesture: [GesturePoint]
@@ -26,12 +28,19 @@ struct GestureRecorderSheet: View {
     model: AppModel,
     existingMappings: [GestureMapping],
     editingMapping: GestureMapping? = nil,
+    initialAppScope: AppScope = .all,
+    initialCategory: String? = nil,
+    initialApplicationGroupID: UUID? = nil,
+    applicationGroupName: String? = nil,
     onSave: @escaping (GestureMappingDraft) -> Void
   ) {
     self.model = model
     self.existingMappings = existingMappings
     self.initialIsEnabled = editingMapping?.isEnabled ?? true
-    self.initialCategory = editingMapping?.category
+    self.initialCategory = editingMapping?.category ?? initialCategory
+    self.applicationGroupID =
+      editingMapping?.applicationGroupID ?? initialApplicationGroupID
+    self.applicationGroupName = applicationGroupName
     self.initialRepeatModeEnabled =
       editingMapping?.repeatModeEnabled ?? false
     self.isEditing = editingMapping != nil
@@ -49,7 +58,7 @@ struct GestureRecorderSheet: View {
           ShortcutRecordingSession.emptyShortcut
         )
     )
-    let initialScope = editingMapping?.appScope ?? .all
+    let initialScope = editingMapping?.appScope ?? initialAppScope
     _appScope = State(initialValue: initialScope)
     let initialTrigger = editingMapping?.triggerButton
     _triggerButton = State(initialValue: initialTrigger)
@@ -60,6 +69,9 @@ struct GestureRecorderSheet: View {
         existingMappings: existingMappings,
         editingMappingID: editingMapping?.id,
         appScope: initialScope,
+        applicationGroupID:
+          editingMapping?.applicationGroupID
+          ?? initialApplicationGroupID,
         triggerButton: initialTrigger,
         defaultTriggerButton: model.triggerButton,
         deviceScope: initialDeviceScope
@@ -114,33 +126,47 @@ struct GestureRecorderSheet: View {
       HStack {
         Text(String(localized: "Application Scope"))
         Spacer()
-        Button(scopeSummary) {
-          isEditingScope = true
+        if let applicationGroupName {
+          Label(applicationGroupName, systemImage: "folder")
+        } else {
+          Button(scopeSummary) {
+            isEditingScope = true
+          }
         }
       }
 
-      Picker(
-        String(localized: "Trigger Mouse Button"),
-        selection: Binding(
-          get: { triggerButton },
-          set: {
-            triggerButton = $0
-            training.setTriggerButton($0)
-            points.removeAll(keepingCapacity: true)
-            feedback = String(
-              localized: "Draw the same gesture three times."
-            )
+      HStack(spacing: 8) {
+        Picker(
+          String(localized: "Trigger Mouse Button"),
+          selection: Binding(
+            get: { triggerButton },
+            set: { selectTriggerButton($0) }
+          )
+        ) {
+          Text(String(localized: "Use Global Default"))
+            .tag(GestureTriggerButton?.none)
+          ForEach(GestureTriggerButton.commonPresets) { button in
+            Text(triggerButtonName(button))
+              .tag(GestureTriggerButton?.some(button))
           }
-        )
-      ) {
-        Text(String(localized: "Use Global Default"))
-          .tag(GestureTriggerButton?.none)
-        ForEach(GestureTriggerButton.commonPresets) { button in
-          Text(triggerButtonName(button))
-            .tag(GestureTriggerButton?.some(button))
+          Text(String(localized: "Trackpad Modifier Gesture"))
+            .tag(GestureTriggerButton?.some(.trackpad))
+          if let customButton = triggerButton,
+            customButton != .trackpad,
+            !GestureTriggerButton.commonPresets.contains(customButton)
+          {
+            Text(triggerButtonName(customButton))
+              .tag(GestureTriggerButton?.some(customButton))
+          }
         }
-        Text(String(localized: "Trackpad Modifier Gesture"))
-          .tag(GestureTriggerButton?.some(.trackpad))
+
+        TriggerButtonRecorderView(model: model) { button in
+          if deviceScope == .trackpad {
+            deviceScope = .mouse(identifier: nil)
+            training.setDeviceScope(deviceScope)
+          }
+          selectTriggerButton(button)
+        }
       }
 
       Picker(
@@ -197,6 +223,7 @@ struct GestureRecorderSheet: View {
               appScope: appScope,
               triggerButton: triggerButton,
               category: initialCategory,
+              applicationGroupID: applicationGroupID,
               repeatModeEnabled: initialRepeatModeEnabled,
               deviceScope: deviceScope,
               isEnabled: initialIsEnabled
@@ -303,6 +330,17 @@ struct GestureRecorderSheet: View {
 
   private var feedbackColor: Color {
     training.phase == .readyToSave ? .green : .secondary
+  }
+
+  private func selectTriggerButton(
+    _ button: GestureTriggerButton?
+  ) {
+    triggerButton = button
+    training.setTriggerButton(button)
+    points.removeAll(keepingCapacity: true)
+    feedback = String(
+      localized: "Draw the same gesture three times."
+    )
   }
 
   private func handleStroke(_ stroke: [GesturePoint]) {

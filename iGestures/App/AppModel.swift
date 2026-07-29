@@ -37,7 +37,6 @@ final class AppModel: ObservableObject {
   @Published private(set) var eventTapState: EventTapManagerState = .stopped
   @Published private(set) var mappingCount = 0
   @Published private(set) var mappings: [GestureMapping] = []
-  @Published private(set) var compoundBindings: [CompoundGestureBinding] = []
   @Published private(set) var mappingStoreError: String?
   @Published private(set) var isLoadingMappings = true
   @Published private(set) var loginItemState: LoginItemState
@@ -47,6 +46,8 @@ final class AppModel: ObservableObject {
   @Published private(set) var pendingImportPreview: MappingImportPreview?
   @Published private(set) var canUndoLastImport = false
   @Published private(set) var applicationExclusions: Set<ApplicationExclusionRule> = []
+  @Published private(set) var gestureApplicationGroups: [GestureApplicationGroup] = []
+  @Published private(set) var managedApplicationBundleIdentifiers: [String] = []
   @Published private(set) var currentApplicationName: String?
   @Published private(set) var currentApplicationBundleIdentifier: String?
   @Published private(set) var updateState: AppUpdateState = .unavailable
@@ -61,9 +62,11 @@ final class AppModel: ObservableObject {
   private let overlayController: OverlayController
   private let diagnosticsBuffer: GestureDiagnosticsBuffer
   private let updateService: UpdateService?
+  private let githubReleaseService: GitHubReleaseService?
   private let updateInstaller: UpdatePackageInstaller
   private let updateManifestURL: URL?
   private var availableUpdate: VerifiedUpdate?
+  private var availableGitHubRelease: GitHubRelease?
   private var database = GestureDatabase.empty
   private var persistenceTask: Task<Void, Never>?
   private var applicationActivationTask: Task<Void, Never>?
@@ -117,7 +120,7 @@ final class AppModel: ObservableObject {
     let currentVersion =
       Bundle.main.object(
         forInfoDictionaryKey: "CFBundleShortVersionString"
-      ) as? String ?? "0"
+      ) as? String ?? "0.0"
     let updateService = publicKey.flatMap {
       UpdateService(
         currentVersion: currentVersion,
@@ -125,13 +128,27 @@ final class AppModel: ObservableObject {
         skippedVersion: preferencesStore.skippedUpdateVersion
       )
     }
+    let githubLatestReleaseURL = URL(
+      string:
+        "https://api.github.com/repos/ron159/iGestures/releases/latest"
+    )
+    let githubReleaseService = githubLatestReleaseURL.flatMap {
+      GitHubReleaseService(
+        currentVersion: currentVersion,
+        latestReleaseURL: $0,
+        skippedVersion: preferencesStore.skippedUpdateVersion
+      )
+    }
     self.updateManifestURL = manifestURL
     self.updateService = updateService
+    self.githubReleaseService = githubReleaseService
     self.updateInstaller = UpdatePackageInstaller()
+    let hasSignedUpdateFeed =
+      updateService != nil && manifestURL != nil
     self.updateState =
-      updateService == nil || manifestURL == nil
-      ? .unavailable
-      : .idle
+      hasSignedUpdateFeed || githubReleaseService != nil
+      ? .idle
+      : .unavailable
     self.isOnboardingPresented =
       !preferencesStore.onboardingCompleted
     let loginItemController =
@@ -192,7 +209,7 @@ final class AppModel: ObservableObject {
     observeApplicationLifecycle()
     refreshPermissions()
     reloadMappings()
-    if updateService != nil, manifestURL != nil {
+    if hasSignedUpdateFeed || githubReleaseService != nil {
       checkForUpdates()
     }
   }
@@ -233,6 +250,14 @@ final class AppModel: ObservableObject {
     permissionCoordinator.diagnostics
   }
 
+  var canInstallAvailableUpdate: Bool {
+    availableUpdate != nil
+  }
+
+  var canOpenAvailableGitHubRelease: Bool {
+    availableGitHubRelease != nil
+  }
+
   var isLaunchAtLoginEnabled: Bool {
     loginItemState == .enabled
   }
@@ -265,6 +290,21 @@ final class AppModel: ObservableObject {
 
   func requestAccess() {
     permissionState = permissionCoordinator.requestAccess()
+  }
+
+  func requestAccessibilityAccess() {
+    permissionState =
+      permissionCoordinator.requestAccessibilityAccess()
+  }
+
+  func requestListenEventAccess() {
+    permissionState =
+      permissionCoordinator.requestListenEventAccess()
+  }
+
+  func requestPostEventAccess() {
+    permissionState =
+      permissionCoordinator.requestPostEventAccess()
   }
 
   func refreshLoginItemStatus() {
@@ -373,7 +413,9 @@ final class AppModel: ObservableObject {
   }
 
   func checkForUpdates(manual: Bool = false) {
-    guard let updateService, let updateManifestURL else {
+    let canCheckSignedFeed =
+      updateService != nil && updateManifestURL != nil
+    guard canCheckSignedFeed || githubReleaseService != nil else {
       if manual {
         updateState = .unavailable
         updateMessage = String(
@@ -386,22 +428,40 @@ final class AppModel: ObservableObject {
     updateState = .checking
     updateMessage = nil
     Task { @MainActor [weak self] in
-      let result = await updateService.check(
-        manifestURL: updateManifestURL
-      )
       guard let self else { return }
-      handleUpdateCheckResult(result)
+      if let updateService, let updateManifestURL {
+        let result = await updateService.check(
+          manifestURL: updateManifestURL
+        )
+        handleUpdateCheckResult(result)
+      } else if let githubReleaseService {
+        let result = await githubReleaseService.check()
+        handleGitHubReleaseCheckResult(result)
+      }
     }
   }
 
   func skipAvailableUpdate() {
-    guard let availableUpdate, let updateService else { return }
-    let version = availableUpdate.manifest.version
-    Task {
-      await updateService.skip(version: version)
+    guard
+      let version =
+        availableUpdate?.manifest.version
+        ?? availableGitHubRelease?.version
+    else {
+      return
+    }
+    if let updateService {
+      Task {
+        await updateService.skip(version: version)
+      }
+    }
+    if let githubReleaseService {
+      Task {
+        await githubReleaseService.skip(version: version)
+      }
     }
     preferencesStore.setSkippedUpdateVersion(version)
     self.availableUpdate = nil
+    self.availableGitHubRelease = nil
     updateState = .skipped(version: version)
     updateMessage = String(
       format: String(localized: "Version %@ was skipped."),
@@ -474,6 +534,11 @@ final class AppModel: ObservableObject {
         )
       }
     }
+  }
+
+  func openAvailableGitHubRelease() {
+    guard let availableGitHubRelease else { return }
+    NSWorkspace.shared.open(availableGitHubRelease.pageURL)
   }
 
   func setTriggerButton(_ triggerButton: GestureTriggerButton) {
@@ -587,13 +652,22 @@ final class AppModel: ObservableObject {
     Task { @MainActor [weak self] in
       guard let self else { return }
       do {
-        let database = try await mappingStore.load()
-        install(database)
+        let loadedDatabase = try await mappingStore.load()
+        let migratedDatabase = migrateLegacySidebarConfiguration(
+          in: loadedDatabase
+        )
+        if migratedDatabase == loadedDatabase {
+          install(loadedDatabase)
+        } else {
+          apply(migratedDatabase)
+        }
         canUndoLastImport = await mappingStore.canUndoLastImport()
         isLoadingMappings = false
       } catch {
         database = .empty
         mappings = []
+        gestureApplicationGroups = []
+        managedApplicationBundleIdentifiers = []
         mappingCount = 0
         isLoadingMappings = false
         mappingStoreError = String(
@@ -653,6 +727,7 @@ final class AppModel: ObservableObject {
 
   func setMappingAppScope(id: UUID, appScope: AppScope) {
     mutateLibrary {
+      try $0.setApplicationGroup(id: id, nil)
       try $0.setAppScope(id: id, appScope)
     }
   }
@@ -685,6 +760,110 @@ final class AppModel: ObservableObject {
     mutateLibrary {
       try $0.setDeviceScope(id: id, deviceScope)
     }
+  }
+
+  @discardableResult
+  func addGestureApplicationGroup(_ name: String) -> UUID? {
+    let normalized = name.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+    guard !normalized.isEmpty else { return nil }
+    if let existing = database.applicationGroups.first(where: {
+      $0.name.compare(
+        normalized,
+        options: [.caseInsensitive, .diacriticInsensitive]
+      ) == .orderedSame
+    }) {
+      return existing.id
+    }
+    var updated = database
+    let group = GestureApplicationGroup(name: normalized)
+    updated.applicationGroups.append(group)
+    apply(updated)
+    return group.id
+  }
+
+  func deleteGestureApplicationGroup(id: UUID) {
+    guard
+      let group = database.applicationGroups.first(where: {
+        $0.id == id
+      })
+    else {
+      return
+    }
+    let hasGroupMappings = database.mappings.contains {
+      $0.applicationGroupID == id
+    }
+    guard !group.bundleIdentifiers.isEmpty || !hasGroupMappings else {
+      return
+    }
+    var updated = database
+    updated.applicationGroups.removeAll { $0.id == id }
+    for index in updated.mappings.indices
+    where updated.mappings[index].applicationGroupID == id {
+      updated.mappings[index].applicationGroupID = nil
+      updated.mappings[index].appScope = .only(
+        group.bundleIdentifiers
+      )
+    }
+    updated.managedApplicationBundleIdentifiers =
+      normalizedBundleIdentifiers(
+        updated.managedApplicationBundleIdentifiers
+          + group.bundleIdentifiers
+      )
+    apply(updated)
+  }
+
+  func addManagedApplication(
+    _ bundleIdentifier: String,
+    toGroupID groupID: UUID? = nil
+  ) {
+    let normalized = bundleIdentifier.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+    guard !normalized.isEmpty else { return }
+    var updated = database
+    updated.managedApplicationBundleIdentifiers =
+      normalizedBundleIdentifiers(
+        updated.managedApplicationBundleIdentifiers + [normalized]
+      )
+    moveApplication(
+      normalized,
+      toGroupID: groupID,
+      in: &updated
+    )
+    apply(updated)
+  }
+
+  func moveManagedApplication(
+    _ bundleIdentifier: String,
+    toGroupID groupID: UUID?
+  ) {
+    var updated = database
+    updated.managedApplicationBundleIdentifiers =
+      normalizedBundleIdentifiers(
+        updated.managedApplicationBundleIdentifiers
+          + [bundleIdentifier]
+      )
+    moveApplication(
+      bundleIdentifier,
+      toGroupID: groupID,
+      in: &updated
+    )
+    apply(updated)
+  }
+
+  func removeManagedApplication(_ bundleIdentifier: String) {
+    var updated = database
+    updated.managedApplicationBundleIdentifiers.removeAll {
+      $0 == bundleIdentifier
+    }
+    moveApplication(
+      bundleIdentifier,
+      toGroupID: nil,
+      in: &updated
+    )
+    apply(updated)
   }
 
   func setMappingsEnabled(ids: Set<UUID>, isEnabled: Bool) {
@@ -722,6 +901,7 @@ final class AppModel: ObservableObject {
         appScope: mapping.appScope,
         triggerButton: mapping.triggerButton,
         category: mapping.category,
+        applicationGroupID: mapping.applicationGroupID,
         repeatModeEnabled: mapping.repeatModeEnabled,
         deviceScope: mapping.deviceScope,
         isEnabled: false
@@ -737,53 +917,6 @@ final class AppModel: ObservableObject {
       library.create(preset.draft, id: preset.id)
     }
     apply(library.database)
-  }
-
-  func addCompoundBinding(_ input: CompoundGestureInput) {
-    var updated = database
-    updated.compoundBindings.append(
-      CompoundGestureBinding(
-        name: String(localized: "New Compound Gesture"),
-        input: input,
-        action: .system(.missionControl),
-        priority: updated.compoundBindings.count
-      )
-    )
-    apply(updated)
-  }
-
-  func updateCompoundBinding(
-    id: UUID,
-    isEnabled: Bool? = nil,
-    action: GestureAction? = nil
-  ) {
-    guard
-      let index = database.compoundBindings.firstIndex(
-        where: { $0.id == id }
-      )
-    else {
-      return
-    }
-    var updated = database
-    if let isEnabled {
-      updated.compoundBindings[index].isEnabled = isEnabled
-    }
-    if let action {
-      updated.compoundBindings[index].action = action
-      if !action.isValid {
-        updated.compoundBindings[index].isEnabled = false
-      }
-    }
-    apply(updated)
-  }
-
-  func deleteCompoundBinding(id: UUID) {
-    var updated = database
-    updated.compoundBindings.removeAll { $0.id == id }
-    for index in updated.compoundBindings.indices {
-      updated.compoundBindings[index].priority = index
-    }
-    apply(updated)
   }
 
   func prepareMappingImport(from sourceURL: URL) {
@@ -921,6 +1054,102 @@ final class AppModel: ObservableObject {
     }
   }
 
+  private func moveApplication(
+    _ bundleIdentifier: String,
+    toGroupID groupID: UUID?,
+    in database: inout GestureDatabase
+  ) {
+    let normalized = bundleIdentifier.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+    guard !normalized.isEmpty else { return }
+
+    for index in database.applicationGroups.indices {
+      database.applicationGroups[index].bundleIdentifiers.removeAll {
+        $0 == normalized
+      }
+    }
+    if let groupID,
+      let index = database.applicationGroups.firstIndex(where: {
+        $0.id == groupID
+      })
+    {
+      database.applicationGroups[index].bundleIdentifiers =
+        normalizedBundleIdentifiers(
+          database.applicationGroups[index].bundleIdentifiers
+            + [normalized]
+        )
+    }
+    synchronizeGroupScopes(in: &database)
+  }
+
+  private func synchronizeGroupScopes(
+    in database: inout GestureDatabase
+  ) {
+    let groupsByID = Dictionary(
+      uniqueKeysWithValues: database.applicationGroups.map {
+        ($0.id, $0)
+      }
+    )
+    for index in database.mappings.indices {
+      guard
+        let groupID = database.mappings[index].applicationGroupID,
+        let group = groupsByID[groupID]
+      else {
+        continue
+      }
+      database.mappings[index].appScope = .only(
+        group.bundleIdentifiers
+      )
+    }
+  }
+
+  private func normalizedBundleIdentifiers(
+    _ bundleIdentifiers: [String]
+  ) -> [String] {
+    Array(
+      Set(
+        bundleIdentifiers.map {
+          $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+      )
+    ).sorted()
+  }
+
+  private func migrateLegacySidebarConfiguration(
+    in loadedDatabase: GestureDatabase
+  ) -> GestureDatabase {
+    let legacyGroupNames = preferencesStore.gestureSidebarGroups
+    let legacyApplications =
+      preferencesStore.gestureSidebarApplications
+    guard
+      loadedDatabase.applicationGroups.isEmpty,
+      !legacyGroupNames.isEmpty || !legacyApplications.isEmpty
+    else {
+      return loadedDatabase
+    }
+
+    var migrated = loadedDatabase
+    migrated.managedApplicationBundleIdentifiers =
+      normalizedBundleIdentifiers(legacyApplications)
+    for name in legacyGroupNames {
+      let normalizedName = name.trimmingCharacters(
+        in: .whitespacesAndNewlines
+      )
+      guard !normalizedName.isEmpty else { continue }
+      let group = GestureApplicationGroup(name: normalizedName)
+      migrated.applicationGroups.append(group)
+      for index in migrated.mappings.indices
+      where migrated.mappings[index].category == normalizedName {
+        migrated.mappings[index].applicationGroupID = group.id
+        migrated.mappings[index].appScope = .only([])
+        migrated.mappings[index].category = nil
+      }
+    }
+    preferencesStore.clearGestureSidebarConfiguration()
+    return migrated
+  }
+
   private func apply(_ updatedDatabase: GestureDatabase) {
     guard let mappingStore else {
       mappingStoreError = String(
@@ -939,7 +1168,9 @@ final class AppModel: ObservableObject {
 
     database = updatedDatabase
     mappings = updatedDatabase.mappings
-    compoundBindings = updatedDatabase.compoundBindings
+    gestureApplicationGroups = updatedDatabase.applicationGroups
+    managedApplicationBundleIdentifiers =
+      updatedDatabase.managedApplicationBundleIdentifiers
     mappingCount = mappings.count
     mappingStoreError = nil
     eventTapManager.updateMappingSnapshot(
@@ -965,7 +1196,9 @@ final class AppModel: ObservableObject {
   private func install(_ loadedDatabase: GestureDatabase) {
     database = loadedDatabase
     mappings = loadedDatabase.mappings
-    compoundBindings = loadedDatabase.compoundBindings
+    gestureApplicationGroups = loadedDatabase.applicationGroups
+    managedApplicationBundleIdentifiers =
+      loadedDatabase.managedApplicationBundleIdentifiers
     mappingCount = mappings.count
     mappingStoreError = nil
     eventTapManager.updateMappingSnapshot(
@@ -991,6 +1224,7 @@ final class AppModel: ObservableObject {
   }
 
   private func handleUpdateCheckResult(_ result: UpdateCheckResult) {
+    availableGitHubRelease = nil
     switch result {
     case .upToDate:
       availableUpdate = nil
@@ -1014,6 +1248,39 @@ final class AppModel: ObservableObject {
       )
     case .rejected:
       availableUpdate = nil
+      updateState = .failed
+      updateMessage = String(
+        localized:
+          "The update check was rejected or could not be completed."
+      )
+    }
+  }
+
+  private func handleGitHubReleaseCheckResult(
+    _ result: GitHubReleaseCheckResult
+  ) {
+    availableUpdate = nil
+    switch result {
+    case .upToDate:
+      availableGitHubRelease = nil
+      updateState = .upToDate
+      updateMessage = String(localized: "iGestures is up to date.")
+    case .skipped(let version):
+      availableGitHubRelease = nil
+      updateState = .skipped(version: version)
+      updateMessage = String(
+        format: String(localized: "Version %@ is currently skipped."),
+        version
+      )
+    case .available(let release):
+      availableGitHubRelease = release
+      updateState = .available(version: release.version)
+      updateMessage = String(
+        format: String(localized: "Version %@ is available."),
+        release.version
+      )
+    case .rejected:
+      availableGitHubRelease = nil
       updateState = .failed
       updateMessage = String(
         localized:

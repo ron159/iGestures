@@ -46,6 +46,9 @@ public final class AppPreferencesStore {
       "diagnostics.persistence-enabled"
     static let diagnosticRecords = "diagnostics.records"
     static let skippedUpdateVersion = "updates.skipped-version"
+    static let gestureSidebarGroups = "gestures.sidebar-groups"
+    static let gestureSidebarApplications =
+      "gestures.sidebar-applications"
   }
 
   private let userDefaults: UserDefaults
@@ -186,6 +189,16 @@ public final class AppPreferencesStore {
     userDefaults.string(forKey: Key.skippedUpdateVersion)
   }
 
+  public var gestureSidebarGroups: [String] {
+    userDefaults.stringArray(forKey: Key.gestureSidebarGroups) ?? []
+  }
+
+  public var gestureSidebarApplications: [String] {
+    userDefaults.stringArray(
+      forKey: Key.gestureSidebarApplications
+    ) ?? []
+  }
+
   public func setRecognitionEnabled(_ isEnabled: Bool) {
     userDefaults.set(isEnabled, forKey: Key.recognitionEnabled)
   }
@@ -290,6 +303,27 @@ public final class AppPreferencesStore {
     userDefaults.set(version, forKey: Key.skippedUpdateVersion)
   }
 
+  public func setGestureSidebarGroups(_ groups: [String]) {
+    userDefaults.set(
+      normalizedStrings(groups),
+      forKey: Key.gestureSidebarGroups
+    )
+  }
+
+  public func setGestureSidebarApplications(
+    _ bundleIdentifiers: [String]
+  ) {
+    userDefaults.set(
+      normalizedStrings(bundleIdentifiers),
+      forKey: Key.gestureSidebarApplications
+    )
+  }
+
+  public func clearGestureSidebarConfiguration() {
+    userDefaults.removeObject(forKey: Key.gestureSidebarGroups)
+    userDefaults.removeObject(forKey: Key.gestureSidebarApplications)
+  }
+
   private func storedBool(
     forKey key: String,
     defaultValue: Bool
@@ -298,6 +332,19 @@ public final class AppPreferencesStore {
       return defaultValue
     }
     return userDefaults.bool(forKey: key)
+  }
+
+  private func normalizedStrings(_ values: [String]) -> [String] {
+    Array(
+      Set(
+        values.compactMap {
+          let value = $0.trimmingCharacters(
+            in: .whitespacesAndNewlines
+          )
+          return value.isEmpty ? nil : value
+        }
+      )
+    ).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
   }
 }
 
@@ -353,6 +400,171 @@ public enum UpdateCheckResult: Equatable, Sendable {
   case skipped(version: String)
   case available(VerifiedUpdate)
   case rejected(UpdateRejectionReason)
+}
+
+public struct GitHubRelease: Equatable, Sendable {
+  public let version: String
+  public let pageURL: URL
+
+  public init(version: String, pageURL: URL) {
+    self.version = version
+    self.pageURL = pageURL
+  }
+}
+
+public enum GitHubReleaseCheckResult: Equatable, Sendable {
+  case upToDate
+  case skipped(version: String)
+  case available(GitHubRelease)
+  case rejected(UpdateRejectionReason)
+}
+
+public actor GitHubReleaseService {
+  private struct ReleaseResponse: Decodable {
+    let tagName: String
+    let pageURL: URL
+    let isDraft: Bool
+    let isPrerelease: Bool
+
+    enum CodingKeys: String, CodingKey {
+      case tagName = "tag_name"
+      case pageURL = "html_url"
+      case isDraft = "draft"
+      case isPrerelease = "prerelease"
+    }
+  }
+
+  private let currentVersion: [Int]
+  private let latestReleaseURL: URL
+  private var skippedVersion: String?
+
+  public init?(
+    currentVersion: String,
+    latestReleaseURL: URL,
+    skippedVersion: String? = nil
+  ) {
+    guard
+      latestReleaseURL.scheme?.lowercased() == "https",
+      latestReleaseURL.host?.lowercased() == "api.github.com",
+      let version = Self.versionComponents(currentVersion)
+    else {
+      return nil
+    }
+    self.currentVersion = version
+    self.latestReleaseURL = latestReleaseURL
+    self.skippedVersion = skippedVersion
+  }
+
+  public func check() async -> GitHubReleaseCheckResult {
+    var request = URLRequest(url: latestReleaseURL)
+    request.setValue(
+      "application/vnd.github+json",
+      forHTTPHeaderField: "Accept"
+    )
+    request.setValue(
+      "2022-11-28",
+      forHTTPHeaderField: "X-GitHub-Api-Version"
+    )
+    do {
+      let (data, response) = try await URLSession.shared.data(
+        for: request
+      )
+      guard
+        let response = response as? HTTPURLResponse,
+        (200..<300).contains(response.statusCode)
+      else {
+        return .rejected(.networkFailure)
+      }
+      return validate(releaseData: data)
+    } catch {
+      return .rejected(.networkFailure)
+    }
+  }
+
+  public func validate(
+    releaseData: Data
+  ) -> GitHubReleaseCheckResult {
+    guard
+      let response = try? JSONDecoder().decode(
+        ReleaseResponse.self,
+        from: releaseData
+      ),
+      !response.isDraft,
+      !response.isPrerelease,
+      response.pageURL.scheme?.lowercased() == "https",
+      response.pageURL.host?.lowercased() == "github.com"
+    else {
+      return .rejected(.malformedManifest)
+    }
+    let version =
+      response.tagName.first == "v"
+      ? String(response.tagName.dropFirst())
+      : response.tagName
+    guard let releaseVersion = Self.versionComponents(version) else {
+      return .rejected(.malformedManifest)
+    }
+    let versionComparison = Self.compare(
+      releaseVersion,
+      currentVersion
+    )
+    guard versionComparison != .orderedAscending else {
+      return .rejected(.versionRollback)
+    }
+    guard versionComparison == .orderedDescending else {
+      return .upToDate
+    }
+    if skippedVersion == version {
+      return .skipped(version: version)
+    }
+    return .available(
+      GitHubRelease(
+        version: version,
+        pageURL: response.pageURL
+      )
+    )
+  }
+
+  public func skip(version: String) {
+    skippedVersion = version
+  }
+
+  private static func versionComponents(
+    _ value: String
+  ) -> [Int]? {
+    let parts = value.split(
+      separator: ".",
+      omittingEmptySubsequences: false
+    )
+    guard
+      (2...4).contains(parts.count),
+      parts.allSatisfy({
+        !$0.isEmpty
+          && $0.allSatisfy(\.isNumber)
+          && Int($0) != nil
+      })
+    else {
+      return nil
+    }
+    return parts.map { Int($0)! }
+  }
+
+  private static func compare(
+    _ left: [Int],
+    _ right: [Int]
+  ) -> ComparisonResult {
+    let count = max(left.count, right.count)
+    for index in 0..<count {
+      let leftValue = index < left.count ? left[index] : 0
+      let rightValue = index < right.count ? right[index] : 0
+      if leftValue < rightValue {
+        return .orderedAscending
+      }
+      if leftValue > rightValue {
+        return .orderedDescending
+      }
+    }
+    return .orderedSame
+  }
 }
 
 public actor UpdateService {

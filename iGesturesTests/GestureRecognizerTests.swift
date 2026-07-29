@@ -120,6 +120,60 @@ final class GestureRecognizerTests: XCTestCase {
     XCTAssertEqual(match.mappingID, globalID)
   }
 
+  func testDirectApplicationMappingOverridesGroupMapping() throws {
+    let candidate = try template(angle: 0)
+    let directID = UUID()
+    let groupID = UUID()
+    let decision = GestureRecognizer().recognize(
+      candidate,
+      mappings: [
+        mapping(
+          id: groupID,
+          template: candidate,
+          scope: .only(["com.apple.Safari"]),
+          applicationGroupID: UUID()
+        ),
+        mapping(
+          id: directID,
+          template: try template(angle: 0.12),
+          scope: .only(["com.apple.Safari"])
+        ),
+      ],
+      frontmostBundleID: "com.apple.Safari"
+    )
+
+    guard case .matched(let match) = decision else {
+      return XCTFail("Expected a direct application match")
+    }
+    XCTAssertEqual(match.mappingID, directID)
+  }
+
+  func testGroupMappingFallsBackToGlobalMapping() throws {
+    let candidate = try template(angle: 0)
+    let globalID = UUID()
+    let decision = GestureRecognizer().recognize(
+      candidate,
+      mappings: [
+        mapping(
+          id: UUID(),
+          template: try template(angle: .pi / 2),
+          scope: .only(["com.apple.Safari"]),
+          applicationGroupID: UUID()
+        ),
+        mapping(
+          id: globalID,
+          template: candidate
+        ),
+      ],
+      frontmostBundleID: "com.apple.Safari"
+    )
+
+    guard case .matched(let match) = decision else {
+      return XCTFail("Expected a global fallback")
+    }
+    XCTAssertEqual(match.mappingID, globalID)
+  }
+
   func testSimilarMappingsInSameSpecificLayerAreAmbiguous()
     throws
   {
@@ -387,6 +441,7 @@ final class GestureRecognizerTests: XCTestCase {
     template: GestureTemplate,
     scope: AppScope = .all,
     priority: Int = 0,
+    applicationGroupID: UUID? = nil,
     deviceScope: InputDeviceScope = .any
   ) -> GestureMapping {
     GestureMapping(
@@ -395,6 +450,7 @@ final class GestureRecognizerTests: XCTestCase {
       templates: [template],
       shortcut: shortcut,
       appScope: scope,
+      applicationGroupID: applicationGroupID,
       deviceScope: deviceScope,
       priority: priority
     )

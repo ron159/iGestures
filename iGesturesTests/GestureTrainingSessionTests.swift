@@ -130,6 +130,27 @@ final class GestureTrainingSessionTests: XCTestCase {
     XCTAssertEqual(id, existingID)
   }
 
+  func testDirectApplicationGestureCanOverrideGroupGesture()
+    throws
+  {
+    let existing = GestureMapping(
+      name: "Browser Group",
+      templates: [try normalized(angle: 0)],
+      shortcut: KeyboardShortcut(keyCode: 12, modifiers: 0),
+      appScope: .only(["com.apple.Safari"]),
+      applicationGroupID: UUID()
+    )
+    var session = GestureTrainingSession(
+      existingMappings: [existing],
+      appScope: .only(["com.apple.Safari"])
+    )
+
+    XCTAssertEqual(
+      session.recordSample(line(angle: 0, offset: 20)),
+      .sampleAccepted(count: 1, required: 3)
+    )
+  }
+
   func testAdditionalSamplesAreCapped() {
     var session = GestureTrainingSession(
       existingMappings: [],

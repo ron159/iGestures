@@ -384,7 +384,9 @@ private final class CoreChecks {
     )
     check(
       coordinator.requestAccess() == .checking
-        && provider.promptValues == [false, true],
+        && provider.promptValues == [false, true]
+        && provider.listenRequestCount == 1
+        && provider.postRequestCount == 1,
       "permission prompt was not explicitly requested"
     )
     check(
@@ -847,6 +849,8 @@ try await checks.run()
 private final class PermissionProviderCheckStub: PermissionProviding {
   let value: PermissionDiagnostics
   private(set) var promptValues: [Bool] = []
+  private(set) var listenRequestCount = 0
+  private(set) var postRequestCount = 0
 
   init(value: PermissionDiagnostics) {
     self.value = value
@@ -857,6 +861,16 @@ private final class PermissionProviderCheckStub: PermissionProviding {
   ) -> PermissionDiagnostics {
     promptValues.append(promptForAccessibility)
     return value
+  }
+
+  func requestListenEventAccess() -> Bool {
+    listenRequestCount += 1
+    return value.listenEventAccess
+  }
+
+  func requestPostEventAccess() -> Bool {
+    postRequestCount += 1
+    return value.postEventAccess
   }
 }
 

@@ -15,14 +15,20 @@ iGestures 是一款原生 macOS 菜单栏鼠标手势工具：按住自定义触
 - 应用专用映射优先，全局映射自动回退；
 - 可从常用鼠标按键预设快速选择，或直接录制任意物理鼠标按键作为触发键；
 - 每个映射可独立选择触发键、输入设备和 Repeat Mode；
-- 支持默认关闭的 Rocker、“触发键 + 滚轮”与触控板修饰键手势；
+- 支持触控板修饰键手势；
 - 自定义触发键按住时长；按住时长或移动距离任一达到阈值即可开始手势；
 - 内置八个可预览、复制和修改的预设，并提供首次引导与无动作练习模式；
-- 在 SwiftUI 设置中创建、复制、搜索、分类、重录、批量启停、排序和删除映射；
+- 可缩放的双栏手势工作区按全局、应用分组和单个应用管理映射；分组直接管理成员应用并共享手势；
+- 单个应用手势优先于所属分组，分组手势未匹配时自动回退到全局手势；
+- 手势列表与设置区显示留有边距的轨迹预览；
+- 在手势页顶部直接设置全局触发键和按住时长，选中手势后可查看并切换全部动作类型；
+- 在 SwiftUI 设置中创建、复制、搜索、重录、批量启停、排序和删除映射；
 - 通过系统应用选择器配置作用域，无需手工填写 Bundle Identifier；
 - 支持多显示器轨迹、识别结果反馈、三档灵敏度和可关闭的触觉反馈；
 - 版本化 JSON 数据库、原子写入、损坏恢复、导入预览、合并、替换和撤销；
 - Accessibility、Listen Event、Post Event 和 Event Tap 分项诊断；
+- 可从权限页直接触发三项 macOS 系统授权流程，无需手动添加应用；
+- 自动检查 GitHub 上最新的正式 Release，并在发现新版本时打开发布页面；
 - 本机有限诊断记录默认不跨启动保留，不记录轨迹、键入文本或窗口内容；
 - 使用 `SMAppService.mainApp` 管理登录时启动；
 - 英文和简体中文界面。
@@ -44,7 +50,8 @@ iGestures 是一款原生 macOS 菜单栏鼠标手势工具：按住自定义触
 1. 解压后将 `iGestures.app` 拖入 `/Applications`；
 2. 尝试打开应用；
 3. 如果 macOS 阻止首次打开，在“系统设置 → 隐私与安全性”中点击“仍要打开”；
-4. 根据 iGestures 设置页提示授予辅助功能、输入监听和事件发送权限；
+4. 在 iGestures 权限页分别点击“授予权限”，按 macOS 提示确认辅助功能、
+   输入监听和事件发送权限；
 5. 如需登录后自动运行，在“通用”设置中打开“登录时启动”。
 
 可以在终端校验下载文件：
@@ -80,7 +87,7 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-当前基线已通过 Debug/Release 构建、99 项 XCTest、Xcode Analyze、arm64 产物检查和
+当前基线已通过 Debug/Release 构建、109 项 XCTest、Xcode Analyze、arm64 产物检查和
 本地临时签名验证。GitHub Actions 会复跑格式、本地化、仓库卫生检查、核心检查、
 XCTest 和 Release 构建。每次成功推送到 `main` 后，CI 会更新 `continuous`
 预发布中的 ZIP 与 SHA-256 校验文件。
@@ -88,8 +95,8 @@ XCTest 和 Release 构建。每次成功推送到 `main` 后，CI 会更新 `con
 推送与 `MARKETING_VERSION` 对应的版本标签会创建版本化 Release。例如：
 
 ```shell
-git tag -a v0.3.0 -m "iGestures 0.3.0"
-git push origin v0.3.0
+git tag -a v0.4.0 -m "iGestures 0.4.0"
+git push origin v0.4.0
 ```
 
 Release 工作流会验证标签与工程版本一致，运行格式检查、核心检查和 XCTest，

@@ -610,6 +610,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
   public var appScope: AppScope
   public var triggerButton: GestureTriggerButton?
   public var category: String?
+  public var applicationGroupID: UUID?
   public var repeatModeEnabled: Bool
   public var deviceScope: InputDeviceScope
   public var priority: Int
@@ -624,6 +625,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     case appScope
     case triggerButton
     case category
+    case applicationGroupID
     case repeatModeEnabled
     case deviceScope
     case priority
@@ -638,6 +640,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     appScope: AppScope = .all,
     triggerButton: GestureTriggerButton? = nil,
     category: String? = nil,
+    applicationGroupID: UUID? = nil,
     repeatModeEnabled: Bool = false,
     deviceScope: InputDeviceScope = .any,
     priority: Int = 0
@@ -650,6 +653,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     self.appScope = appScope
     self.triggerButton = triggerButton
     self.category = category
+    self.applicationGroupID = applicationGroupID
     self.repeatModeEnabled = repeatModeEnabled
     self.deviceScope = deviceScope
     self.priority = priority
@@ -664,6 +668,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     appScope: AppScope = .all,
     triggerButton: GestureTriggerButton? = nil,
     category: String? = nil,
+    applicationGroupID: UUID? = nil,
     repeatModeEnabled: Bool = false,
     deviceScope: InputDeviceScope = .any,
     priority: Int = 0
@@ -677,6 +682,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
       appScope: appScope,
       triggerButton: triggerButton,
       category: category,
+      applicationGroupID: applicationGroupID,
       repeatModeEnabled: repeatModeEnabled,
       deviceScope: deviceScope,
       priority: priority
@@ -714,6 +720,10 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
       String.self,
       forKey: .category
     )
+    applicationGroupID = try container.decodeIfPresent(
+      UUID.self,
+      forKey: .applicationGroupID
+    )
     repeatModeEnabled =
       try container.decodeIfPresent(
         Bool.self,
@@ -740,6 +750,10 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
       forKey: .triggerButton
     )
     try container.encodeIfPresent(category, forKey: .category)
+    try container.encodeIfPresent(
+      applicationGroupID,
+      forKey: .applicationGroupID
+    )
     try container.encode(
       repeatModeEnabled,
       forKey: .repeatModeEnabled

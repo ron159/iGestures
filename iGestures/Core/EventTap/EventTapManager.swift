@@ -74,8 +74,7 @@ public final class EventTapManager: @unchecked Sendable {
   private var exclusionRules: Set<ApplicationExclusionRule> = []
   private var isSuppressingEscape = false
   private var isSuppressingGlobalToggle = false
-  private var heldButtons: [GestureTriggerButton] = []
-  private var suppressedCompoundButtons: Set<GestureTriggerButton> = []
+  private var suppressedMouseUpButtons: Set<GestureTriggerButton> = []
   private var repeatState: RepeatState?
   private var pendingRepeatRequest: ActionRequest?
 
@@ -445,10 +444,6 @@ public final class EventTapManager: @unchecked Sendable {
       return nil
     }
 
-    if type == .scrollWheel {
-      return handleCompoundScroll(event)
-    }
-
     guard
       let triggerEvent = triggerEvent(type: type, event: event)
     else {
@@ -467,8 +462,7 @@ public final class EventTapManager: @unchecked Sendable {
       let request = pendingRepeatRequest
     {
       pendingRepeatRequest = nil
-      heldButtons.removeAll { $0 == triggerButton }
-      abandonSessionForCompoundAction()
+      abandonSessionForRepeatedAction()
       repeatState = RepeatState(
         request: request,
         triggerButton: triggerButton,
@@ -485,8 +479,7 @@ public final class EventTapManager: @unchecked Sendable {
     }
 
     if phase == .up {
-      heldButtons.removeAll { $0 == triggerButton }
-      if suppressedCompoundButtons.remove(triggerButton) != nil {
+      if suppressedMouseUpButtons.remove(triggerButton) != nil {
         return nil
       }
     }
@@ -503,22 +496,9 @@ public final class EventTapManager: @unchecked Sendable {
           repeatState = nil
         }
       }
-      if let first = heldButtons.last,
-        let request = mappingSnapshot.compoundAction(
-          for: .rocker(first: first, second: triggerButton),
-          bundleID: frontmostAppProvider.currentBundleID()
-        )
-      {
-        heldButtons.append(triggerButton)
-        suppressedCompoundButtons.formUnion([first, triggerButton])
-        abandonSessionForCompoundAction()
-        dispatchAction(request)
-        return nil
-      }
       if activeTriggerButton != nil {
         return Unmanaged.passUnretained(event)
       }
-      heldButtons.append(triggerButton)
     }
 
     if phase != .down,
@@ -687,7 +667,7 @@ public final class EventTapManager: @unchecked Sendable {
 
     if session.state != .idle {
       if let activeTriggerButton {
-        suppressedCompoundButtons.insert(activeTriggerButton)
+        suppressedMouseUpButtons.insert(activeTriggerButton)
       }
       isSuppressingEscape = true
       let result = session.abandon()
@@ -766,7 +746,7 @@ public final class EventTapManager: @unchecked Sendable {
       }
       return false
     }), let activeTriggerButton {
-      suppressedCompoundButtons.insert(activeTriggerButton)
+      suppressedMouseUpButtons.insert(activeTriggerButton)
     }
     for command in commands {
       switch command {
@@ -947,36 +927,7 @@ public final class EventTapManager: @unchecked Sendable {
     CFRunLoopWakeUp(runLoop)
   }
 
-  private func handleCompoundScroll(
-    _ event: CGEvent
-  ) -> Unmanaged<CGEvent>? {
-    guard let triggerButton = heldButtons.last else {
-      return Unmanaged.passUnretained(event)
-    }
-    let delta = event.getDoubleValueField(.scrollWheelEventDeltaAxis1)
-    guard delta != 0 else {
-      return Unmanaged.passUnretained(event)
-    }
-    let direction: CompoundScrollDirection =
-      delta > 0 ? .up : .down
-    guard
-      let request = mappingSnapshot.compoundAction(
-        for: .wheel(
-          trigger: triggerButton,
-          direction: direction
-        ),
-        bundleID: frontmostAppProvider.currentBundleID()
-      )
-    else {
-      return Unmanaged.passUnretained(event)
-    }
-    suppressedCompoundButtons.insert(triggerButton)
-    abandonSessionForCompoundAction()
-    dispatchAction(request)
-    return nil
-  }
-
-  private func abandonSessionForCompoundAction() {
+  private func abandonSessionForRepeatedAction() {
     let result = session.abandon()
     apply(result.commands, currentEvent: nil)
     pendingMouseDown = nil
@@ -1081,7 +1032,6 @@ public final class EventTapManager: @unchecked Sendable {
     .otherMouseUp,
     .keyDown,
     .keyUp,
-    .scrollWheel,
   ].reduce(0) { mask, type in
     mask | (1 << type.rawValue)
   }

@@ -2,115 +2,267 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+private enum GestureTarget: Hashable {
+  case global
+  case group(UUID)
+  case application(String)
+}
+
 struct GesturesSettingsView: View {
   @ObservedObject var model: AppModel
+  @State private var selectedTarget: GestureTarget? = .global
+  @State private var selectedMappingID: UUID?
   @State private var isPresentingRecorder = false
   @State private var isPresentingPresets = false
+  @State private var isAddingGroup = false
+  @State private var newGroupName = ""
+  @State private var expandedGroupIDs: Set<UUID> = []
+  @State private var groupPendingDeletion: GestureApplicationGroup?
   @State private var searchText = ""
-  @State private var applicationFilter = ""
 
   var body: some View {
-    VStack(spacing: 0) {
-      HStack {
-        Text(String(localized: "Gestures"))
-          .font(.title2)
-          .fontWeight(.semibold)
-        Spacer()
-        Button {
-          isPresentingPresets = true
-        } label: {
-          Label(
-            String(localized: "Presets"),
-            systemImage: "square.grid.2x2"
-          )
-        }
-        .disabled(model.isLoadingMappings)
+    HSplitView {
+      targetSidebar
+        .frame(minWidth: 180, idealWidth: 235, maxWidth: 300)
 
-        Button {
-          isPresentingRecorder = true
-        } label: {
-          Label(
-            String(localized: "Add Gesture"),
-            systemImage: "plus"
-          )
-        }
-        .disabled(model.isLoadingMappings)
+      gestureWorkspace
+        .frame(minWidth: 540)
+    }
+    .sheet(isPresented: $isPresentingRecorder) {
+      GestureRecorderSheet(
+        model: model,
+        existingMappings: model.mappings,
+        initialAppScope: newGestureScope,
+        initialApplicationGroupID: selectedApplicationGroup?.id,
+        applicationGroupName: selectedApplicationGroup?.name
+      ) { draft in
+        selectedMappingID = model.createMapping(draft)
       }
-      .padding()
-
-      HStack {
-        TextField(
-          String(localized: "Search gestures"),
-          text: $searchText
-        )
-        .textFieldStyle(.roundedBorder)
-
-        Picker(
-          String(localized: "Application"),
-          selection: $applicationFilter
-        ) {
-          Text(String(localized: "All Applications")).tag("")
-          ForEach(knownApplicationBundleIDs, id: \.self) {
-            Text(applicationName(bundleIdentifier: $0)).tag($0)
+    }
+    .sheet(isPresented: $isPresentingPresets) {
+      GesturePresetLibraryView(model: model)
+    }
+    .alert(
+      String(localized: "New Group"),
+      isPresented: $isAddingGroup
+    ) {
+      TextField(
+        String(localized: "Group Name"),
+        text: $newGroupName
+      )
+      Button(String(localized: "Cancel"), role: .cancel) {
+        newGroupName = ""
+      }
+      Button(String(localized: "Add")) {
+        addGroup()
+      }
+      .disabled(trimmedGroupName.isEmpty)
+    }
+    .onAppear {
+      expandedGroupIDs.formUnion(
+        model.gestureApplicationGroups.map(\.id)
+      )
+      selectFirstVisibleMapping()
+    }
+    .onChange(of: visibleMappingIDs) {
+      selectFirstVisibleMapping()
+    }
+    .onChange(of: model.gestureApplicationGroups.map(\.id)) {
+      expandedGroupIDs.formUnion(
+        model.gestureApplicationGroups.map(\.id)
+      )
+    }
+    .confirmationDialog(
+      String(localized: "Delete this application group?"),
+      isPresented: Binding(
+        get: { groupPendingDeletion != nil },
+        set: {
+          if !$0 {
+            groupPendingDeletion = nil
           }
         }
-        .frame(width: 190)
-
-        Button(String(localized: "Enable Results")) {
-          model.setMappingsEnabled(
-            ids: Set(filteredMappings.map { $0.mapping.id }),
-            isEnabled: true
-          )
+      ),
+      presenting: groupPendingDeletion
+    ) { group in
+      Button(String(localized: "Delete Group"), role: .destructive) {
+        model.deleteGestureApplicationGroup(id: group.id)
+        if selectedTarget == .group(group.id) {
+          selectedTarget = .global
         }
-        .disabled(filteredMappings.isEmpty)
-
-        Button(String(localized: "Disable Results")) {
-          model.setMappingsEnabled(
-            ids: Set(filteredMappings.map { $0.mapping.id }),
-            isEnabled: false
-          )
-        }
-        .disabled(filteredMappings.isEmpty)
+        groupPendingDeletion = nil
       }
-      .padding(.horizontal)
-      .padding(.bottom, 10)
+      Button(String(localized: "Cancel"), role: .cancel) {}
+    } message: { group in
+      Text(
+        String(
+          format: String(
+            localized:
+              "Applications in “%@” will become ungrouped. Its gestures will be preserved as application-specific gestures."
+          ),
+          group.name
+        )
+      )
+    }
+  }
 
+  private var targetSidebar: some View {
+    VStack(spacing: 0) {
+      List(selection: $selectedTarget) {
+        Label(
+          String(localized: "Global"),
+          systemImage: "globe"
+        )
+        .tag(GestureTarget.global)
+
+        Section {
+          ForEach(model.gestureApplicationGroups) { group in
+            DisclosureGroup(
+              isExpanded: Binding(
+                get: { expandedGroupIDs.contains(group.id) },
+                set: {
+                  if $0 {
+                    expandedGroupIDs.insert(group.id)
+                  } else {
+                    expandedGroupIDs.remove(group.id)
+                  }
+                }
+              )
+            ) {
+              ForEach(
+                sortedApplicationBundleIdentifiers(
+                  group.bundleIdentifiers
+                ),
+                id: \.self
+              ) { bundleIdentifier in
+                applicationSidebarRow(
+                  bundleIdentifier: bundleIdentifier,
+                  groupID: group.id
+                )
+                .padding(.leading, 14)
+              }
+            } label: {
+              Label(group.name, systemImage: "folder")
+            }
+            .tag(GestureTarget.group(group.id))
+            .contextMenu {
+              Button {
+                chooseApplication(destinationGroupID: group.id)
+              } label: {
+                Label(
+                  String(localized: "Add Application"),
+                  systemImage: "plus.app"
+                )
+              }
+              Divider()
+              Button(role: .destructive) {
+                groupPendingDeletion = group
+              } label: {
+                Label(
+                  String(localized: "Delete Group"),
+                  systemImage: "trash"
+                )
+              }
+              .disabled(
+                group.bundleIdentifiers.isEmpty
+                  && model.mappings.contains {
+                    $0.applicationGroupID == group.id
+                  }
+              )
+              .help(
+                String(
+                  localized:
+                    "Add an application or remove the group’s gestures before deleting this group."
+                )
+              )
+            }
+          }
+        } header: {
+          sidebarHeader(
+            String(localized: "Groups"),
+            actionLabel: String(localized: "Add Group"),
+            action: {
+              newGroupName = ""
+              isAddingGroup = true
+            }
+          )
+        }
+
+        Section {
+          ForEach(ungroupedApplicationBundleIdentifiers, id: \.self) {
+            bundleIdentifier in
+            applicationSidebarRow(
+              bundleIdentifier: bundleIdentifier,
+              groupID: nil
+            )
+          }
+        } header: {
+          sidebarHeader(
+            String(localized: "Applications"),
+            actionLabel: String(localized: "Add Application"),
+            action: { chooseApplication() }
+          )
+        }
+      }
+      .listStyle(.sidebar)
+
+      Divider()
+
+      Menu {
+        Button {
+          newGroupName = ""
+          isAddingGroup = true
+        } label: {
+          Label(
+            String(localized: "Add Group"),
+            systemImage: "folder.badge.plus"
+          )
+        }
+        Button {
+          chooseApplication()
+        } label: {
+          Label(
+            String(localized: "Add Application"),
+            systemImage: "plus.app"
+          )
+        }
+        if let group = selectedApplicationGroup {
+          Button {
+            chooseApplication(destinationGroupID: group.id)
+          } label: {
+            Label(
+              String(
+                format: String(
+                  localized: "Add Application to “%@”"
+                ),
+                group.name
+              ),
+              systemImage: "folder.badge.plus"
+            )
+          }
+        }
+      } label: {
+        Label(String(localized: "Add"), systemImage: "plus")
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .menuStyle(.borderlessButton)
+      .padding(12)
+    }
+  }
+
+  private var gestureWorkspace: some View {
+    VStack(spacing: 0) {
+      triggerConfiguration
+      Divider()
+      workspaceHeader
       Divider()
 
       if model.isLoadingMappings {
         ProgressView(String(localized: "Loading Gestures…"))
           .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else if model.mappings.isEmpty {
-        ContentUnavailableView {
-          Label(
-            String(localized: "No Gestures"),
-            systemImage: "scribble.variable"
-          )
-        } description: {
-          Text(
-            String(
-              localized:
-                "Record a gesture and bind it to an action."
-            )
-          )
-        } actions: {
-          Button(String(localized: "Record Gesture")) {
-            isPresentingRecorder = true
-          }
-        }
       } else {
-        List {
-          ForEach(filteredMappings, id: \.mapping.id) {
-            item in
-            GestureMappingRow(
-              model: model,
-              mapping: item.mapping,
-              index: item.index,
-              mappingCount: model.mappings.count
-            )
-          }
-        }
-        .listStyle(.inset)
+        gestureList
+        Divider()
+        gestureInspector
       }
 
       if let error = model.mappingStoreError {
@@ -119,50 +271,463 @@ struct GesturesSettingsView: View {
           .font(.callout)
           .foregroundStyle(.red)
           .frame(maxWidth: .infinity, alignment: .leading)
-          .padding()
+          .padding(.horizontal, 16)
+          .padding(.vertical, 10)
       }
     }
-    .sheet(isPresented: $isPresentingRecorder) {
-      GestureRecorderSheet(
-        model: model,
-        existingMappings: model.mappings
-      ) { draft in
-        model.createMapping(draft)
+  }
+
+  private var triggerConfiguration: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(alignment: .center, spacing: 16) {
+        triggerConfigurationTitle
+          .frame(maxWidth: .infinity, alignment: .leading)
+        triggerButtonControls
+        Divider()
+          .frame(height: 34)
+        triggerDurationControl
+      }
+
+      VStack(alignment: .leading, spacing: 12) {
+        triggerConfigurationTitle
+        triggerButtonControls
+        triggerDurationControl
       }
     }
-    .sheet(isPresented: $isPresentingPresets) {
-      GesturePresetLibraryView(model: model)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 12)
+    .background(.secondary.opacity(0.045))
+  }
+
+  private var triggerConfigurationTitle: some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Label(
+        String(localized: "Gesture Trigger"),
+        systemImage: "computermouse"
+      )
+      .font(.headline)
+      Text(
+        String(
+          localized:
+            "Hold the trigger button and draw a gesture."
+        )
+      )
+      .font(.caption)
+      .foregroundStyle(.secondary)
+    }
+  }
+
+  private var triggerButtonControls: some View {
+    LabeledContent(String(localized: "Trigger Mouse Button")) {
+      HStack(spacing: 8) {
+        Picker(
+          "",
+          selection: Binding(
+            get: { model.triggerButton },
+            set: { model.setTriggerButton($0) }
+          )
+        ) {
+          ForEach(GestureTriggerButton.commonPresets) { button in
+            Text(triggerButtonName(button)).tag(button)
+          }
+          if !GestureTriggerButton.commonPresets.contains(
+            model.triggerButton
+          ) {
+            Text(triggerButtonName(model.triggerButton))
+              .tag(model.triggerButton)
+          }
+        }
+        .labelsHidden()
+        .frame(width: 165)
+
+        TriggerButtonRecorderView(model: model) {
+          model.setTriggerButton($0)
+        }
+      }
+    }
+  }
+
+  private var triggerDurationControl: some View {
+    LabeledContent(String(localized: "Trigger Hold Duration")) {
+      Stepper(
+        value: Binding(
+          get: { model.triggerDuration },
+          set: { model.setTriggerDuration($0) }
+        ),
+        in: triggerDurationRange,
+        step: 0.05
+      ) {
+        Text(triggerDurationLabel(model.triggerDuration))
+          .monospacedDigit()
+      }
+    }
+  }
+
+  private var workspaceHeader: some View {
+    HStack(spacing: 12) {
+      Label(targetTitle, systemImage: targetSystemImage)
+        .font(.title2)
+        .fontWeight(.semibold)
+
+      Spacer()
+
+      Button {
+        isPresentingPresets = true
+      } label: {
+        Label(
+          String(localized: "Presets"),
+          systemImage: "square.grid.2x2"
+        )
+      }
+      .disabled(model.isLoadingMappings)
+
+      Button {
+        isPresentingRecorder = true
+      } label: {
+        Label(
+          String(localized: "Add Gesture"),
+          systemImage: "plus"
+        )
+      }
+      .buttonStyle(.borderedProminent)
+      .disabled(model.isLoadingMappings)
+    }
+    .padding(16)
+  }
+
+  private var gestureList: some View {
+    VStack(spacing: 0) {
+      HStack {
+        TextField(
+          String(localized: "Search gestures"),
+          text: $searchText
+        )
+        .textFieldStyle(.roundedBorder)
+
+        Text("\(filteredMappings.count)")
+          .foregroundStyle(.secondary)
+
+        Menu {
+          Button(String(localized: "Enable Results")) {
+            model.setMappingsEnabled(
+              ids: Set(filteredMappings.map(\.mapping.id)),
+              isEnabled: true
+            )
+          }
+          Button(String(localized: "Disable Results")) {
+            model.setMappingsEnabled(
+              ids: Set(filteredMappings.map(\.mapping.id)),
+              isEnabled: false
+            )
+          }
+        } label: {
+          Image(systemName: "ellipsis.circle")
+        }
+        .menuStyle(.borderlessButton)
+        .disabled(filteredMappings.isEmpty)
+      }
+      .padding(.horizontal, 16)
+      .padding(.vertical, 10)
+
+      if filteredMappings.isEmpty {
+        ContentUnavailableView {
+          Label(
+            String(localized: "No Gestures for This Target"),
+            systemImage: "scribble.variable"
+          )
+        } description: {
+          Text(
+            String(
+              localized:
+                "Add or record a gesture for the selected target."
+            )
+          )
+        } actions: {
+          Button(String(localized: "Record Gesture")) {
+            isPresentingRecorder = true
+          }
+        }
+        .frame(maxWidth: .infinity, minHeight: 205)
+      } else {
+        List(selection: $selectedMappingID) {
+          ForEach(filteredMappings, id: \.mapping.id) { item in
+            GestureLibraryRow(model: model, mapping: item.mapping)
+              .tag(item.mapping.id)
+          }
+        }
+        .listStyle(.inset)
+        .frame(minHeight: 205, idealHeight: 245, maxHeight: 285)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var gestureInspector: some View {
+    if let mapping = selectedMapping {
+      ScrollView {
+        GestureMappingInspector(
+          model: model,
+          mapping: mapping,
+          index: selectedMappingIndex,
+          mappingCount: model.mappings.count,
+          applicationGroupName:
+            mapping.applicationGroupID.flatMap {
+              applicationGroupName($0)
+            }
+        ) {
+          selectedMappingID = nil
+        }
+        .id(mapping.id)
+      }
+    } else {
+      ContentUnavailableView {
+        Label(
+          String(localized: "Gesture Settings"),
+          systemImage: "slider.horizontal.3"
+        )
+      } description: {
+        Text(String(localized: "Select a gesture to edit its settings."))
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+  }
+
+  private var selected: GestureTarget {
+    selectedTarget ?? .global
+  }
+
+  private var targetTitle: String {
+    switch selected {
+    case .global:
+      String(localized: "Global")
+    case .group(let groupID):
+      applicationGroupName(groupID)
+        ?? String(localized: "Application Group")
+    case .application(let bundleID):
+      applicationName(bundleIdentifier: bundleID)
+    }
+  }
+
+  private var targetSystemImage: String {
+    switch selected {
+    case .global:
+      "globe"
+    case .group:
+      "folder"
+    case .application:
+      "app"
+    }
+  }
+
+  private var selectedApplicationGroup: GestureApplicationGroup? {
+    guard case .group(let groupID) = selected else { return nil }
+    return model.gestureApplicationGroups.first { $0.id == groupID }
+  }
+
+  private var ungroupedApplicationBundleIdentifiers: [String] {
+    let grouped = Set(
+      model.gestureApplicationGroups.flatMap(\.bundleIdentifiers)
+    )
+    return sortedApplicationBundleIdentifiers(
+      allManagedApplicationBundleIdentifiers.filter {
+        !grouped.contains($0)
+      }
+    )
+  }
+
+  private var allManagedApplicationBundleIdentifiers: [String] {
+    Array(
+      Set(
+        model.managedApplicationBundleIdentifiers
+          + model.gestureApplicationGroups.flatMap(
+            \.bundleIdentifiers
+          )
+          + model.mappings.flatMap { mapping -> [String] in
+            guard case .only(let bundleIdentifiers) = mapping.appScope
+            else {
+              return []
+            }
+            return bundleIdentifiers
+          }
+      )
+    )
+  }
+
+  private var targetMappings: [(index: Int, mapping: GestureMapping)] {
+    model.mappings.enumerated().compactMap { index, mapping in
+      let matchesTarget: Bool
+      switch selected {
+      case .global:
+        guard mapping.applicationGroupID == nil else {
+          matchesTarget = false
+          break
+        }
+        switch mapping.appScope {
+        case .all, .allExcept:
+          matchesTarget = true
+        case .only:
+          matchesTarget = false
+        }
+      case .group(let groupID):
+        matchesTarget = mapping.applicationGroupID == groupID
+      case .application(let bundleID):
+        if mapping.applicationGroupID == nil,
+          case .only(let bundleIDs) = mapping.appScope
+        {
+          matchesTarget = bundleIDs.contains(bundleID)
+        } else {
+          matchesTarget = false
+        }
+      }
+      return matchesTarget ? (index, mapping) : nil
     }
   }
 
   private var filteredMappings: [(index: Int, mapping: GestureMapping)] {
-    model.mappings.enumerated().compactMap { index, mapping in
-      let matchesSearch =
-        searchText.isEmpty
-        || mapping.name.localizedCaseInsensitiveContains(searchText)
-        || (mapping.category?
-          .localizedCaseInsensitiveContains(searchText) == true)
-      let matchesApplication =
-        applicationFilter.isEmpty
-        || mapping.appScope.includes(bundleID: applicationFilter)
-      return matchesSearch && matchesApplication
-        ? (index, mapping)
-        : nil
+    targetMappings.filter { item in
+      searchText.isEmpty
+        || item.mapping.name.localizedCaseInsensitiveContains(
+          searchText
+        )
+        || GestureActionSummary.text(for: item.mapping.action)
+          .localizedCaseInsensitiveContains(searchText)
     }
   }
 
-  private var knownApplicationBundleIDs: [String] {
-    Array(
-      Set(
-        model.mappings.flatMap { mapping -> [String] in
-          switch mapping.appScope {
-          case .all:
-            []
-          case .only(let values), .allExcept(let values):
-            values
+  private var visibleMappingIDs: [UUID] {
+    filteredMappings.map(\.mapping.id)
+  }
+
+  private var selectedMapping: GestureMapping? {
+    guard let selectedMappingID else { return nil }
+    return model.mappings.first { $0.id == selectedMappingID }
+  }
+
+  private var selectedMappingIndex: Int {
+    model.mappings.firstIndex { $0.id == selectedMappingID } ?? 0
+  }
+
+  private var newGestureScope: AppScope {
+    switch selected {
+    case .global:
+      .all
+    case .group:
+      .only(selectedApplicationGroup?.bundleIdentifiers ?? [])
+    case .application(let bundleID):
+      .only([bundleID])
+    }
+  }
+
+  private var trimmedGroupName: String {
+    newGroupName.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private var triggerDurationRange: ClosedRange<TimeInterval> {
+    GestureInputConfiguration
+      .minimumTriggerDuration...GestureInputConfiguration.maximumTriggerDuration
+  }
+
+  private func selectFirstVisibleMapping() {
+    guard
+      let selectedMappingID,
+      visibleMappingIDs.contains(selectedMappingID)
+    else {
+      selectedMappingID = visibleMappingIDs.first
+      return
+    }
+  }
+
+  @ViewBuilder
+  private func sidebarHeader(
+    _ title: String,
+    actionLabel: String,
+    action: @escaping () -> Void
+  ) -> some View {
+    HStack {
+      Text(title)
+      Spacer()
+      Button(action: action) {
+        Image(systemName: "plus")
+      }
+      .buttonStyle(.borderless)
+      .help(actionLabel)
+    }
+  }
+
+  @ViewBuilder
+  private func applicationIcon(
+    bundleIdentifier: String
+  ) -> some View {
+    if let url = NSWorkspace.shared.urlForApplication(
+      withBundleIdentifier: bundleIdentifier
+    ) {
+      Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+        .resizable()
+        .frame(width: 22, height: 22)
+    } else {
+      Image(systemName: "app.dashed")
+        .frame(width: 22, height: 22)
+    }
+  }
+
+  private func applicationSidebarRow(
+    bundleIdentifier: String,
+    groupID: UUID?
+  ) -> some View {
+    HStack(spacing: 9) {
+      applicationIcon(bundleIdentifier: bundleIdentifier)
+      Text(applicationName(bundleIdentifier: bundleIdentifier))
+        .lineLimit(1)
+    }
+    .tag(GestureTarget.application(bundleIdentifier))
+    .contextMenu {
+      if groupID != nil {
+        Button {
+          model.moveManagedApplication(
+            bundleIdentifier,
+            toGroupID: nil
+          )
+        } label: {
+          Label(
+            String(localized: "Remove from Group"),
+            systemImage: "folder.badge.minus"
+          )
+        }
+      }
+
+      if model.gestureApplicationGroups.contains(where: {
+        $0.id != groupID
+      }) {
+        Menu(String(localized: "Move to Group")) {
+          ForEach(
+            model.gestureApplicationGroups.filter {
+              $0.id != groupID
+            }
+          ) { group in
+            Button(group.name) {
+              model.moveManagedApplication(
+                bundleIdentifier,
+                toGroupID: group.id
+              )
+              expandedGroupIDs.insert(group.id)
+            }
           }
-        })
-    ).sorted()
+        }
+      }
+
+      Divider()
+      Button(role: .destructive) {
+        model.removeManagedApplication(bundleIdentifier)
+        if selectedTarget == .application(bundleIdentifier) {
+          selectedTarget = .global
+        }
+      } label: {
+        Label(
+          String(localized: "Remove Application"),
+          systemImage: "minus.circle"
+        )
+      }
+    }
   }
 
   private func applicationName(bundleIdentifier: String) -> String {
@@ -171,17 +736,156 @@ struct GesturesSettingsView: View {
     )?.deletingPathExtension().lastPathComponent
       ?? bundleIdentifier
   }
+
+  private func applicationGroupName(_ id: UUID) -> String? {
+    model.gestureApplicationGroups.first { $0.id == id }?.name
+  }
+
+  private func sortedApplicationBundleIdentifiers(
+    _ bundleIdentifiers: [String]
+  ) -> [String] {
+    bundleIdentifiers.sorted {
+      applicationName(bundleIdentifier: $0)
+        .localizedStandardCompare(
+          applicationName(bundleIdentifier: $1)
+        ) == .orderedAscending
+    }
+  }
+
+  private func addGroup() {
+    let group = trimmedGroupName
+    guard !group.isEmpty else { return }
+    if let id = model.addGestureApplicationGroup(group) {
+      expandedGroupIDs.insert(id)
+      selectedTarget = .group(id)
+    }
+    newGroupName = ""
+  }
+
+  private func chooseApplication(destinationGroupID: UUID? = nil) {
+    let panel = NSOpenPanel()
+    panel.allowedContentTypes = [.application]
+    panel.allowsMultipleSelection = false
+    panel.canChooseDirectories = false
+    panel.treatsFilePackagesAsDirectories = false
+    panel.directoryURL = URL(
+      fileURLWithPath: "/Applications",
+      isDirectory: true
+    )
+    panel.prompt = String(localized: "Add")
+    if let destinationGroupID,
+      let groupName = applicationGroupName(destinationGroupID)
+    {
+      panel.message = String(
+        format: String(
+          localized: "Choose an application to add to “%@”."
+        ),
+        groupName
+      )
+    } else {
+      panel.message = String(
+        localized:
+          "Choose an application to add to the gesture sidebar."
+      )
+    }
+
+    guard panel.runModal() == .OK,
+      let url = panel.url,
+      let bundleID = Bundle(url: url)?.bundleIdentifier
+    else {
+      return
+    }
+    model.addManagedApplication(
+      bundleID,
+      toGroupID: destinationGroupID
+    )
+    if let destinationGroupID {
+      expandedGroupIDs.insert(destinationGroupID)
+    }
+    selectedTarget = .application(bundleID)
+  }
+
+  private func triggerDurationLabel(
+    _ duration: TimeInterval
+  ) -> String {
+    guard duration > 0 else {
+      return String(localized: "No Delay")
+    }
+    return String(
+      format: String(localized: "%.2f seconds"),
+      duration
+    )
+  }
 }
 
-private struct GestureMappingRow: View {
+private struct GestureLibraryRow: View {
+  @ObservedObject var model: AppModel
+  let mapping: GestureMapping
+
+  var body: some View {
+    HStack(spacing: 12) {
+      GestureTemplatePreview(
+        template: mapping.templates.first ?? .emptyPreview
+      )
+      .frame(width: 76, height: 54)
+
+      VStack(alignment: .leading, spacing: 5) {
+        Text(mapping.name)
+          .fontWeight(.medium)
+        HStack(spacing: 6) {
+          Text(GestureActionSummary.text(for: mapping.action))
+          Text("·")
+          Text(scopeSummary(mapping.appScope))
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+      }
+
+      Spacer()
+
+      if let conflict = shortcutConflict {
+        Image(systemName: "exclamationmark.triangle.fill")
+          .foregroundStyle(.orange)
+          .help(conflict.localizedDescription)
+      }
+
+      Toggle(
+        "",
+        isOn: Binding(
+          get: { mapping.isEnabled },
+          set: {
+            model.setMappingEnabled(
+              id: mapping.id,
+              isEnabled: $0
+            )
+          }
+        )
+      )
+      .labelsHidden()
+    }
+    .padding(.vertical, 5)
+  }
+
+  private var shortcutConflict: SystemShortcutConflict? {
+    guard case .keyboardShortcut(let shortcut) = mapping.action else {
+      return nil
+    }
+    return SystemShortcutConflictDetector().conflict(for: shortcut)
+  }
+}
+
+private struct GestureMappingInspector: View {
   @ObservedObject var model: AppModel
   let mapping: GestureMapping
   let index: Int
   let mappingCount: Int
+  let applicationGroupName: String?
+  let onDelete: () -> Void
 
   @State private var name: String
+  @State private var actionDraft: GestureAction
   @State private var isEditingScope = false
-  @State private var isEditingAction = false
   @State private var isRetraining = false
   @State private var isConfirmingDeletion = false
 
@@ -189,20 +893,28 @@ private struct GestureMappingRow: View {
     model: AppModel,
     mapping: GestureMapping,
     index: Int,
-    mappingCount: Int
+    mappingCount: Int,
+    applicationGroupName: String?,
+    onDelete: @escaping () -> Void
   ) {
     self.model = model
     self.mapping = mapping
     self.index = index
     self.mappingCount = mappingCount
+    self.applicationGroupName = applicationGroupName
+    self.onDelete = onDelete
     _name = State(initialValue: mapping.name)
+    _actionDraft = State(initialValue: mapping.action)
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(spacing: 10) {
+    VStack(alignment: .leading, spacing: 16) {
+      HStack {
+        Text(String(localized: "Gesture Settings"))
+          .font(.headline)
+        Spacer()
         Toggle(
-          "",
+          String(localized: "Enable"),
           isOn: Binding(
             get: { mapping.isEnabled },
             set: {
@@ -213,153 +925,151 @@ private struct GestureMappingRow: View {
             }
           )
         )
-        .labelsHidden()
-
-        TextField(String(localized: "Gesture Name"), text: $name)
-          .textFieldStyle(.plain)
-          .frame(minWidth: 110)
-          .onSubmit {
-            commitName()
-          }
-          .onChange(of: mapping.name) { _, newValue in
-            name = newValue
-          }
-
-        Button(actionSummary) {
-          isEditingAction = true
-        }
-        .frame(width: 140)
-
-        Button(scopeSummary) {
-          isEditingScope = true
-        }
-        .frame(width: 115)
-
-        if let conflict = shortcutConflict {
-          Image(systemName: "exclamationmark.triangle.fill")
-            .foregroundStyle(.orange)
-            .help(conflict.localizedDescription)
-        }
-
-        Spacer()
-
-        HStack(spacing: 4) {
-          Button {
-            isRetraining = true
-          } label: {
-            Image(systemName: "scribble.variable")
-          }
-          .help(String(localized: "Record Gesture Again"))
-
-          Button {
-            model.moveMapping(from: index, to: index - 1)
-          } label: {
-            Image(systemName: "chevron.up")
-          }
-          .disabled(index == 0)
-          .help(String(localized: "Move Up"))
-
-          Button {
-            model.moveMapping(from: index, to: index + 1)
-          } label: {
-            Image(systemName: "chevron.down")
-          }
-          .disabled(index == mappingCount - 1)
-          .help(String(localized: "Move Down"))
-
-          Button {
-            model.duplicateMapping(id: mapping.id)
-          } label: {
-            Image(systemName: "plus.square.on.square")
-          }
-          .help(String(localized: "Duplicate Gesture"))
-
-          Button(role: .destructive) {
-            isConfirmingDeletion = true
-          } label: {
-            Image(systemName: "trash")
-          }
-          .help(String(localized: "Delete Gesture"))
-        }
-        .buttonStyle(.borderless)
       }
 
-      HStack(spacing: 12) {
+      ViewThatFits(in: .horizontal) {
+        HStack(alignment: .top, spacing: 20) {
+          gesturePreview
+          mappingFields
+        }
+        .frame(minWidth: 620)
+
+        VStack(alignment: .leading, spacing: 16) {
+          gesturePreview
+          mappingFields
+        }
+      }
+
+      actionEditor
+      inspectorToolbar
+    }
+    .padding(16)
+    .onChange(of: mapping.name) {
+      name = mapping.name
+    }
+    .onChange(of: mapping.action) {
+      actionDraft = mapping.action
+    }
+    .sheet(isPresented: $isEditingScope) {
+      AppScopeEditor(scope: mapping.appScope) {
+        model.setMappingAppScope(id: mapping.id, appScope: $0)
+      }
+    }
+    .sheet(isPresented: $isRetraining) {
+      GestureRecorderSheet(
+        model: model,
+        existingMappings: model.mappings,
+        editingMapping: mapping,
+        applicationGroupName: applicationGroupName
+      ) { draft in
+        model.updateMapping(id: mapping.id, with: draft)
+      }
+    }
+    .confirmationDialog(
+      String(localized: "Delete this gesture?"),
+      isPresented: $isConfirmingDeletion
+    ) {
+      Button(String(localized: "Delete"), role: .destructive) {
+        model.deleteMapping(id: mapping.id)
+        onDelete()
+      }
+      Button(String(localized: "Cancel"), role: .cancel) {}
+    }
+  }
+
+  private var gesturePreview: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      GestureTemplatePreview(
+        template: mapping.templates.first ?? .emptyPreview
+      )
+      .frame(width: 190, height: 150)
+
+      Button {
+        isRetraining = true
+      } label: {
+        Label(
+          String(localized: "Record Gesture Again"),
+          systemImage: "scribble.variable"
+        )
+        .frame(maxWidth: .infinity)
+      }
+    }
+    .frame(width: 190)
+  }
+
+  private var mappingFields: some View {
+    Grid(
+      alignment: .leading,
+      horizontalSpacing: 12,
+      verticalSpacing: 12
+    ) {
+      GridRow {
+        Text(String(localized: "Gesture Name"))
+          .foregroundStyle(.secondary)
+        TextField(String(localized: "Gesture Name"), text: $name)
+          .onSubmit(commitName)
+      }
+
+      GridRow {
+        Text(String(localized: "Application Scope"))
+          .foregroundStyle(.secondary)
+        if let applicationGroupName {
+          Label(applicationGroupName, systemImage: "folder")
+        } else {
+          Button(scopeSummary(mapping.appScope)) {
+            isEditingScope = true
+          }
+        }
+      }
+
+      GridRow {
         Text(String(localized: "Trigger"))
           .foregroundStyle(.secondary)
-        Picker(
-          "",
-          selection: Binding(
-            get: { mapping.triggerButton },
-            set: {
-              model.setMappingTriggerButton(
+        HStack(spacing: 8) {
+          Picker(
+            "",
+            selection: Binding(
+              get: { mapping.triggerButton },
+              set: {
+                model.setMappingTriggerButton(
+                  id: mapping.id,
+                  triggerButton: $0
+                )
+              }
+            )
+          ) {
+            Text(String(localized: "Use Global Default"))
+              .tag(GestureTriggerButton?.none)
+            ForEach(GestureTriggerButton.commonPresets) { button in
+              Text(triggerButtonName(button))
+                .tag(GestureTriggerButton?.some(button))
+            }
+            if let customButton = mapping.triggerButton,
+              !GestureTriggerButton.commonPresets.contains(customButton)
+            {
+              Text(triggerButtonName(customButton))
+                .tag(GestureTriggerButton?.some(customButton))
+            }
+          }
+          .labelsHidden()
+          .frame(width: 180)
+
+          TriggerButtonRecorderView(model: model) { button in
+            model.setMappingTriggerButton(
+              id: mapping.id,
+              triggerButton: button
+            )
+            if mapping.deviceScope == .trackpad {
+              model.setMappingDeviceScope(
                 id: mapping.id,
-                triggerButton: $0
+                deviceScope: .mouse(identifier: nil)
               )
             }
-          )
-        ) {
-          Text(String(localized: "Default"))
-            .tag(GestureTriggerButton?.none)
-          ForEach(GestureTriggerButton.commonPresets) { button in
-            Text(triggerButtonName(button))
-              .tag(GestureTriggerButton?.some(button))
-          }
-          if let customButton = mapping.triggerButton,
-            !GestureTriggerButton.commonPresets.contains(customButton)
-          {
-            Text(triggerButtonName(customButton))
-              .tag(GestureTriggerButton?.some(customButton))
           }
         }
-        .labelsHidden()
-        .frame(width: 105)
+      }
 
-        Menu(mapping.category ?? String(localized: "Uncategorized")) {
-          ForEach(
-            [
-              String(localized: "Browser"),
-              String(localized: "Navigation"),
-              String(localized: "System"),
-              String(localized: "Productivity"),
-            ],
-            id: \.self
-          ) { category in
-            Button(category) {
-              model.setMappingCategory(
-                id: mapping.id,
-                category: category
-              )
-            }
-          }
-          Divider()
-          Button(String(localized: "Uncategorized")) {
-            model.setMappingCategory(id: mapping.id, category: nil)
-          }
-        }
-        .frame(width: 115)
-
-        Toggle(
-          String(localized: "Repeat"),
-          isOn: Binding(
-            get: { mapping.repeatModeEnabled },
-            set: {
-              model.setMappingRepeatModeEnabled(
-                id: mapping.id,
-                enabled: $0
-              )
-            }
-          )
-        )
-        .help(
-          String(
-            localized:
-              "Repeat the last successful action with another trigger click."
-          )
-        )
-
-        Spacer()
-
+      GridRow {
         Text(String(localized: "Input Device"))
           .foregroundStyle(.secondary)
         Picker(
@@ -386,69 +1096,118 @@ private struct GestureMappingRow: View {
           }
         }
         .labelsHidden()
-        .frame(width: 110)
+      }
+
+      GridRow {
+        Text("")
+        Toggle(
+          String(localized: "Repeat"),
+          isOn: Binding(
+            get: { mapping.repeatModeEnabled },
+            set: {
+              model.setMappingRepeatModeEnabled(
+                id: mapping.id,
+                enabled: $0
+              )
+            }
+          )
+        )
+        .help(
+          String(
+            localized:
+              "Repeat the last successful action with another trigger click."
+          )
+        )
       }
     }
-    .padding(.vertical, 4)
-    .sheet(isPresented: $isEditingScope) {
-      AppScopeEditor(scope: mapping.appScope) {
-        model.setMappingAppScope(id: mapping.id, appScope: $0)
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var actionEditor: some View {
+    GroupBox(String(localized: "Action")) {
+      VStack(alignment: .leading, spacing: 12) {
+        GestureActionEditor(action: $actionDraft, model: model)
+
+        HStack {
+          Text(GestureActionSummary.text(for: actionDraft))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Spacer()
+          Button(String(localized: "Cancel")) {
+            actionDraft = mapping.action
+          }
+          .disabled(actionDraft == mapping.action)
+          Button(String(localized: "Save")) {
+            model.setMappingAction(
+              id: mapping.id,
+              action: actionDraft
+            )
+          }
+          .buttonStyle(.borderedProminent)
+          .disabled(
+            !actionDraft.isValid || actionDraft == mapping.action
+          )
+        }
       }
-    }
-    .sheet(isPresented: $isEditingAction) {
-      GestureActionEditorSheet(
-        action: mapping.action,
-        model: model
-      ) {
-        model.setMappingAction(id: mapping.id, action: $0)
-      }
-    }
-    .sheet(isPresented: $isRetraining) {
-      GestureRecorderSheet(
-        model: model,
-        existingMappings: model.mappings,
-        editingMapping: mapping
-      ) { draft in
-        model.updateMapping(id: mapping.id, with: draft)
-      }
-    }
-    .confirmationDialog(
-      String(localized: "Delete this gesture?"),
-      isPresented: $isConfirmingDeletion
-    ) {
-      Button(String(localized: "Delete"), role: .destructive) {
-        model.deleteMapping(id: mapping.id)
-      }
-      Button(String(localized: "Cancel"), role: .cancel) {}
+      .padding(.top, 4)
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 
-  private var scopeSummary: String {
-    switch mapping.appScope {
-    case .all:
-      return String(localized: "All Apps")
-    case .only(let bundleIDs):
-      return String(
-        format: String(localized: "Only %d Apps"),
-        bundleIDs.count
+  private var inspectorToolbar: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 8) {
+        orderingButtons
+        Spacer()
+        deleteButton
+      }
+
+      VStack(alignment: .leading, spacing: 8) {
+        orderingButtons
+        deleteButton
+      }
+    }
+  }
+
+  private var orderingButtons: some View {
+    HStack(spacing: 8) {
+      Button {
+        model.moveMapping(from: index, to: index - 1)
+      } label: {
+        Label(String(localized: "Move Up"), systemImage: "chevron.up")
+      }
+      .disabled(index == 0)
+
+      Button {
+        model.moveMapping(from: index, to: index + 1)
+      } label: {
+        Label(
+          String(localized: "Move Down"),
+          systemImage: "chevron.down"
+        )
+      }
+      .disabled(index == mappingCount - 1)
+
+      Button {
+        model.duplicateMapping(id: mapping.id)
+      } label: {
+        Label(
+          String(localized: "Duplicate Gesture"),
+          systemImage: "plus.square.on.square"
+        )
+      }
+    }
+  }
+
+  private var deleteButton: some View {
+    Button(role: .destructive) {
+      isConfirmingDeletion = true
+    } label: {
+      Label(
+        String(localized: "Delete Gesture"),
+        systemImage: "trash"
       )
-    case .allExcept(let bundleIDs):
-      return String(
-        format: String(localized: "Except %d Apps"),
-        bundleIDs.count
-      )
     }
-  }
-
-  private var shortcutConflict: SystemShortcutConflict? {
-    guard case .keyboardShortcut(let shortcut) = mapping.action else {
-      return nil
-    }
-    return SystemShortcutConflictDetector().conflict(for: shortcut)
-  }
-
-  private var actionSummary: String {
-    GestureActionSummary.text(for: mapping.action)
   }
 
   private func commitName() {
@@ -462,24 +1221,43 @@ private struct GestureMappingRow: View {
     name = trimmedName
     model.renameMapping(id: mapping.id, name: trimmedName)
   }
+}
 
-  private func triggerButtonName(
-    _ button: GestureTriggerButton
-  ) -> String {
-    if button == .trackpad {
-      return String(localized: "Trackpad")
-    }
-    return switch button.buttonNumber {
-    case 1:
-      String(localized: "Right")
-    case 2:
-      String(localized: "Middle")
-    default:
-      String(
-        format: String(localized: "Button %d"),
-        Int(button.buttonNumber) + 1
-      )
-    }
+private func scopeSummary(_ scope: AppScope) -> String {
+  switch scope {
+  case .all:
+    String(localized: "All Apps")
+  case .only(let bundleIDs):
+    String(
+      format: String(localized: "Only %d Apps"),
+      bundleIDs.count
+    )
+  case .allExcept(let bundleIDs):
+    String(
+      format: String(localized: "Except %d Apps"),
+      bundleIDs.count
+    )
+  }
+}
+
+private func triggerButtonName(
+  _ button: GestureTriggerButton
+) -> String {
+  if button == .trackpad {
+    return String(localized: "Trackpad")
+  }
+  return switch button.buttonNumber {
+  case 0:
+    String(localized: "Left Mouse Button")
+  case 1:
+    String(localized: "Right Mouse Button")
+  case 2:
+    String(localized: "Middle Mouse Button")
+  default:
+    String(
+      format: String(localized: "Mouse Button %d"),
+      Int(button.buttonNumber) + 1
+    )
   }
 }
 
@@ -565,18 +1343,15 @@ struct GestureTemplatePreview: View {
 
   var body: some View {
     Canvas { context, size in
-      guard
-        let firstPoint = template.points.first,
-        let first = point(firstPoint, in: size)
-      else {
-        return
-      }
+      let points = GesturePreviewLayout.scaledPoints(
+        template.points,
+        in: size
+      )
+      guard let first = points.first else { return }
       var path = Path()
       path.move(to: first)
-      for gesturePoint in template.points.dropFirst() {
-        if let point = point(gesturePoint, in: size) {
-          path.addLine(to: point)
-        }
+      for point in points.dropFirst() {
+        path.addLine(to: point)
       }
       context.stroke(
         path,
@@ -587,6 +1362,39 @@ struct GestureTemplatePreview: View {
           lineJoin: .round
         )
       )
+
+      let markerSize = min(size.width, size.height) < 80 ? 8.0 : 11.0
+      let startMarker = Path(
+        ellipseIn: CGRect(
+          x: first.x - markerSize / 2,
+          y: first.y - markerSize / 2,
+          width: markerSize,
+          height: markerSize
+        )
+      )
+      context.fill(startMarker, with: .color(.white))
+      context.stroke(
+        startMarker,
+        with: .color(.secondary),
+        lineWidth: 1.5
+      )
+
+      if let last = points.last {
+        let endMarker = Path(
+          ellipseIn: CGRect(
+            x: last.x - markerSize / 2,
+            y: last.y - markerSize / 2,
+            width: markerSize,
+            height: markerSize
+          )
+        )
+        context.fill(endMarker, with: .color(.accentColor))
+        context.stroke(
+          endMarker,
+          with: .color(.white.opacity(0.85)),
+          lineWidth: 1.5
+        )
+      }
     }
     .background(
       .secondary.opacity(0.08),
@@ -595,16 +1403,58 @@ struct GestureTemplatePreview: View {
       ))
   }
 
-  private func point(
-    _ point: GesturePoint,
+}
+
+enum GesturePreviewLayout {
+  static func scaledPoints(
+    _ gesturePoints: [GesturePoint],
     in size: CGSize
-  ) -> CGPoint? {
-    guard point.isFinite else { return nil }
-    return CGPoint(
-      x: (CGFloat(point.x) + 0.5) * size.width,
-      y: (CGFloat(point.y) + 0.5) * size.height
-    )
+  ) -> [CGPoint] {
+    let points = gesturePoints.filter(\.isFinite)
+    guard !points.isEmpty else { return [] }
+
+    let minX = points.map(\.x).min() ?? 0
+    let maxX = points.map(\.x).max() ?? 0
+    let minY = points.map(\.y).min() ?? 0
+    let maxY = points.map(\.y).max() ?? 0
+    let width = CGFloat(maxX - minX)
+    let height = CGFloat(maxY - minY)
+    let inset = max(7, min(size.width, size.height) * 0.12)
+    let availableWidth = max(1, size.width - inset * 2)
+    let availableHeight = max(1, size.height - inset * 2)
+
+    let scale: CGFloat
+    if width <= .ulpOfOne, height <= .ulpOfOne {
+      scale = 1
+    } else if width <= .ulpOfOne {
+      scale = availableHeight / height
+    } else if height <= .ulpOfOne {
+      scale = availableWidth / width
+    } else {
+      scale = min(
+        availableWidth / width,
+        availableHeight / height
+      )
+    }
+
+    let centerX = CGFloat(minX + maxX) / 2
+    let centerY = CGFloat(minY + maxY) / 2
+    return points.map {
+      CGPoint(
+        x: size.width / 2 + (CGFloat($0.x) - centerX) * scale,
+        y: size.height / 2 + (CGFloat($0.y) - centerY) * scale
+      )
+    }
   }
+}
+
+extension GestureTemplate {
+  fileprivate static let emptyPreview = GestureTemplate(
+    points: [],
+    aspectRatio: 1,
+    startDirection: GesturePoint(x: 0, y: 0),
+    endDirection: GesturePoint(x: 0, y: 0)
+  )
 }
 
 struct AppScopeEditor: View {

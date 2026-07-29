@@ -30,6 +30,8 @@ public struct PermissionDiagnostics: Equatable, Sendable {
 @MainActor
 public protocol PermissionProviding {
   func diagnostics(promptForAccessibility: Bool) -> PermissionDiagnostics
+  func requestListenEventAccess() -> Bool
+  func requestPostEventAccess() -> Bool
 }
 
 @MainActor
@@ -56,6 +58,14 @@ public struct SystemPermissionProvider: PermissionProviding {
       postEventAccess: CGPreflightPostEventAccess()
     )
   }
+
+  public func requestListenEventAccess() -> Bool {
+    CGRequestListenEventAccess()
+  }
+
+  public func requestPostEventAccess() -> Bool {
+    CGRequestPostEventAccess()
+  }
 }
 
 @MainActor
@@ -68,7 +78,7 @@ public final class PermissionCoordinator {
   )
 
   private let provider: any PermissionProviding
-  private var hasRequestedAccessibility = false
+  private var hasRequestedAccess = false
 
   public init(provider: (any PermissionProviding)? = nil) {
     self.provider = provider ?? SystemPermissionProvider()
@@ -77,18 +87,65 @@ public final class PermissionCoordinator {
   @discardableResult
   public func refresh() -> PermissionState {
     diagnostics = provider.diagnostics(promptForAccessibility: false)
-    if diagnostics.accessibilityTrusted {
+    if hasAllRequiredAccess {
       state = .checking
     } else {
-      state = hasRequestedAccessibility ? .denied : .needsUserAction
+      state = hasRequestedAccess ? .denied : .needsUserAction
     }
     return state
   }
 
   @discardableResult
   public func requestAccess() -> PermissionState {
-    hasRequestedAccessibility = true
+    hasRequestedAccess = true
+    let current = provider.diagnostics(promptForAccessibility: true)
+    diagnostics = PermissionDiagnostics(
+      accessibilityTrusted: current.accessibilityTrusted,
+      listenEventAccess:
+        current.listenEventAccess
+        || provider.requestListenEventAccess(),
+      postEventAccess:
+        current.postEventAccess
+        || provider.requestPostEventAccess()
+    )
+    state = .checking
+    return state
+  }
+
+  @discardableResult
+  public func requestAccessibilityAccess() -> PermissionState {
+    hasRequestedAccess = true
     diagnostics = provider.diagnostics(promptForAccessibility: true)
+    state = .checking
+    return state
+  }
+
+  @discardableResult
+  public func requestListenEventAccess() -> PermissionState {
+    hasRequestedAccess = true
+    let current = provider.diagnostics(promptForAccessibility: false)
+    diagnostics = PermissionDiagnostics(
+      accessibilityTrusted: current.accessibilityTrusted,
+      listenEventAccess:
+        current.listenEventAccess
+        || provider.requestListenEventAccess(),
+      postEventAccess: current.postEventAccess
+    )
+    state = .checking
+    return state
+  }
+
+  @discardableResult
+  public func requestPostEventAccess() -> PermissionState {
+    hasRequestedAccess = true
+    let current = provider.diagnostics(promptForAccessibility: false)
+    diagnostics = PermissionDiagnostics(
+      accessibilityTrusted: current.accessibilityTrusted,
+      listenEventAccess: current.listenEventAccess,
+      postEventAccess:
+        current.postEventAccess
+        || provider.requestPostEventAccess()
+    )
     state = .checking
     return state
   }
@@ -97,5 +154,11 @@ public final class PermissionCoordinator {
   public func recordEventTapCreation(succeeded: Bool) -> PermissionState {
     state = succeeded ? .granted : .tapCreationFailed
     return state
+  }
+
+  private var hasAllRequiredAccess: Bool {
+    diagnostics.accessibilityTrusted
+      && diagnostics.listenEventAccess
+      && diagnostics.postEventAccess
   }
 }

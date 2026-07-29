@@ -1,6 +1,256 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Add": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加"
+          }
+        }
+      }
+    },
+    "Add Application": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加应用程序"
+          }
+        }
+      }
+    },
+    "Add Application to “%@”": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将应用添加到“%@”"
+          }
+        }
+      }
+    },
+    "Add Group": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加分组"
+          }
+        }
+      }
+    },
+    "Add an application or remove the group’s gestures before deleting this group.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先添加应用，或移除此分组中的手势，再删除该分组。"
+          }
+        }
+      }
+    },
+    "Add or record a gesture for the selected target.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为当前目标添加或录制一个手势。"
+          }
+        }
+      }
+    },
+    "Choose an application to add to the gesture sidebar.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要添加到手势侧栏的应用程序。"
+          }
+        }
+      }
+    },
+    "Choose an application to add to “%@”.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要添加到“%@”的应用程序。"
+          }
+        }
+      }
+    },
+    "Application Group": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用分组"
+          }
+        }
+      }
+    },
+    "Applications in “%@” will become ungrouped. Its gestures will be preserved as application-specific gestures.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@”中的应用将变为未分组。该分组的手势会保留为应用专用手势。"
+          }
+        }
+      }
+    },
+    "Delete Group": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除分组"
+          }
+        }
+      }
+    },
+    "Delete this application group?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除此应用分组？"
+          }
+        }
+      }
+    },
+    "Gesture Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势设置"
+          }
+        }
+      }
+    },
+    "Gesture Trigger": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势触发方式"
+          }
+        }
+      }
+    },
+    "Global": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全局"
+          }
+        }
+      }
+    },
+    "Group": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分组"
+          }
+        }
+      }
+    },
+    "Group Name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分组名称"
+          }
+        }
+      }
+    },
+    "Hold the trigger button and draw a gesture.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住触发键并绘制手势。"
+          }
+        }
+      }
+    },
+    "Groups": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分组"
+          }
+        }
+      }
+    },
+    "New Group": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建分组"
+          }
+        }
+      }
+    },
+    "Move to Group": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移动到分组"
+          }
+        }
+      }
+    },
+    "No Gestures for This Target": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此目标暂无手势"
+          }
+        }
+      }
+    },
+    "Remove from Group": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移出分组"
+          }
+        }
+      }
+    },
+    "Select a gesture to edit its settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择一个手势以编辑其设置。"
+          }
+        }
+      }
+    },
+    "Trigger Button: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触发键：%@"
+          }
+        }
+      }
+    },
     "%.2f s delay": {
       "localizations": {
         "zh-Hans": {
@@ -167,16 +417,6 @@
         }
       }
     },
-    "Add Compound Gesture": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加复合手势"
-          }
-        }
-      }
-    },
     "Add Gesture": {
       "localizations": {
         "zh-Hans": {
@@ -203,36 +443,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "添加步骤"
-          }
-        }
-      }
-    },
-    "Add a Rocker or trigger-button plus wheel binding.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加 Rocker 或“触发键 + 滚轮”绑定。"
-          }
-        }
-      }
-    },
-    "Advanced Input": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "高级输入"
-          }
-        }
-      }
-    },
-    "Advanced compound input is disabled by default. Unconfigured input always passes through.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "高级复合输入默认关闭。未配置的输入始终透传。"
           }
         }
       }
@@ -373,38 +583,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "按键 %d"
-          }
-        }
-      }
-    },
-    "Button %d + Wheel %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Button %1$d + Wheel %2$@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按键 %d + 滚轮%@"
-          }
-        }
-      }
-    },
-    "Button %d then Button %d": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Button %1$d then Button %2$d"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按键 %d 后按按键 %d"
           }
         }
       }
@@ -565,16 +743,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "配置"
-          }
-        }
-      }
-    },
-    "Configured compound input takes priority. Unconfigured button and wheel input passes through unchanged.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已配置的复合输入优先。未配置的按键和滚轮输入会原样透传。"
           }
         }
       }
@@ -1205,26 +1373,6 @@
         }
       }
     },
-    "Hold the configured trigger button, move the wheel once in the configured direction, then release.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按住已配置的触发键，向配置方向滚动一次，然后松开。"
-          }
-        }
-      }
-    },
-    "Hold the first mouse button, press the second button, then release both.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按住第一个鼠标键，再按第二个鼠标键，然后全部松开。"
-          }
-        }
-      }
-    },
     "Hold this button and draw. A normal click is replayed when no gesture starts.": {
       "localizations": {
         "zh-Hans": {
@@ -1375,42 +1523,12 @@
         }
       }
     },
-    "Left + Wheel Down": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "左键 + 滚轮向下"
-          }
-        }
-      }
-    },
-    "Left + Wheel Up": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "左键 + 滚轮向上"
-          }
-        }
-      }
-    },
     "Left Mouse Button": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "鼠标左键"
-          }
-        }
-      }
-    },
-    "Left then Right": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "先左键后右键"
           }
         }
       }
@@ -1505,26 +1623,6 @@
         }
       }
     },
-    "Middle + Wheel Down": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "中键 + 滚轮向下"
-          }
-        }
-      }
-    },
-    "Middle + Wheel Up": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "中键 + 滚轮向上"
-          }
-        }
-      }
-    },
     "Middle Mouse Button": {
       "localizations": {
         "zh-Hans": {
@@ -1615,16 +1713,6 @@
         }
       }
     },
-    "New Compound Gesture": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新建复合手势"
-          }
-        }
-      }
-    },
     "New Gesture": {
       "localizations": {
         "zh-Hans": {
@@ -1661,16 +1749,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "尚未选择应用"
-          }
-        }
-      }
-    },
-    "No Compound Gestures": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "没有复合手势"
           }
         }
       }
@@ -1941,32 +2019,12 @@
         }
       }
     },
-    "Practice Advanced Input": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "练习高级输入"
-          }
-        }
-      }
-    },
     "Practice Gestures": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "练习手势"
-          }
-        }
-      }
-    },
-    "Practice Input": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "练习输入"
           }
         }
       }
@@ -1987,16 +2045,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "练习识别过程，不会运行已配置的动作。"
-          }
-        }
-      }
-    },
-    "Practice the physical sequence below before enabling a binding. This guide does not execute an action.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "启用绑定前，请练习以下物理操作顺序。此指南不会执行动作。"
           }
         }
       }
@@ -2027,6 +2075,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "请按下鼠标按键…"
+          }
+        }
+      }
+    },
+    "Press any physical mouse button to use it as the trigger.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下任意物理鼠标按键，将其设为触发键。"
           }
         }
       }
@@ -2107,12 +2165,32 @@
         }
       }
     },
+    "Record Button…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制按键…"
+          }
+        }
+      }
+    },
     "Record a gesture and bind it to a keyboard shortcut.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "录制手势并将其绑定到键盘快捷键。"
+          }
+        }
+      }
+    },
+    "Record a custom physical mouse button.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制一个自定义物理鼠标按键。"
           }
         }
       }
@@ -2143,6 +2221,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "刷新"
+          }
+        }
+      }
+    },
+    "Required Permissions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所需权限"
           }
         }
       }
@@ -2197,62 +2285,12 @@
         }
       }
     },
-    "Right + Wheel Down": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "右键 + 滚轮向下"
-          }
-        }
-      }
-    },
-    "Right + Wheel Up": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "右键 + 滚轮向上"
-          }
-        }
-      }
-    },
     "Right Mouse Button": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "鼠标右键"
-          }
-        }
-      }
-    },
-    "Right then Left": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "先右键后左键"
-          }
-        }
-      }
-    },
-    "Rocker": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rocker"
-          }
-        }
-      }
-    },
-    "Rocker and Wheel Gestures": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rocker 与滚轮手势"
           }
         }
       }
@@ -2873,16 +2911,6 @@
         }
       }
     },
-    "Trigger + Wheel": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "触发键 + 滚轮"
-          }
-        }
-      }
-    },
     "Trigger Hold Duration": {
       "localizations": {
         "zh-Hans": {
@@ -2989,6 +3017,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "版本 %@ 可用。"
+          }
+        }
+      }
+    },
+    "View Release": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看发布页面"
           }
         }
       }
@@ -3109,6 +3147,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "只有在您选择“授予访问权限”后，macOS 才会显示权限提示。"
+          }
+        }
+      }
+    },
+    "macOS shows the required permission prompts only after you choose Grant Access.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅在您选择“授予权限”后，macOS 才会显示所需的权限提示。"
           }
         }
       }

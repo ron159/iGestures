@@ -54,6 +54,7 @@ public struct GestureTrainingSession: Sendable {
   )
   public private(set) var templates: [GestureTemplate] = []
   public private(set) var appScope: AppScope
+  public let applicationGroupID: UUID?
   public private(set) var triggerButton: GestureTriggerButton?
   public private(set) var deviceScope: InputDeviceScope
   public let configuration: Configuration
@@ -69,6 +70,7 @@ public struct GestureTrainingSession: Sendable {
     existingMappings: [GestureMapping],
     editingMappingID: UUID? = nil,
     appScope: AppScope = .all,
+    applicationGroupID: UUID? = nil,
     triggerButton: GestureTriggerButton? = nil,
     defaultTriggerButton: GestureTriggerButton = .right,
     deviceScope: InputDeviceScope = .any,
@@ -79,6 +81,7 @@ public struct GestureTrainingSession: Sendable {
     self.existingMappings = existingMappings
     self.editingMappingID = editingMappingID
     self.appScope = appScope
+    self.applicationGroupID = applicationGroupID
     self.triggerButton = triggerButton
     self.defaultTriggerButton = defaultTriggerButton
     self.deviceScope = deviceScope
@@ -240,6 +243,7 @@ public struct GestureTrainingSession: Sendable {
       .lazy
       .filter { $0.id != editingMappingID }
       .filter { $0.appScope.competes(with: appScope) }
+      .filter { $0.applicationGroupID == applicationGroupID }
       .filter {
         ($0.triggerButton ?? defaultTriggerButton)
           == (triggerButton ?? defaultTriggerButton)

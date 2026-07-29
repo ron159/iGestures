@@ -35,6 +35,12 @@ final class AppPreferencesStoreTests: XCTestCase {
       GestureTriggerButton(buttonNumber: 7)
     )
     store.setTriggerDuration(0.35)
+    store.setGestureSidebarGroups(["Browser", "  Work  ", "Browser"])
+    store.setGestureSidebarApplications([
+      "com.apple.Safari",
+      " com.apple.finder ",
+      "com.apple.Safari",
+    ])
 
     let reloaded = AppPreferencesStore(userDefaults: userDefaults)
     XCTAssertFalse(reloaded.recognitionEnabled)
@@ -44,6 +50,15 @@ final class AppPreferencesStoreTests: XCTestCase {
       GestureTriggerButton(buttonNumber: 7)
     )
     XCTAssertEqual(reloaded.triggerDuration, 0.35)
+    XCTAssertEqual(reloaded.gestureSidebarGroups, ["Browser", "Work"])
+    XCTAssertEqual(
+      reloaded.gestureSidebarApplications,
+      ["com.apple.finder", "com.apple.Safari"]
+    )
+
+    reloaded.clearGestureSidebarConfiguration()
+    XCTAssertTrue(reloaded.gestureSidebarGroups.isEmpty)
+    XCTAssertTrue(reloaded.gestureSidebarApplications.isEmpty)
   }
 
   @MainActor
@@ -137,6 +152,74 @@ final class AppPreferencesStoreTests: XCTestCase {
       manifestData: try JSONEncoder().encode(tampered)
     )
     XCTAssertEqual(rejectedResult, .rejected(.invalidSignature))
+  }
+
+  func testGitHubReleaseServiceDetectsNewerStableRelease() async throws {
+    let service = try XCTUnwrap(
+      GitHubReleaseService(
+        currentVersion: "0.3.0",
+        latestReleaseURL: try XCTUnwrap(
+          URL(
+            string:
+              "https://api.github.com/repos/ron159/iGestures/releases/latest"
+          )
+        )
+      )
+    )
+    let releaseURL = try XCTUnwrap(
+      URL(
+        string:
+          "https://github.com/ron159/iGestures/releases/tag/v0.4.0"
+      )
+    )
+    let data = Data(
+      """
+      {
+        "tag_name": "v0.4.0",
+        "html_url": "\(releaseURL.absoluteString)",
+        "draft": false,
+        "prerelease": false
+      }
+      """.utf8
+    )
+
+    let result = await service.validate(releaseData: data)
+
+    XCTAssertEqual(
+      result,
+      .available(
+        GitHubRelease(version: "0.4.0", pageURL: releaseURL)
+      )
+    )
+  }
+
+  func testGitHubReleaseServiceHonorsSkippedVersion() async throws {
+    let service = try XCTUnwrap(
+      GitHubReleaseService(
+        currentVersion: "0.3.0",
+        latestReleaseURL: try XCTUnwrap(
+          URL(
+            string:
+              "https://api.github.com/repos/ron159/iGestures/releases/latest"
+          )
+        ),
+        skippedVersion: "0.4.0"
+      )
+    )
+    let data = Data(
+      """
+      {
+        "tag_name": "v0.4.0",
+        "html_url": "https://github.com/ron159/iGestures/releases/tag/v0.4.0",
+        "draft": false,
+        "prerelease": false
+      }
+      """.utf8
+    )
+
+    let result = await service.validate(releaseData: data)
+
+    XCTAssertEqual(result, .skipped(version: "0.4.0"))
   }
 
   private func makeUserDefaults() -> (String, UserDefaults) {

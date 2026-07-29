@@ -3,6 +3,33 @@ import XCTest
 @testable import iGestures
 
 final class GestureNormalizerTests: XCTestCase {
+  func testPreviewLayoutKeepsGestureInsideSafeMargins() {
+    let points = [
+      GesturePoint(x: -0.5, y: -0.5),
+      GesturePoint(x: 0, y: 0),
+      GesturePoint(x: 0.5, y: 0.5),
+    ]
+
+    let compact = GesturePreviewLayout.scaledPoints(
+      points,
+      in: CGSize(width: 76, height: 54)
+    )
+    let large = GesturePreviewLayout.scaledPoints(
+      points,
+      in: CGSize(width: 190, height: 150)
+    )
+
+    XCTAssertGreaterThanOrEqual(compact.map(\.x).min() ?? 0, 7)
+    XCTAssertLessThanOrEqual(compact.map(\.x).max() ?? 76, 69)
+    XCTAssertGreaterThanOrEqual(compact.map(\.y).min() ?? 0, 7)
+    XCTAssertLessThanOrEqual(compact.map(\.y).max() ?? 54, 47)
+
+    XCTAssertGreaterThanOrEqual(large.map(\.x).min() ?? 0, 18)
+    XCTAssertLessThanOrEqual(large.map(\.x).max() ?? 190, 172)
+    XCTAssertGreaterThanOrEqual(large.map(\.y).min() ?? 0, 18)
+    XCTAssertLessThanOrEqual(large.map(\.y).max() ?? 150, 132)
+  }
+
   private let normalizer = GestureNormalizer()
 
   func testTranslationDoesNotChangeNormalizedGesture() throws {
