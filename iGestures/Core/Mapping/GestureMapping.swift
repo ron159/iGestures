@@ -27,6 +27,17 @@ public enum SystemGestureAction: String, Codable, CaseIterable, Sendable {
   case appSwitcher
 }
 
+public enum WindowGestureAction: String, Codable, CaseIterable, Sendable {
+  case leftHalf
+  case rightHalf
+  case topLeftQuarter
+  case topRightQuarter
+  case bottomLeftQuarter
+  case bottomRightQuarter
+  case center
+  case maximize
+}
+
 public enum AutomationScriptKind: String, Codable, CaseIterable, Sendable {
   case appleScript
   case shell
@@ -130,6 +141,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
   case openURL(String)
   case launchApplication(bundleIdentifier: String)
   case system(SystemGestureAction)
+  case window(WindowGestureAction)
   case appleShortcut(name: String)
   case sequence(GestureActionSequence)
   case script(AutomationScript)
@@ -140,6 +152,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
     case url
     case bundleIdentifier
     case systemAction
+    case windowAction
     case name
     case sequence
     case script
@@ -150,6 +163,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
     case openURL
     case launchApplication
     case system
+    case window
     case appleShortcut
     case sequence
     case script
@@ -181,6 +195,13 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
         try container.decode(
           SystemGestureAction.self,
           forKey: .systemAction
+        )
+      )
+    case .window:
+      self = .window(
+        try container.decode(
+          WindowGestureAction.self,
+          forKey: .windowAction
         )
       )
     case .appleShortcut:
@@ -228,6 +249,9 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
     case .system(let action):
       try container.encode(ActionType.system, forKey: .type)
       try container.encode(action, forKey: .systemAction)
+    case .window(let action):
+      try container.encode(ActionType.window, forKey: .type)
+      try container.encode(action, forKey: .windowAction)
     case .appleShortcut(let name):
       try container.encode(
         ActionType.appleShortcut,
@@ -277,7 +301,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
       return !bundleIdentifier.trimmingCharacters(
         in: .whitespacesAndNewlines
       ).isEmpty
-    case .system:
+    case .system, .window:
       return true
     case .appleShortcut(let name):
       return !name.trimmingCharacters(
@@ -333,7 +357,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
     case .script(let script):
       return [script]
     case .keyboardShortcut, .openURL, .launchApplication, .system,
-      .appleShortcut:
+      .window, .appleShortcut:
       return []
     }
   }
@@ -357,7 +381,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
       }
       return .sequence(sequence)
     case .keyboardShortcut, .openURL, .launchApplication, .system,
-      .appleShortcut:
+      .window, .appleShortcut:
       return self
     }
   }
@@ -607,6 +631,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
   public var isEnabled: Bool
   public var templates: [GestureTemplate]
   public var action: GestureAction
+  public var secondaryAction: GestureAction?
   public var appScope: AppScope
   public var triggerButton: GestureTriggerButton?
   public var category: String?
@@ -621,6 +646,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     case isEnabled
     case templates
     case action
+    case secondaryAction
     case shortcut
     case appScope
     case triggerButton
@@ -637,6 +663,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     isEnabled: Bool = true,
     templates: [GestureTemplate],
     action: GestureAction,
+    secondaryAction: GestureAction? = nil,
     appScope: AppScope = .all,
     triggerButton: GestureTriggerButton? = nil,
     category: String? = nil,
@@ -650,6 +677,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     self.isEnabled = isEnabled
     self.templates = templates
     self.action = action
+    self.secondaryAction = secondaryAction
     self.appScope = appScope
     self.triggerButton = triggerButton
     self.category = category
@@ -665,6 +693,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     isEnabled: Bool = true,
     templates: [GestureTemplate],
     shortcut: KeyboardShortcut,
+    secondaryAction: GestureAction? = nil,
     appScope: AppScope = .all,
     triggerButton: GestureTriggerButton? = nil,
     category: String? = nil,
@@ -679,6 +708,7 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
       isEnabled: isEnabled,
       templates: templates,
       action: .keyboardShortcut(shortcut),
+      secondaryAction: secondaryAction,
       appScope: appScope,
       triggerButton: triggerButton,
       category: category,
@@ -711,6 +741,10 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
         )
       )
     }
+    secondaryAction = try container.decodeIfPresent(
+      GestureAction.self,
+      forKey: .secondaryAction
+    )
     appScope = try container.decode(AppScope.self, forKey: .appScope)
     triggerButton = try container.decodeIfPresent(
       GestureTriggerButton.self,
@@ -744,6 +778,10 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     try container.encode(isEnabled, forKey: .isEnabled)
     try container.encode(templates, forKey: .templates)
     try container.encode(action, forKey: .action)
+    try container.encodeIfPresent(
+      secondaryAction,
+      forKey: .secondaryAction
+    )
     try container.encode(appScope, forKey: .appScope)
     try container.encodeIfPresent(
       triggerButton,

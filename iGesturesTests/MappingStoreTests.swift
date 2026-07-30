@@ -36,7 +36,7 @@ final class MappingStoreTests: XCTestCase {
     XCTAssertEqual(reloaded, database)
     XCTAssertTrue(json.contains(#""type" : "only""#))
     XCTAssertTrue(json.contains(#""type" : "keyboardShortcut""#))
-    XCTAssertTrue(json.contains(#""schemaVersion" : 3"#))
+    XCTAssertTrue(json.contains(#""schemaVersion" : 4"#))
     XCTAssertFalse(json.contains(#""_0""#))
   }
 
@@ -124,6 +124,28 @@ final class MappingStoreTests: XCTestCase {
     )
   }
 
+  func testSchemaV3MigratesWithoutSecondaryAction() async throws {
+    let database = try makeDatabase(name: "Version 3")
+    let encoded = try JSONEncoder().encode(database)
+    var object = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: encoded)
+        as? [String: Any]
+    )
+    object["schemaVersion"] = 3
+    let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+    let migrated = try await MappingStore(
+      directoryURL: directoryURL
+    ).replaceWithImportedData(legacyData)
+
+    XCTAssertEqual(
+      migrated.schemaVersion,
+      GestureDatabase.currentSchemaVersion
+    )
+    XCTAssertNil(migrated.mappings[0].secondaryAction)
+    XCTAssertEqual(migrated.mappings[0].action, database.mappings[0].action)
+  }
+
   func testNonShortcutActionsRoundTrip() async throws {
     var database = try makeDatabase(name: "URL")
     database.mappings[0].action = .openURL(
@@ -135,6 +157,27 @@ final class MappingStoreTests: XCTestCase {
     let reloaded = try await store.load()
 
     XCTAssertEqual(reloaded, database)
+  }
+
+  func testSecondaryWindowActionRoundTrips() async throws {
+    var database = try makeDatabase(name: "Window")
+    database.mappings[0].secondaryAction = .window(.topRightQuarter)
+    let store = MappingStore(directoryURL: directoryURL)
+
+    try await store.save(database)
+    let reloaded = try await store.load()
+    let exported = try await store.exportData()
+    let json = try XCTUnwrap(
+      String(data: exported, encoding: .utf8)
+    )
+
+    XCTAssertEqual(reloaded, database)
+    XCTAssertEqual(
+      reloaded.mappings[0].secondaryAction,
+      .window(.topRightQuarter)
+    )
+    XCTAssertTrue(json.contains(#""secondaryAction""#))
+    XCTAssertTrue(json.contains(#""type" : "window""#))
   }
 
   func testRemovedCompoundBindingsAreIgnoredDuringLoad()
@@ -319,6 +362,13 @@ final class MappingStoreTests: XCTestCase {
         isConfirmed: true
       )
     )
+    imported.mappings[0].secondaryAction = .script(
+      AutomationScript(
+        kind: .appleScript,
+        source: "return true",
+        isConfirmed: true
+      )
+    )
     let importURL = directoryURL.appendingPathComponent(
       "script-import.json"
     )
@@ -336,7 +386,7 @@ final class MappingStoreTests: XCTestCase {
     )
 
     XCTAssertEqual(preview.mappingsToAdd, 1)
-    XCTAssertEqual(preview.scriptsRequiringConfirmation.count, 1)
+    XCTAssertEqual(preview.scriptsRequiringConfirmation.count, 2)
     XCTAssertEqual(merged.mappings.count, 2)
     let importedMapping = try XCTUnwrap(
       merged.mappings.first { $0.name == "Imported" }
@@ -344,6 +394,10 @@ final class MappingStoreTests: XCTestCase {
     XCTAssertFalse(importedMapping.isEnabled)
     XCTAssertEqual(
       importedMapping.action.scripts.map(\.isConfirmed),
+      [false]
+    )
+    XCTAssertEqual(
+      importedMapping.secondaryAction?.scripts.map(\.isConfirmed),
       [false]
     )
     let canUndo = await store.canUndoLastImport()

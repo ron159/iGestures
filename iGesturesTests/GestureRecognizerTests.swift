@@ -357,6 +357,47 @@ final class GestureRecognizerTests: XCTestCase {
     XCTAssertEqual(match.mappingID, preferredID)
   }
 
+  func testSecondaryTriggerSelectsHigherPriorityAction() throws {
+    let candidate = try template(angle: 0)
+    var mapping = mapping(
+      id: UUID(),
+      template: candidate
+    )
+    mapping.secondaryAction = .window(.maximize)
+
+    let decision = GestureRecognizer().recognize(
+      candidate,
+      mappings: [mapping],
+      frontmostBundleID: nil,
+      useSecondaryAction: true
+    )
+
+    guard case .matched(let match) = decision else {
+      return XCTFail("Expected a match, got \(decision)")
+    }
+    XCTAssertEqual(match.action, .window(.maximize))
+  }
+
+  func testSecondaryTriggerFallsBackToPrimaryAction() throws {
+    let candidate = try template(angle: 0)
+    let mapping = mapping(
+      id: UUID(),
+      template: candidate
+    )
+
+    let decision = GestureRecognizer().recognize(
+      candidate,
+      mappings: [mapping],
+      frontmostBundleID: nil,
+      useSecondaryAction: true
+    )
+
+    guard case .matched(let match) = decision else {
+      return XCTFail("Expected a match, got \(decision)")
+    }
+    XCTAssertEqual(match.action, .keyboardShortcut(shortcut))
+  }
+
   func testDisabledAndInvalidMappingsDoNotParticipate() throws {
     let candidate = try template(angle: 0)
     let disabled = GestureMapping(

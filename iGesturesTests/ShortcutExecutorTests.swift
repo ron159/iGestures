@@ -48,6 +48,54 @@ final class ShortcutExecutorTests: XCTestCase {
     }
   }
 
+  func testWindowLayoutTargetsVisibleScreenRegions() {
+    let visibleFrame = CGRect(x: 100, y: 50, width: 1200, height: 800)
+    let currentFrame = CGRect(x: 300, y: 200, width: 600, height: 400)
+
+    XCTAssertEqual(
+      WindowLayoutCalculator.targetFrame(
+        for: .leftHalf,
+        currentFrame: currentFrame,
+        visibleFrame: visibleFrame
+      ),
+      CGRect(x: 100, y: 50, width: 600, height: 800)
+    )
+    XCTAssertEqual(
+      WindowLayoutCalculator.targetFrame(
+        for: .bottomRightQuarter,
+        currentFrame: currentFrame,
+        visibleFrame: visibleFrame
+      ),
+      CGRect(x: 700, y: 450, width: 600, height: 400)
+    )
+    XCTAssertEqual(
+      WindowLayoutCalculator.targetFrame(
+        for: .center,
+        currentFrame: currentFrame,
+        visibleFrame: visibleFrame
+      ),
+      CGRect(x: 400, y: 250, width: 600, height: 400)
+    )
+    XCTAssertEqual(
+      WindowLayoutCalculator.targetFrame(
+        for: .maximize,
+        currentFrame: currentFrame,
+        visibleFrame: visibleFrame
+      ),
+      visibleFrame
+    )
+    for action in WindowGestureAction.allCases {
+      let frame = WindowLayoutCalculator.targetFrame(
+        for: action,
+        currentFrame: currentFrame,
+        visibleFrame: visibleFrame
+      )
+      XCTAssertGreaterThan(frame.width, 0)
+      XCTAssertGreaterThan(frame.height, 0)
+      XCTAssertTrue(visibleFrame.contains(frame))
+    }
+  }
+
   func testActionDispatcherReturnsExecutorResult() async {
     let request = ActionRequest(
       mappingID: UUID(),

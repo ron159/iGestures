@@ -1,4 +1,5 @@
 import AppKit
+@preconcurrency import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -168,6 +169,10 @@ public struct SystemGestureActionExecutor: ActionExecuting {
       )
     case .system(let action):
       return await executeSystemAction(action)
+    case .window(let action):
+      return await MainActor.run {
+        WindowGestureActionExecutor.execute(action)
+      }
     case .appleShortcut(let name):
       guard action.isValid else {
         return .failed(.invalidAction)
@@ -385,6 +390,246 @@ public struct SystemGestureActionExecutor: ActionExecuting {
       : .failed(
         .processFailed(exitCode: process.terminationStatus)
       )
+  }
+}
+
+public enum WindowLayoutCalculator {
+  public static func targetFrame(
+    for action: WindowGestureAction,
+    currentFrame: CGRect,
+    visibleFrame: CGRect
+  ) -> CGRect {
+    let halfWidth = visibleFrame.width / 2
+    let halfHeight = visibleFrame.height / 2
+
+    switch action {
+    case .leftHalf:
+      return CGRect(
+        x: visibleFrame.minX,
+        y: visibleFrame.minY,
+        width: halfWidth,
+        height: visibleFrame.height
+      )
+    case .rightHalf:
+      return CGRect(
+        x: visibleFrame.midX,
+        y: visibleFrame.minY,
+        width: halfWidth,
+        height: visibleFrame.height
+      )
+    case .topLeftQuarter:
+      return CGRect(
+        x: visibleFrame.minX,
+        y: visibleFrame.minY,
+        width: halfWidth,
+        height: halfHeight
+      )
+    case .topRightQuarter:
+      return CGRect(
+        x: visibleFrame.midX,
+        y: visibleFrame.minY,
+        width: halfWidth,
+        height: halfHeight
+      )
+    case .bottomLeftQuarter:
+      return CGRect(
+        x: visibleFrame.minX,
+        y: visibleFrame.midY,
+        width: halfWidth,
+        height: halfHeight
+      )
+    case .bottomRightQuarter:
+      return CGRect(
+        x: visibleFrame.midX,
+        y: visibleFrame.midY,
+        width: halfWidth,
+        height: halfHeight
+      )
+    case .center:
+      let width = min(currentFrame.width, visibleFrame.width)
+      let height = min(currentFrame.height, visibleFrame.height)
+      return CGRect(
+        x: visibleFrame.midX - width / 2,
+        y: visibleFrame.midY - height / 2,
+        width: width,
+        height: height
+      )
+    case .maximize:
+      return visibleFrame
+    }
+  }
+}
+
+@MainActor
+private enum WindowGestureActionExecutor {
+  static func execute(
+    _ action: WindowGestureAction
+  ) -> ActionExecutionResult {
+    guard
+      let application = NSWorkspace.shared.frontmostApplication,
+      application.processIdentifier != ProcessInfo.processInfo.processIdentifier
+    else {
+      return .failed(.targetNotFound)
+    }
+
+    let applicationElement = AXUIElementCreateApplication(
+      application.processIdentifier
+    )
+    var focusedWindowValue: CFTypeRef?
+    guard
+      AXUIElementCopyAttributeValue(
+        applicationElement,
+        kAXFocusedWindowAttribute as CFString,
+        &focusedWindowValue
+      ) == .success,
+      let focusedWindowValue,
+      CFGetTypeID(focusedWindowValue) == AXUIElementGetTypeID()
+    else {
+      return .failed(.targetNotFound)
+    }
+    let window = focusedWindowValue as! AXUIElement
+    guard
+      let currentPosition = pointAttribute(
+        kAXPositionAttribute,
+        from: window
+      ),
+      let currentSize = sizeAttribute(
+        kAXSizeAttribute,
+        from: window
+      )
+    else {
+      return .failed(.targetNotFound)
+    }
+
+    let currentFrame = CGRect(
+      origin: currentPosition,
+      size: currentSize
+    )
+    guard let visibleFrame = visibleFrame(for: currentFrame) else {
+      return .failed(.targetNotFound)
+    }
+    let targetFrame = WindowLayoutCalculator.targetFrame(
+      for: action,
+      currentFrame: currentFrame,
+      visibleFrame: visibleFrame
+    ).integral
+
+    var targetPosition = targetFrame.origin
+    var targetSize = targetFrame.size
+    guard
+      let positionValue = AXValueCreate(
+        .cgPoint,
+        &targetPosition
+      ),
+      let sizeValue = AXValueCreate(.cgSize, &targetSize)
+    else {
+      return .failed(.launchFailed)
+    }
+    let sizeResult = AXUIElementSetAttributeValue(
+      window,
+      kAXSizeAttribute as CFString,
+      sizeValue
+    )
+    let positionResult = AXUIElementSetAttributeValue(
+      window,
+      kAXPositionAttribute as CFString,
+      positionValue
+    )
+    guard sizeResult == .success, positionResult == .success else {
+      return .failed(.launchFailed)
+    }
+    return .succeeded
+  }
+
+  private static func pointAttribute(
+    _ attribute: String,
+    from element: AXUIElement
+  ) -> CGPoint? {
+    var value: CFTypeRef?
+    guard
+      AXUIElementCopyAttributeValue(
+        element,
+        attribute as CFString,
+        &value
+      ) == .success,
+      let value,
+      CFGetTypeID(value) == AXValueGetTypeID()
+    else {
+      return nil
+    }
+    var point = CGPoint.zero
+    guard
+      AXValueGetValue(value as! AXValue, .cgPoint, &point)
+    else {
+      return nil
+    }
+    return point
+  }
+
+  private static func sizeAttribute(
+    _ attribute: String,
+    from element: AXUIElement
+  ) -> CGSize? {
+    var value: CFTypeRef?
+    guard
+      AXUIElementCopyAttributeValue(
+        element,
+        attribute as CFString,
+        &value
+      ) == .success,
+      let value,
+      CFGetTypeID(value) == AXValueGetTypeID()
+    else {
+      return nil
+    }
+    var size = CGSize.zero
+    guard
+      AXValueGetValue(value as! AXValue, .cgSize, &size)
+    else {
+      return nil
+    }
+    return size
+  }
+
+  private static func visibleFrame(
+    for windowFrame: CGRect
+  ) -> CGRect? {
+    let screens = NSScreen.screens
+    guard !screens.isEmpty else { return nil }
+    let primaryTop =
+      screens.first(where: {
+        guard
+          let number = $0.deviceDescription[
+            NSDeviceDescriptionKey("NSScreenNumber")
+          ] as? NSNumber
+        else {
+          return false
+        }
+        return CGDirectDisplayID(number.uint32Value)
+          == CGMainDisplayID()
+      })?.frame.maxY
+      ?? screens[0].frame.maxY
+    let visibleFrames = screens.map {
+      CGRect(
+        x: $0.visibleFrame.minX,
+        y: primaryTop - $0.visibleFrame.maxY,
+        width: $0.visibleFrame.width,
+        height: $0.visibleFrame.height
+      )
+    }
+    return visibleFrames.max {
+      intersectionArea($0, windowFrame)
+        < intersectionArea($1, windowFrame)
+    }
+  }
+
+  private static func intersectionArea(
+    _ left: CGRect,
+    _ right: CGRect
+  ) -> CGFloat {
+    let intersection = left.intersection(right)
+    guard !intersection.isNull else { return 0 }
+    return intersection.width * intersection.height
   }
 }
 

@@ -4,6 +4,27 @@ import XCTest
 @testable import iGestures
 
 final class GestureSessionTests: XCTestCase {
+  func testSecondaryTriggerIsOptionalAndCannotConflict() {
+    XCTAssertNil(
+      GestureInputConfiguration(
+        triggerButton: .right,
+        secondaryTriggerButton: .right
+      ).secondaryTriggerButton
+    )
+    XCTAssertNil(
+      GestureInputConfiguration(
+        secondaryTriggerButton: .trackpad
+      ).secondaryTriggerButton
+    )
+    XCTAssertEqual(
+      GestureInputConfiguration(
+        triggerButton: .right,
+        secondaryTriggerButton: .button4
+      ).secondaryTriggerButton,
+      .button4
+    )
+  }
+
   func testTriggerButtonMatchesOnlyItsMouseEvents() {
     XCTAssertEqual(
       GestureTriggerButton.left.eventPhase(

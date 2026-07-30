@@ -18,6 +18,7 @@ final class AppPreferencesStoreTests: XCTestCase {
     XCTAssertFalse(store.scriptExecutionNoticeAcknowledged)
     XCTAssertNil(store.trailColor)
     XCTAssertEqual(store.triggerButton, .right)
+    XCTAssertNil(store.secondaryTriggerButton)
     XCTAssertEqual(
       store.triggerDuration,
       GestureInputConfiguration.defaultTriggerDuration
@@ -40,6 +41,9 @@ final class AppPreferencesStoreTests: XCTestCase {
     store.setTriggerButton(
       GestureTriggerButton(buttonNumber: 7)
     )
+    store.setSecondaryTriggerButton(
+      GestureTriggerButton(buttonNumber: 8)
+    )
     store.setTriggerDuration(0.35)
     store.setScriptExecutionNoticeAcknowledged(true)
     store.setGestureSidebarGroups(["Browser", "  Work  ", "Browser"])
@@ -56,6 +60,10 @@ final class AppPreferencesStoreTests: XCTestCase {
     XCTAssertEqual(
       reloaded.triggerButton,
       GestureTriggerButton(buttonNumber: 7)
+    )
+    XCTAssertEqual(
+      reloaded.secondaryTriggerButton,
+      GestureTriggerButton(buttonNumber: 8)
     )
     XCTAssertEqual(reloaded.triggerDuration, 0.35)
     XCTAssertTrue(reloaded.scriptExecutionNoticeAcknowledged)
@@ -93,15 +101,38 @@ final class AppPreferencesStoreTests: XCTestCase {
       userDefaults.removePersistentDomain(forName: suiteName)
     }
     userDefaults.set(-1, forKey: "general.trigger-button")
+    userDefaults.set(1, forKey: "general.secondary-trigger-button")
     userDefaults.set(100, forKey: "general.trigger-duration")
 
     let store = AppPreferencesStore(userDefaults: userDefaults)
 
     XCTAssertEqual(store.triggerButton, .right)
+    XCTAssertNil(store.secondaryTriggerButton)
     XCTAssertEqual(
       store.triggerDuration,
       GestureInputConfiguration.maximumTriggerDuration
     )
+  }
+
+  @MainActor
+  func testSecondaryTriggerCannotMatchPrimaryOrTrackpad() {
+    let (suiteName, userDefaults) = makeUserDefaults()
+    defer {
+      userDefaults.removePersistentDomain(forName: suiteName)
+    }
+    let store = AppPreferencesStore(userDefaults: userDefaults)
+
+    store.setSecondaryTriggerButton(.right)
+    XCTAssertNil(store.secondaryTriggerButton)
+
+    store.setSecondaryTriggerButton(.trackpad)
+    XCTAssertNil(store.secondaryTriggerButton)
+
+    store.setSecondaryTriggerButton(.button4)
+    XCTAssertEqual(store.secondaryTriggerButton, .button4)
+
+    store.setSecondaryTriggerButton(nil)
+    XCTAssertNil(store.secondaryTriggerButton)
   }
 
   @MainActor

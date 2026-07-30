@@ -108,7 +108,8 @@ public struct GestureRecognizer: Sendable {
     _ gesture: GestureTemplate,
     mappings: [GestureMapping],
     frontmostBundleID: String?,
-    inputDevice: GestureInputDevice? = nil
+    inputDevice: GestureInputDevice? = nil,
+    useSecondaryAction: Bool = false
   ) -> Decision {
     let enabled = mappings.filter {
       $0.isEnabled
@@ -126,7 +127,8 @@ public struct GestureRecognizer: Sendable {
         let decision = recognizeByApplication(
           gesture,
           mappings: deviceSpecific,
-          frontmostBundleID: frontmostBundleID
+          frontmostBundleID: frontmostBundleID,
+          useSecondaryAction: useSecondaryAction
         )
         if decision != .noMatch {
           return decision
@@ -137,20 +139,23 @@ public struct GestureRecognizer: Sendable {
         mappings: deviceApplicable.filter {
           !$0.deviceScope.isDeviceSpecific
         },
-        frontmostBundleID: frontmostBundleID
+        frontmostBundleID: frontmostBundleID,
+        useSecondaryAction: useSecondaryAction
       )
     }
     return recognizeByApplication(
       gesture,
       mappings: enabled,
-      frontmostBundleID: frontmostBundleID
+      frontmostBundleID: frontmostBundleID,
+      useSecondaryAction: useSecondaryAction
     )
   }
 
   private func recognizeByApplication(
     _ gesture: GestureTemplate,
     mappings: [GestureMapping],
-    frontmostBundleID: String?
+    frontmostBundleID: String?,
+    useSecondaryAction: Bool
   ) -> Decision {
     let applicable = mappings.filter {
       $0.appScope.includes(bundleID: frontmostBundleID)
@@ -164,7 +169,8 @@ public struct GestureRecognizer: Sendable {
     if !directApplicationMappings.isEmpty {
       let decision = recognize(
         gesture,
-        candidatesFrom: directApplicationMappings
+        candidatesFrom: directApplicationMappings,
+        useSecondaryAction: useSecondaryAction
       )
       if decision != .noMatch {
         return decision
@@ -176,7 +182,8 @@ public struct GestureRecognizer: Sendable {
     if !groupMappings.isEmpty {
       let decision = recognize(
         gesture,
-        candidatesFrom: groupMappings
+        candidatesFrom: groupMappings,
+        useSecondaryAction: useSecondaryAction
       )
       if decision != .noMatch {
         return decision
@@ -186,13 +193,15 @@ public struct GestureRecognizer: Sendable {
       gesture,
       candidatesFrom: applicable.filter {
         !$0.appScope.isApplicationSpecific(for: frontmostBundleID)
-      }
+      },
+      useSecondaryAction: useSecondaryAction
     )
   }
 
   private func recognize(
     _ gesture: GestureTemplate,
-    candidatesFrom mappings: [GestureMapping]
+    candidatesFrom mappings: [GestureMapping],
+    useSecondaryAction: Bool
   ) -> Decision {
     let candidates = mappings.compactMap { mapping -> Candidate? in
       guard mapping.isEnabled,
@@ -240,7 +249,10 @@ public struct GestureRecognizer: Sendable {
         request: ActionRequest(
           mappingID: best.mapping.id,
           mappingName: best.mapping.name,
-          action: best.mapping.action,
+          action:
+            useSecondaryAction
+            ? best.mapping.secondaryAction ?? best.mapping.action
+            : best.mapping.action,
           repeatModeEnabled: best.mapping.repeatModeEnabled
         ),
         distance: best.distance

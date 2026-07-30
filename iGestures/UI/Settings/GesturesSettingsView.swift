@@ -282,20 +282,27 @@ struct GesturesSettingsView: View {
   }
 
   private var triggerConfiguration: some View {
-    ViewThatFits(in: .horizontal) {
-      HStack(alignment: .center, spacing: 16) {
-        triggerConfigurationTitle
-          .frame(maxWidth: .infinity, alignment: .leading)
-        triggerButtonControls
-        Divider()
-          .frame(height: 34)
-        triggerDurationControl
-      }
+    VStack(alignment: .leading, spacing: 8) {
+      ViewThatFits(in: .horizontal) {
+        HStack(alignment: .center, spacing: 16) {
+          triggerConfigurationTitle
+            .frame(maxWidth: .infinity, alignment: .leading)
+          triggerButtonControls
+          Divider()
+            .frame(height: 62)
+          triggerDurationControl
+        }
 
-      VStack(alignment: .leading, spacing: 12) {
-        triggerConfigurationTitle
-        triggerButtonControls
-        triggerDurationControl
+        VStack(alignment: .leading, spacing: 12) {
+          triggerConfigurationTitle
+          triggerButtonControls
+          triggerDurationControl
+        }
+      }
+      if let error = model.triggerConfigurationError {
+        Label(error, systemImage: "exclamationmark.triangle.fill")
+          .font(.caption)
+          .foregroundStyle(.orange)
       }
     }
     .padding(.horizontal, 16)
@@ -313,7 +320,7 @@ struct GesturesSettingsView: View {
       Text(
         String(
           localized:
-            "Hold the trigger button and draw a gesture."
+            "Hold the primary trigger to draw. Add a secondary trigger for higher-priority actions."
         )
       )
       .font(.caption)
@@ -322,33 +329,75 @@ struct GesturesSettingsView: View {
   }
 
   private var triggerButtonControls: some View {
-    LabeledContent(String(localized: "Trigger Mouse Button")) {
-      HStack(spacing: 8) {
-        Picker(
-          "",
-          selection: Binding(
-            get: { model.triggerButton },
-            set: { model.setTriggerButton($0) }
-          )
-        ) {
-          ForEach(GestureTriggerButton.commonPresets) { button in
-            Text(triggerButtonName(button)).tag(button)
-          }
-          if !GestureTriggerButton.commonPresets.contains(
-            model.triggerButton
+    VStack(alignment: .trailing, spacing: 8) {
+      LabeledContent(String(localized: "Primary Trigger")) {
+        HStack(spacing: 8) {
+          Picker(
+            "",
+            selection: Binding(
+              get: { model.triggerButton },
+              set: { model.setTriggerButton($0) }
+            )
           ) {
-            Text(triggerButtonName(model.triggerButton))
-              .tag(model.triggerButton)
+            ForEach(GestureTriggerButton.commonPresets) { button in
+              Text(triggerButtonName(button)).tag(button)
+            }
+            if !GestureTriggerButton.commonPresets.contains(
+              model.triggerButton
+            ) {
+              Text(triggerButtonName(model.triggerButton))
+                .tag(model.triggerButton)
+            }
+          }
+          .labelsHidden()
+          .frame(width: 165)
+
+          TriggerButtonRecorderView(model: model) {
+            model.setTriggerButton($0)
           }
         }
-        .labelsHidden()
-        .frame(width: 165)
+      }
 
-        TriggerButtonRecorderView(model: model) {
-          model.setTriggerButton($0)
+      LabeledContent(String(localized: "Secondary Trigger")) {
+        HStack(spacing: 8) {
+          Picker(
+            "",
+            selection: Binding(
+              get: { model.secondaryTriggerButton },
+              set: { model.setSecondaryTriggerButton($0) }
+            )
+          ) {
+            Text(String(localized: "Disabled"))
+              .tag(GestureTriggerButton?.none)
+            ForEach(availableSecondaryTriggerButtons) { button in
+              Text(triggerButtonName(button))
+                .tag(GestureTriggerButton?.some(button))
+            }
+          }
+          .labelsHidden()
+          .frame(width: 165)
+
+          TriggerButtonRecorderView(model: model) {
+            model.setSecondaryTriggerButton($0)
+          }
         }
       }
     }
+  }
+
+  private var availableSecondaryTriggerButtons: [GestureTriggerButton] {
+    var buttons = GestureTriggerButton.commonPresets.filter { button in
+      button != model.triggerButton
+        && !model.mappings.contains {
+          $0.triggerButton == button
+        }
+    }
+    if let current = model.secondaryTriggerButton,
+      !buttons.contains(current)
+    {
+      buttons.append(current)
+    }
+    return buttons
   }
 
   private var triggerDurationControl: some View {
@@ -905,6 +954,7 @@ private struct GestureMappingInspector: View {
 
   @State private var name: String
   @State private var actionDraft: GestureAction
+  @State private var secondaryActionDraft: GestureAction?
   @State private var isEditingScope = false
   @State private var isRetraining = false
   @State private var isConfirmingDeletion = false
@@ -925,6 +975,9 @@ private struct GestureMappingInspector: View {
     self.onDelete = onDelete
     _name = State(initialValue: mapping.name)
     _actionDraft = State(initialValue: mapping.action)
+    _secondaryActionDraft = State(
+      initialValue: mapping.secondaryAction
+    )
   }
 
   var body: some View {
@@ -961,6 +1014,7 @@ private struct GestureMappingInspector: View {
       }
 
       actionEditor
+      secondaryActionEditor
       inspectorToolbar
     }
     .padding(16)
@@ -969,6 +1023,9 @@ private struct GestureMappingInspector: View {
     }
     .onChange(of: mapping.action) {
       actionDraft = mapping.action
+    }
+    .onChange(of: mapping.secondaryAction) {
+      secondaryActionDraft = mapping.secondaryAction
     }
     .sheet(isPresented: $isEditingScope) {
       AppScopeEditor(scope: mapping.appScope) {
@@ -1060,7 +1117,11 @@ private struct GestureMappingInspector: View {
           ) {
             Text(String(localized: "Use Global Default"))
               .tag(GestureTriggerButton?.none)
-            ForEach(GestureTriggerButton.commonPresets) { button in
+            ForEach(
+              GestureTriggerButton.commonPresets.filter {
+                $0 != model.secondaryTriggerButton
+              }
+            ) { button in
               Text(triggerButtonName(button))
                 .tag(GestureTriggerButton?.some(button))
             }
@@ -1172,6 +1233,87 @@ private struct GestureMappingInspector: View {
       .padding(.top, 4)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
+  }
+
+  @ViewBuilder
+  private var secondaryActionEditor: some View {
+    if let secondaryButton = model.secondaryTriggerButton {
+      GroupBox(
+        String(
+          format: String(localized: "Secondary Action · %@"),
+          triggerButtonName(secondaryButton)
+        )
+      ) {
+        VStack(alignment: .leading, spacing: 12) {
+          Toggle(
+            String(localized: "Use a higher-priority action"),
+            isOn: Binding(
+              get: { secondaryActionDraft != nil },
+              set: {
+                secondaryActionDraft =
+                  $0 ? .window(.leftHalf) : nil
+              }
+            )
+          )
+          Text(
+            String(
+              localized:
+                "Hold the primary and secondary triggers together, then draw this gesture."
+            )
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+          if secondaryActionDraft != nil {
+            GestureActionEditor(
+              action: secondaryActionBinding,
+              model: model
+            )
+          }
+
+          HStack {
+            if let secondaryActionDraft {
+              Text(
+                GestureActionSummary.text(
+                  for: secondaryActionDraft
+                )
+              )
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button(String(localized: "Cancel")) {
+              secondaryActionDraft = mapping.secondaryAction
+            }
+            .disabled(
+              secondaryActionDraft == mapping.secondaryAction
+            )
+            Button(String(localized: "Save")) {
+              model.setMappingSecondaryAction(
+                id: mapping.id,
+                action: secondaryActionDraft
+              )
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(
+              secondaryActionDraft == mapping.secondaryAction
+                || !(secondaryActionDraft?.isValid ?? true)
+            )
+          }
+        }
+        .padding(.top, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+  }
+
+  private var secondaryActionBinding: Binding<GestureAction> {
+    Binding(
+      get: {
+        secondaryActionDraft ?? .window(.leftHalf)
+      },
+      set: { secondaryActionDraft = $0 }
+    )
   }
 
   private var inspectorToolbar: some View {
@@ -1679,6 +1821,8 @@ enum GestureActionSummary {
         ?? String(localized: "Open Application")
     case .system(let action):
       return systemActionName(action)
+    case .window(let action):
+      return windowActionName(action)
     case .appleShortcut(let name):
       return name.isEmpty
         ? String(localized: "Run Shortcut")
@@ -1719,6 +1863,29 @@ enum GestureActionSummary {
       String(localized: "Brightness Down")
     case .appSwitcher:
       String(localized: "Application Switcher")
+    }
+  }
+
+  static func windowActionName(
+    _ action: WindowGestureAction
+  ) -> String {
+    switch action {
+    case .leftHalf:
+      String(localized: "Window · Left Half")
+    case .rightHalf:
+      String(localized: "Window · Right Half")
+    case .topLeftQuarter:
+      String(localized: "Window · Top Left")
+    case .topRightQuarter:
+      String(localized: "Window · Top Right")
+    case .bottomLeftQuarter:
+      String(localized: "Window · Bottom Left")
+    case .bottomRightQuarter:
+      String(localized: "Window · Bottom Right")
+    case .center:
+      String(localized: "Window · Center")
+    case .maximize:
+      String(localized: "Window · Maximize")
     }
   }
 }
@@ -1769,6 +1936,7 @@ struct GestureActionEditor: View {
     case openURL
     case launchApplication
     case system
+    case window
     case appleShortcut
     case sequence
     case script
@@ -1785,6 +1953,8 @@ struct GestureActionEditor: View {
         String(localized: "Open Application")
       case .system:
         String(localized: "System Action")
+      case .window:
+        String(localized: "Window Management")
       case .appleShortcut:
         String(localized: "Run Apple Shortcut")
       case .sequence:
@@ -1847,6 +2017,15 @@ struct GestureActionEditor: View {
             Text(GestureActionSummary.systemActionName($0)).tag($0)
           }
         }
+      case .window:
+        Picker(
+          String(localized: "Window Action"),
+          selection: windowAction
+        ) {
+          ForEach(WindowGestureAction.allCases, id: \.self) {
+            Text(GestureActionSummary.windowActionName($0)).tag($0)
+          }
+        }
       case .appleShortcut:
         TextField(
           String(localized: "Shortcut Name"),
@@ -1880,6 +2059,8 @@ struct GestureActionEditor: View {
           .launchApplication
         case .system:
           .system
+        case .window:
+          .window
         case .appleShortcut:
           .appleShortcut
         case .sequence:
@@ -1900,6 +2081,8 @@ struct GestureActionEditor: View {
           action = .launchApplication(bundleIdentifier: "")
         case .system:
           action = .system(.missionControl)
+        case .window:
+          action = .window(.leftHalf)
         case .appleShortcut:
           action = .appleShortcut(name: "")
         case .sequence:
@@ -1941,6 +2124,18 @@ struct GestureActionEditor: View {
         return value
       },
       set: { action = .system($0) }
+    )
+  }
+
+  private var windowAction: Binding<WindowGestureAction> {
+    Binding(
+      get: {
+        guard case .window(let value) = action else {
+          return .leftHalf
+        }
+        return value
+      },
+      set: { action = .window($0) }
     )
   }
 

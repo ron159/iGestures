@@ -66,7 +66,11 @@ public final class EventTapManager: @unchecked Sendable {
   private var runLoopSource: CFRunLoopSource?
   private var session = GestureSession()
   private var pendingMouseDown: CGEvent?
+  private var pendingSecondaryMouseDown: CGEvent?
   private var activeTriggerButton: GestureTriggerButton?
+  private var secondaryTriggerIsDown = false
+  private var secondaryTriggerIsPassingThrough = false
+  private var activeSessionUsesSecondaryTrigger = false
   private var mappingSnapshot = CompiledMappingSnapshot.empty
   private var isEnabled = false
   private var inputConfiguration = GestureInputConfiguration.default
@@ -226,6 +230,7 @@ public final class EventTapManager: @unchecked Sendable {
       if !enabled {
         let result = manager.session.cancel(.disabled)
         manager.apply(result.commands, currentEvent: nil)
+        manager.releasePendingSecondaryTrigger()
       }
     }
     CFRunLoopWakeUp(runLoop)
@@ -246,6 +251,7 @@ public final class EventTapManager: @unchecked Sendable {
     ) { [self] in
       let result = session.cancel(.configurationInvalid)
       apply(result.commands, currentEvent: nil)
+      releasePendingSecondaryTrigger()
       mappingSnapshot = snapshot
     }
     CFRunLoopWakeUp(runLoop)
@@ -266,6 +272,7 @@ public final class EventTapManager: @unchecked Sendable {
     ) { [self] in
       let result = session.cancel(.configurationInvalid)
       apply(result.commands, currentEvent: nil)
+      releasePendingSecondaryTrigger()
       inputConfiguration = configuration
       session = GestureSession(
         configuration: .init(
@@ -310,6 +317,7 @@ public final class EventTapManager: @unchecked Sendable {
     ) { [self] in
       let result = session.cancel(.configurationInvalid)
       apply(result.commands, currentEvent: nil)
+      releasePendingSecondaryTrigger()
       exclusionRules = rules
     }
     CFRunLoopWakeUp(runLoop)
@@ -371,6 +379,7 @@ public final class EventTapManager: @unchecked Sendable {
 
       let result = session.cancel(.applicationTerminating)
       apply(result.commands, currentEvent: nil)
+      releasePendingSecondaryTrigger()
       if let runLoopSource {
         CFRunLoopRemoveSource(
           currentRunLoop,
@@ -430,6 +439,7 @@ public final class EventTapManager: @unchecked Sendable {
         : .tapDisabledByUserInput
       let result = session.cancel(reason)
       apply(result.commands, currentEvent: nil)
+      releasePendingSecondaryTrigger()
       lifecycleLock.lock()
       shortcutCaptureState.releaseSuppressedKeys()
       triggerButtonCaptureState.releaseSuppressedButton()
@@ -457,16 +467,27 @@ public final class EventTapManager: @unchecked Sendable {
       : .mouse(identifier: nil)
     let bundleID = frontmostAppProvider.currentBundleID()
 
+    if triggerButton == inputConfiguration.secondaryTriggerButton {
+      return handleSecondaryTriggerEvent(
+        phase: phase,
+        event: event,
+        bundleID: bundleID
+      )
+    }
+
     if phase == .up,
       activeTriggerButton == triggerButton,
       let request = pendingRepeatRequest
     {
       pendingRepeatRequest = nil
+      let usesSecondaryTrigger =
+        activeSessionUsesSecondaryTrigger
       abandonSessionForRepeatedAction()
       repeatState = RepeatState(
         request: request,
         triggerButton: triggerButton,
         bundleID: bundleID,
+        usesSecondaryTrigger: usesSecondaryTrigger,
         expiresAt: ProcessInfo.processInfo.systemUptime + 2
       )
       dispatchAction(request)
@@ -491,7 +512,11 @@ public final class EventTapManager: @unchecked Sendable {
           state.triggerButton == triggerButton,
           state.bundleID == bundleID
         {
-          pendingRepeatRequest = state.request
+          if state.usesSecondaryTrigger == secondaryTriggerIsDown {
+            pendingRepeatRequest = state.request
+          } else if !state.usesSecondaryTrigger {
+            repeatState = nil
+          }
         } else {
           repeatState = nil
         }
@@ -545,6 +570,16 @@ public final class EventTapManager: @unchecked Sendable {
         }
         pendingMouseDown = copy
         activeTriggerButton = triggerButton
+        if secondaryTriggerIsDown {
+          activeSessionUsesSecondaryTrigger = true
+          pendingSecondaryMouseDown = nil
+          secondaryTriggerIsPassingThrough = false
+          if let secondaryButton =
+            inputConfiguration.secondaryTriggerButton
+          {
+            suppressedMouseUpButtons.insert(secondaryButton)
+          }
+        }
         beginSessionSignpost()
       }
     case .dragged:
@@ -669,11 +704,17 @@ public final class EventTapManager: @unchecked Sendable {
       if let activeTriggerButton {
         suppressedMouseUpButtons.insert(activeTriggerButton)
       }
+      if activeSessionUsesSecondaryTrigger,
+        let secondaryButton = inputConfiguration.secondaryTriggerButton
+      {
+        suppressedMouseUpButtons.insert(secondaryButton)
+      }
       isSuppressingEscape = true
       let result = session.abandon()
       apply(result.commands, currentEvent: nil)
       pendingMouseDown = nil
       activeTriggerButton = nil
+      activeSessionUsesSecondaryTrigger = false
       pendingRepeatRequest = nil
       repeatState = nil
       endSessionSignpost()
@@ -762,15 +803,21 @@ public final class EventTapManager: @unchecked Sendable {
           currentEvent: currentEvent
         )
         activeTriggerButton = nil
+        activeSessionUsesSecondaryTrigger = false
         endSessionSignpost()
       case .recognize(let candidate):
+        let recognizedCandidate = candidate.usingSecondaryTrigger(
+          activeSessionUsesSecondaryTrigger
+        )
         pendingMouseDown = nil
         activeTriggerButton = nil
+        activeSessionUsesSecondaryTrigger = false
         endSessionSignpost()
-        enqueueRecognition(candidate)
+        enqueueRecognition(recognizedCandidate)
       case .didFailOpen:
         feedbackSink.show(.cancelled)
         activeTriggerButton = nil
+        activeSessionUsesSecondaryTrigger = false
         endSessionSignpost()
       }
     }
@@ -878,7 +925,8 @@ public final class EventTapManager: @unchecked Sendable {
           default: inputConfiguration.triggerButton
         ),
         frontmostBundleID: candidate.frontmostBundleID,
-        inputDevice: candidate.inputDevice
+        inputDevice: candidate.inputDevice,
+        useSecondaryAction: candidate.usesSecondaryTrigger
       )
       os_signpost(
         .end,
@@ -903,6 +951,7 @@ public final class EventTapManager: @unchecked Sendable {
           request: match.request,
           triggerButton: candidate.triggerButton,
           bundleID: candidate.frontmostBundleID,
+          usesSecondaryTrigger: candidate.usesSecondaryTrigger,
           expiresAt: ProcessInfo.processInfo.systemUptime + 2
         )
         : nil
@@ -928,13 +977,159 @@ public final class EventTapManager: @unchecked Sendable {
   }
 
   private func abandonSessionForRepeatedAction() {
+    if activeSessionUsesSecondaryTrigger,
+      let secondaryButton = inputConfiguration.secondaryTriggerButton
+    {
+      suppressedMouseUpButtons.insert(secondaryButton)
+    }
     let result = session.abandon()
     apply(result.commands, currentEvent: nil)
     pendingMouseDown = nil
     pendingRepeatRequest = nil
     repeatState = nil
     activeTriggerButton = nil
+    activeSessionUsesSecondaryTrigger = false
     endSessionSignpost()
+  }
+
+  private func handleSecondaryTriggerEvent(
+    phase: TriggerEventPhase,
+    event: CGEvent,
+    bundleID: String?
+  ) -> Unmanaged<CGEvent>? {
+    let sourceUserData = event.getIntegerValueField(
+      .eventSourceUserData
+    )
+    guard !EventSourceMarker.isSynthetic(sourceUserData) else {
+      return Unmanaged.passUnretained(event)
+    }
+
+    switch phase {
+    case .down:
+      secondaryTriggerIsDown = true
+      if activeTriggerButton != nil {
+        activeSessionUsesSecondaryTrigger = true
+        if let state = repeatState,
+          state.usesSecondaryTrigger,
+          state.triggerButton == activeTriggerButton,
+          state.bundleID == bundleID,
+          ProcessInfo.processInfo.systemUptime <= state.expiresAt
+        {
+          pendingRepeatRequest = state.request
+        } else {
+          pendingRepeatRequest = nil
+          repeatState = nil
+        }
+        if let secondaryButton =
+          inputConfiguration.secondaryTriggerButton
+        {
+          suppressedMouseUpButtons.insert(secondaryButton)
+        }
+        return nil
+      }
+      guard
+        isEnabled,
+        !isExcluded(
+          bundleID: bundleID,
+          triggerButton:
+            inputConfiguration.secondaryTriggerButton ?? .right
+        ),
+        mappingSnapshot.hasApplicableSecondaryAction(
+          for: bundleID
+        ),
+        let copy = event.copy()
+      else {
+        secondaryTriggerIsDown = false
+        return Unmanaged.passUnretained(event)
+      }
+      pendingSecondaryMouseDown = copy
+      secondaryTriggerIsPassingThrough = false
+      return nil
+    case .dragged:
+      if activeTriggerButton != nil,
+        activeSessionUsesSecondaryTrigger
+      {
+        let point = GesturePoint(
+          x: Float(event.location.x),
+          y: Float(event.location.y)
+        )
+        let timestamp =
+          TimeInterval(event.timestamp) / 1_000_000_000
+        let result = session.mouseDragged(
+          to: point,
+          timestamp: timestamp,
+          sourceUserData: sourceUserData
+        )
+        apply(result.commands, currentEvent: event)
+        return result.disposition == .passThrough
+          ? Unmanaged.passUnretained(event)
+          : nil
+      }
+      if pendingSecondaryMouseDown != nil {
+        replayPendingSecondaryMouseDown()
+        secondaryTriggerIsPassingThrough = true
+      }
+      return Unmanaged.passUnretained(event)
+    case .up:
+      secondaryTriggerIsDown = false
+      if secondaryTriggerIsPassingThrough {
+        secondaryTriggerIsPassingThrough = false
+        return Unmanaged.passUnretained(event)
+      }
+      if let secondaryButton =
+        inputConfiguration.secondaryTriggerButton,
+        suppressedMouseUpButtons.remove(secondaryButton) != nil
+      {
+        pendingSecondaryMouseDown = nil
+        return nil
+      }
+      if pendingSecondaryMouseDown != nil {
+        replaySecondaryClick(mouseUpEvent: event)
+        return nil
+      }
+      if activeSessionUsesSecondaryTrigger {
+        return nil
+      }
+      return Unmanaged.passUnretained(event)
+    }
+  }
+
+  private func replayPendingSecondaryMouseDown() {
+    guard let mouseDown = pendingSecondaryMouseDown else { return }
+    pendingSecondaryMouseDown = nil
+    guard let replayDown = mouseDown.copy() else { return }
+    replayDown.setIntegerValueField(
+      .eventSourceUserData,
+      value: EventSourceMarker.syntheticEventUserData
+    )
+    replayDown.post(tap: .cgSessionEventTap)
+  }
+
+  private func replaySecondaryClick(mouseUpEvent: CGEvent) {
+    guard let mouseDown = pendingSecondaryMouseDown else { return }
+    pendingSecondaryMouseDown = nil
+    guard
+      let replayDown = mouseDown.copy(),
+      let replayUp = mouseUpEvent.copy()
+    else {
+      return
+    }
+    for replayEvent in [replayDown, replayUp] {
+      replayEvent.setIntegerValueField(
+        .eventSourceUserData,
+        value: EventSourceMarker.syntheticEventUserData
+      )
+      replayEvent.post(tap: .cgSessionEventTap)
+    }
+  }
+
+  private func releasePendingSecondaryTrigger() {
+    if pendingSecondaryMouseDown != nil {
+      replayPendingSecondaryMouseDown()
+    }
+    secondaryTriggerIsDown = false
+    secondaryTriggerIsPassingThrough = false
+    activeSessionUsesSecondaryTrigger = false
   }
 
   private func dispatchAction(_ request: ActionRequest) {
@@ -1041,6 +1236,7 @@ private struct RepeatState {
   let request: ActionRequest
   let triggerButton: GestureTriggerButton
   let bundleID: String?
+  let usesSecondaryTrigger: Bool
   let expiresAt: TimeInterval
 }
 

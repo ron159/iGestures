@@ -37,17 +37,24 @@ public struct GestureInputConfiguration: Equatable, Sendable {
   public static let `default` = GestureInputConfiguration()
 
   public let triggerButton: GestureTriggerButton
+  public let secondaryTriggerButton: GestureTriggerButton?
   public let triggerDuration: TimeInterval
   public let isTrackpadGestureEnabled: Bool
   public let trackpadModifiers: UInt64
 
   public init(
     triggerButton: GestureTriggerButton = .right,
+    secondaryTriggerButton: GestureTriggerButton? = nil,
     triggerDuration: TimeInterval = defaultTriggerDuration,
     isTrackpadGestureEnabled: Bool = false,
     trackpadModifiers: UInt64 = 0x8_0000 | 0x4_0000
   ) {
     self.triggerButton = triggerButton
+    self.secondaryTriggerButton =
+      secondaryTriggerButton == triggerButton
+        || secondaryTriggerButton == .trackpad
+      ? nil
+      : secondaryTriggerButton
     self.isTrackpadGestureEnabled = isTrackpadGestureEnabled
     self.trackpadModifiers =
       ShortcutRecordingSession.normalizedModifiers(
@@ -95,19 +102,35 @@ public struct GestureCandidate: Equatable, Sendable {
   public let triggerButton: GestureTriggerButton
   public let inputDevice: GestureInputDevice
   public let duration: TimeInterval
+  public let usesSecondaryTrigger: Bool
 
   public init(
     points: [GesturePoint],
     frontmostBundleID: String?,
     triggerButton: GestureTriggerButton = .right,
     inputDevice: GestureInputDevice = .mouse(identifier: nil),
-    duration: TimeInterval
+    duration: TimeInterval,
+    usesSecondaryTrigger: Bool = false
   ) {
     self.points = points
     self.frontmostBundleID = frontmostBundleID
     self.triggerButton = triggerButton
     self.inputDevice = inputDevice
     self.duration = duration
+    self.usesSecondaryTrigger = usesSecondaryTrigger
+  }
+
+  public func usingSecondaryTrigger(
+    _ usesSecondaryTrigger: Bool
+  ) -> GestureCandidate {
+    GestureCandidate(
+      points: points,
+      frontmostBundleID: frontmostBundleID,
+      triggerButton: triggerButton,
+      inputDevice: inputDevice,
+      duration: duration,
+      usesSecondaryTrigger: usesSecondaryTrigger
+    )
   }
 }
 

@@ -55,6 +55,8 @@ public final class AppPreferencesStore {
     static let overlayEnabled = "general.overlay-enabled"
     static let trailColor = "general.trail-color"
     static let triggerButton = "general.trigger-button"
+    static let secondaryTriggerButton =
+      "general.secondary-trigger-button"
     static let triggerDuration = "general.trigger-duration"
     static let onboardingCompleted = "onboarding.completed"
     static let recognitionSensitivity =
@@ -131,6 +133,22 @@ public final class AppPreferencesStore {
         forKey: Key.triggerDuration
       )
     ).triggerDuration
+  }
+
+  public var secondaryTriggerButton: GestureTriggerButton? {
+    guard
+      let number = userDefaults.object(
+        forKey: Key.secondaryTriggerButton
+      ) as? NSNumber,
+      number.int64Value >= 0,
+      number.uint64Value < UInt64(UInt32.max)
+    else {
+      return nil
+    }
+    let button = GestureTriggerButton(
+      buttonNumber: UInt32(number.uint64Value)
+    )
+    return button == triggerButton ? nil : button
   }
 
   public var onboardingCompleted: Bool {
@@ -272,6 +290,27 @@ public final class AppPreferencesStore {
     userDefaults.set(
       triggerButton.buttonNumber,
       forKey: Key.triggerButton
+    )
+  }
+
+  public func setSecondaryTriggerButton(
+    _ triggerButton: GestureTriggerButton?
+  ) {
+    guard let triggerButton else {
+      userDefaults.removeObject(
+        forKey: Key.secondaryTriggerButton
+      )
+      return
+    }
+    guard
+      triggerButton != .trackpad,
+      triggerButton != self.triggerButton
+    else {
+      return
+    }
+    userDefaults.set(
+      triggerButton.buttonNumber,
+      forKey: Key.secondaryTriggerButton
     )
   }
 

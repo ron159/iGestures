@@ -6,6 +6,7 @@ struct GestureRecorderSheet: View {
   @ObservedObject var model: AppModel
   @State private var name: String
   @State private var action: GestureAction
+  @State private var secondaryAction: GestureAction?
   @State private var appScope: AppScope
   @State private var triggerButton: GestureTriggerButton?
   @State private var deviceScope: InputDeviceScope
@@ -13,6 +14,7 @@ struct GestureRecorderSheet: View {
   @State private var training: GestureTrainingSession
   @State private var points: [GesturePoint] = []
   @State private var feedback: String
+  @State private var triggerConflictMessage: String?
 
   private let existingMappings: [GestureMapping]
   private let initialIsEnabled: Bool
@@ -57,6 +59,9 @@ struct GestureRecorderSheet: View {
         ?? .keyboardShortcut(
           ShortcutRecordingSession.emptyShortcut
         )
+    )
+    _secondaryAction = State(
+      initialValue: editingMapping?.secondaryAction
     )
     let initialScope = editingMapping?.appScope ?? initialAppScope
     _appScope = State(initialValue: initialScope)
@@ -145,7 +150,11 @@ struct GestureRecorderSheet: View {
         ) {
           Text(String(localized: "Use Global Default"))
             .tag(GestureTriggerButton?.none)
-          ForEach(GestureTriggerButton.commonPresets) { button in
+          ForEach(
+            GestureTriggerButton.commonPresets.filter {
+              $0 != model.secondaryTriggerButton
+            }
+          ) { button in
             Text(triggerButtonName(button))
               .tag(GestureTriggerButton?.some(button))
           }
@@ -167,6 +176,15 @@ struct GestureRecorderSheet: View {
           }
           selectTriggerButton(button)
         }
+      }
+
+      if let triggerConflictMessage {
+        Label(
+          triggerConflictMessage,
+          systemImage: "exclamationmark.triangle.fill"
+        )
+        .font(.caption)
+        .foregroundStyle(.orange)
       }
 
       Picker(
@@ -220,6 +238,7 @@ struct GestureRecorderSheet: View {
               name: trimmedName,
               templates: training.templates,
               action: action,
+              secondaryAction: secondaryAction,
               appScope: appScope,
               triggerButton: triggerButton,
               category: initialCategory,
@@ -283,6 +302,7 @@ struct GestureRecorderSheet: View {
     training.phase == .readyToSave
       && !trimmedName.isEmpty
       && action.isValid
+      && (secondaryAction?.isValid ?? true)
   }
 
   private var shortcutConflict: SystemShortcutConflict? {
@@ -335,6 +355,14 @@ struct GestureRecorderSheet: View {
   private func selectTriggerButton(
     _ button: GestureTriggerButton?
   ) {
+    guard button != model.secondaryTriggerButton else {
+      triggerConflictMessage = String(
+        localized:
+          "This button is reserved as the secondary trigger."
+      )
+      return
+    }
+    triggerConflictMessage = nil
     triggerButton = button
     training.setTriggerButton(button)
     points.removeAll(keepingCapacity: true)

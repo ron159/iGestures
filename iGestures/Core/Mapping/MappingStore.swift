@@ -320,12 +320,17 @@ public actor MappingStore {
     var conflicts: [MappingImportConflict] = []
     var additions: [GestureMapping] = []
     let importedScripts = imported.mappings.flatMap {
-      $0.action.scripts
+      $0.action.scripts + ($0.secondaryAction?.scripts ?? [])
     }
     let safeImportedMappings = imported.mappings.map { mapping in
-      guard !mapping.action.scripts.isEmpty else { return mapping }
+      let containsScripts =
+        !mapping.action.scripts.isEmpty
+        || !(mapping.secondaryAction?.scripts.isEmpty ?? true)
+      guard containsScripts else { return mapping }
       var safe = mapping
       safe.action = safe.action.disablingScripts()
+      safe.secondaryAction =
+        safe.secondaryAction?.disablingScripts()
       safe.isEnabled = false
       return safe
     }
@@ -399,7 +404,15 @@ public actor MappingStore {
         : imported.mappings.count,
       mappingsToReplace: replacements,
       actionTypes: Array(
-        Set(imported.mappings.map { actionType($0.action) })
+        Set(
+          imported.mappings.flatMap { mapping in
+            var types = [actionType(mapping.action)]
+            if let secondaryAction = mapping.secondaryAction {
+              types.append(actionType(secondaryAction))
+            }
+            return types
+          }
+        )
       ).sorted(),
       conflicts: conflicts,
       scriptsRequiringConfirmation: importedScripts
@@ -440,6 +453,8 @@ public actor MappingStore {
       "launchApplication"
     case .system:
       "system"
+    case .window:
+      "window"
     case .appleShortcut:
       "appleShortcut"
     case .sequence:
@@ -516,6 +531,12 @@ public actor MappingStore {
         throw MappingStoreError.invalidMappingName
       }
       try validate(mapping.action, isEnabled: mapping.isEnabled)
+      if let secondaryAction = mapping.secondaryAction {
+        try validate(
+          secondaryAction,
+          isEnabled: mapping.isEnabled
+        )
+      }
       guard !mapping.templates.isEmpty,
         mapping.templates.count <= limits.maximumTemplatesPerMapping
       else {

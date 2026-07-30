@@ -4,6 +4,7 @@ public struct GestureMappingDraft: Sendable {
   public var name: String
   public var templates: [GestureTemplate]
   public var action: GestureAction
+  public var secondaryAction: GestureAction?
   public var appScope: AppScope
   public var triggerButton: GestureTriggerButton?
   public var category: String?
@@ -16,6 +17,7 @@ public struct GestureMappingDraft: Sendable {
     name: String,
     templates: [GestureTemplate],
     action: GestureAction,
+    secondaryAction: GestureAction? = nil,
     appScope: AppScope = .all,
     triggerButton: GestureTriggerButton? = nil,
     category: String? = nil,
@@ -27,6 +29,7 @@ public struct GestureMappingDraft: Sendable {
     self.name = name
     self.templates = templates
     self.action = action
+    self.secondaryAction = secondaryAction
     self.appScope = appScope
     self.triggerButton = triggerButton
     self.category = category
@@ -40,6 +43,7 @@ public struct GestureMappingDraft: Sendable {
     name: String,
     templates: [GestureTemplate],
     shortcut: KeyboardShortcut,
+    secondaryAction: GestureAction? = nil,
     appScope: AppScope = .all,
     triggerButton: GestureTriggerButton? = nil,
     category: String? = nil,
@@ -52,6 +56,7 @@ public struct GestureMappingDraft: Sendable {
       name: name,
       templates: templates,
       action: .keyboardShortcut(shortcut),
+      secondaryAction: secondaryAction,
       appScope: appScope,
       triggerButton: triggerButton,
       category: category,
@@ -89,6 +94,7 @@ public struct GestureLibrary: Sendable {
         isEnabled: draft.isEnabled,
         templates: draft.templates,
         action: draft.action,
+        secondaryAction: draft.secondaryAction,
         appScope: draft.appScope,
         triggerButton: draft.triggerButton,
         category: draft.category,
@@ -118,13 +124,17 @@ public struct GestureLibrary: Sendable {
       $0.name = draft.name
       $0.templates = draft.templates
       $0.action = draft.action
+      $0.secondaryAction = draft.secondaryAction
       $0.appScope = draft.appScope
       $0.triggerButton = draft.triggerButton
       $0.category = draft.category
       $0.applicationGroupID = draft.applicationGroupID
       $0.repeatModeEnabled = draft.repeatModeEnabled
       $0.deviceScope = draft.deviceScope
-      $0.isEnabled = draft.isEnabled && draft.action.isValid
+      $0.isEnabled =
+        draft.isEnabled
+        && draft.action.isValid
+        && (draft.secondaryAction?.isValid ?? true)
     }
   }
 
@@ -133,7 +143,10 @@ public struct GestureLibrary: Sendable {
     _ isEnabled: Bool
   ) throws {
     try update(id: id) {
-      if isEnabled && !$0.action.isValid {
+      if isEnabled
+        && (!$0.action.isValid
+          || !($0.secondaryAction?.isValid ?? true))
+      {
         throw GestureLibraryError.missingAction
       }
       $0.isEnabled = isEnabled
@@ -159,6 +172,18 @@ public struct GestureLibrary: Sendable {
     try update(id: id) {
       $0.action = action
       if !action.isValid {
+        $0.isEnabled = false
+      }
+    }
+  }
+
+  public mutating func setSecondaryAction(
+    id: UUID,
+    _ action: GestureAction?
+  ) throws {
+    try update(id: id) {
+      $0.secondaryAction = action
+      if let action, !action.isValid {
         $0.isEnabled = false
       }
     }

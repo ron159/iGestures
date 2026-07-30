@@ -53,6 +53,8 @@ final class AppModel: ObservableObject {
   @Published private(set) var isOverlayEnabled = true
   @Published private(set) var trailColor = NSColor.controlAccentColor
   @Published private(set) var triggerButton: GestureTriggerButton = .right
+  @Published private(set) var secondaryTriggerButton: GestureTriggerButton?
+  @Published private(set) var triggerConfigurationError: String?
   @Published private(set) var triggerDuration =
     GestureInputConfiguration.defaultTriggerDuration
   @Published private(set) var recognitionSensitivity: RecognitionSensitivity = .standard
@@ -137,6 +139,8 @@ final class AppModel: ObservableObject {
       preferencesStore.trailColor?.nsColor
       ?? .controlAccentColor
     self.triggerButton = preferencesStore.triggerButton
+    self.secondaryTriggerButton =
+      preferencesStore.secondaryTriggerButton
     self.triggerDuration = preferencesStore.triggerDuration
     self.recognitionSensitivity =
       preferencesStore.recognitionSensitivity
@@ -619,18 +623,80 @@ final class AppModel: ObservableObject {
     NSWorkspace.shared.open(availableGitHubRelease.pageURL)
   }
 
-  func setTriggerButton(_ triggerButton: GestureTriggerButton) {
+  @discardableResult
+  func setTriggerButton(
+    _ triggerButton: GestureTriggerButton
+  ) -> Bool {
+    guard triggerButton != secondaryTriggerButton else {
+      triggerConfigurationError = String(
+        localized:
+          "Primary and secondary trigger buttons must be different."
+      )
+      return false
+    }
     self.triggerButton = triggerButton
+    triggerConfigurationError = nil
     preferencesStore.setTriggerButton(triggerButton)
     eventTapManager.updateInputConfiguration(
       gestureInputConfiguration
     )
+    return true
+  }
+
+  @discardableResult
+  func setSecondaryTriggerButton(
+    _ triggerButton: GestureTriggerButton?
+  ) -> Bool {
+    guard let triggerButton else {
+      secondaryTriggerButton = nil
+      triggerConfigurationError = nil
+      preferencesStore.setSecondaryTriggerButton(nil)
+      eventTapManager.updateInputConfiguration(
+        gestureInputConfiguration
+      )
+      return true
+    }
+    guard triggerButton != .trackpad else {
+      triggerConfigurationError = String(
+        localized:
+          "Trackpad cannot be used as the secondary mouse trigger."
+      )
+      return false
+    }
+    guard triggerButton != self.triggerButton else {
+      triggerConfigurationError = String(
+        localized:
+          "Primary and secondary trigger buttons must be different."
+      )
+      return false
+    }
+    guard
+      !mappings.contains(where: {
+        $0.triggerButton == triggerButton
+      })
+    else {
+      triggerConfigurationError = String(
+        localized:
+          "The secondary trigger button is already used by a gesture."
+      )
+      return false
+    }
+    secondaryTriggerButton = triggerButton
+    triggerConfigurationError = nil
+    preferencesStore.setSecondaryTriggerButton(triggerButton)
+    eventTapManager.updateInputConfiguration(
+      gestureInputConfiguration
+    )
+    return true
   }
 
   func setTriggerDuration(_ duration: TimeInterval) {
     let configuration = GestureInputConfiguration(
       triggerButton: triggerButton,
-      triggerDuration: duration
+      secondaryTriggerButton: secondaryTriggerButton,
+      triggerDuration: duration,
+      isTrackpadGestureEnabled: isTrackpadGestureEnabled,
+      trackpadModifiers: trackpadModifiers
     )
     triggerDuration = configuration.triggerDuration
     preferencesStore.setTriggerDuration(
@@ -757,7 +823,14 @@ final class AppModel: ObservableObject {
   }
 
   @discardableResult
-  func createMapping(_ draft: GestureMappingDraft) -> UUID {
+  func createMapping(_ draft: GestureMappingDraft) -> UUID? {
+    guard draft.triggerButton != secondaryTriggerButton else {
+      triggerConfigurationError = String(
+        localized:
+          "This button is reserved as the secondary trigger."
+      )
+      return nil
+    }
     var library = GestureLibrary(database: database)
     let id = library.create(draft)
     apply(library.database)
@@ -768,6 +841,13 @@ final class AppModel: ObservableObject {
     id: UUID,
     with draft: GestureMappingDraft
   ) {
+    guard draft.triggerButton != secondaryTriggerButton else {
+      triggerConfigurationError = String(
+        localized:
+          "This button is reserved as the secondary trigger."
+      )
+      return
+    }
     mutateLibrary {
       try $0.update(id: id, with: draft)
     }
@@ -803,6 +883,15 @@ final class AppModel: ObservableObject {
     }
   }
 
+  func setMappingSecondaryAction(
+    id: UUID,
+    action: GestureAction?
+  ) {
+    mutateLibrary {
+      try $0.setSecondaryAction(id: id, action)
+    }
+  }
+
   func setMappingAppScope(id: UUID, appScope: AppScope) {
     mutateLibrary {
       try $0.setApplicationGroup(id: id, nil)
@@ -814,6 +903,14 @@ final class AppModel: ObservableObject {
     id: UUID,
     triggerButton: GestureTriggerButton?
   ) {
+    guard triggerButton != secondaryTriggerButton else {
+      triggerConfigurationError = String(
+        localized:
+          "This button is reserved as the secondary trigger."
+      )
+      return
+    }
+    triggerConfigurationError = nil
     mutateLibrary {
       try $0.setTriggerButton(id: id, triggerButton)
     }
@@ -976,6 +1073,7 @@ final class AppModel: ObservableObject {
         ),
         templates: mapping.templates,
         action: mapping.action,
+        secondaryAction: mapping.secondaryAction,
         appScope: mapping.appScope,
         triggerButton: mapping.triggerButton,
         category: mapping.category,
@@ -1322,6 +1420,7 @@ final class AppModel: ObservableObject {
       updatedDatabase.managedApplicationBundleIdentifiers
     mappingCount = mappings.count
     mappingStoreError = nil
+    reconcileSecondaryTriggerConflict()
     eventTapManager.updateMappingSnapshot(
       updatedDatabase.compiledSnapshot
     )
@@ -1389,6 +1488,7 @@ final class AppModel: ObservableObject {
       loadedDatabase.managedApplicationBundleIdentifiers
     mappingCount = mappings.count
     mappingStoreError = nil
+    reconcileSecondaryTriggerConflict()
     eventTapManager.updateMappingSnapshot(
       loadedDatabase.compiledSnapshot
     )
@@ -1529,9 +1629,30 @@ final class AppModel: ObservableObject {
   private var gestureInputConfiguration: GestureInputConfiguration {
     GestureInputConfiguration(
       triggerButton: triggerButton,
+      secondaryTriggerButton: secondaryTriggerButton,
       triggerDuration: triggerDuration,
       isTrackpadGestureEnabled: isTrackpadGestureEnabled,
       trackpadModifiers: trackpadModifiers
+    )
+  }
+
+  private func reconcileSecondaryTriggerConflict() {
+    guard
+      let secondaryTriggerButton,
+      mappings.contains(where: {
+        $0.triggerButton == secondaryTriggerButton
+      })
+    else {
+      return
+    }
+    self.secondaryTriggerButton = nil
+    preferencesStore.setSecondaryTriggerButton(nil)
+    triggerConfigurationError = String(
+      localized:
+        "The saved secondary trigger conflicted with a gesture and was disabled."
+    )
+    eventTapManager.updateInputConfiguration(
+      gestureInputConfiguration
     )
   }
 }

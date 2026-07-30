@@ -22,7 +22,7 @@ public struct GestureApplicationGroup:
 }
 
 public struct GestureDatabase: Codable, Equatable, Sendable {
-  public static let currentSchemaVersion = 3
+  public static let currentSchemaVersion = 4
   public static let empty = GestureDatabase(
     schemaVersion: currentSchemaVersion,
     mappings: [],
@@ -62,7 +62,7 @@ public struct GestureDatabase: Codable, Equatable, Sendable {
       forKey: .schemaVersion
     )
     switch decodedVersion {
-    case 1, 2:
+    case 1, 2, 3:
       schemaVersion = Self.currentSchemaVersion
     default:
       schemaVersion = decodedVersion

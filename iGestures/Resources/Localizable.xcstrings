@@ -3540,6 +3540,226 @@
           }
         }
       }
+    },
+    "Disabled": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停用"
+          }
+        }
+      }
+    },
+    "Primary Trigger": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主触发键"
+          }
+        }
+      }
+    },
+    "Secondary Trigger": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第二触发键"
+          }
+        }
+      }
+    },
+    "Primary and secondary trigger buttons must be different.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主触发键和第二触发键不能相同。"
+          }
+        }
+      }
+    },
+    "Trackpad cannot be used as the secondary mouse trigger.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触控板不能用作第二鼠标触发键。"
+          }
+        }
+      }
+    },
+    "The secondary trigger button is already used by a gesture.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该第二触发键已被某个手势用作触发键。"
+          }
+        }
+      }
+    },
+    "This button is reserved as the secondary trigger.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该按键已保留为第二触发键。"
+          }
+        }
+      }
+    },
+    "The saved secondary trigger conflicted with a gesture and was disabled.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存的第二触发键与某个手势冲突，因此已停用。"
+          }
+        }
+      }
+    },
+    "Secondary Action · %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第二动作 · %@"
+          }
+        }
+      }
+    },
+    "Use a higher-priority action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用更高优先级动作"
+          }
+        }
+      }
+    },
+    "Hold the primary and secondary triggers together, then draw this gesture.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同时按住主触发键和第二触发键，再绘制此手势。"
+          }
+        }
+      }
+    },
+    "Hold the primary trigger to draw. Add a secondary trigger for higher-priority actions.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住主触发键绘制手势；添加第二触发键后可执行更高优先级动作。"
+          }
+        }
+      }
+    },
+    "Window Management": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口管理"
+          }
+        }
+      }
+    },
+    "Window Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口动作"
+          }
+        }
+      }
+    },
+    "Window · Left Half": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口 · 左半屏"
+          }
+        }
+      }
+    },
+    "Window · Right Half": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口 · 右半屏"
+          }
+        }
+      }
+    },
+    "Window · Top Left": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口 · 左上角"
+          }
+        }
+      }
+    },
+    "Window · Top Right": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口 · 右上角"
+          }
+        }
+      }
+    },
+    "Window · Bottom Left": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口 · 左下角"
+          }
+        }
+      }
+    },
+    "Window · Bottom Right": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口 · 右下角"
+          }
+        }
+      }
+    },
+    "Window · Center": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口 · 居中"
+          }
+        }
+      }
+    },
+    "Window · Maximize": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口 · 最大化"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
