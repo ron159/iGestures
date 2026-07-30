@@ -77,6 +77,9 @@ public final class AppPreferencesStore {
     static let gestureSidebarGroups = "gestures.sidebar-groups"
     static let gestureSidebarApplications =
       "gestures.sidebar-applications"
+    static let customActionPresets = "actions.custom-presets"
+    static let favoriteActionPresetIDs = "actions.favorite-preset-ids"
+    static let recentActionPresetIDs = "actions.recent-preset-ids"
   }
 
   private let userDefaults: UserDefaults
@@ -264,6 +267,44 @@ public final class AppPreferencesStore {
     ) ?? []
   }
 
+  public var customActionPresets: [ActionPreset] {
+    guard
+      let data = userDefaults.data(forKey: Key.customActionPresets),
+      let presets = try? JSONDecoder().decode(
+        [ActionPreset].self,
+        from: data
+      )
+    else {
+      return []
+    }
+    let builtInIDs = Set(ActionPresetLibrary.builtIn.map(\.id))
+    var seen: Set<String> = []
+    return presets.filter {
+      $0.isUserDefined
+        && $0.isValid
+        && !builtInIDs.contains($0.id)
+        && seen.insert($0.id).inserted
+    }.prefix(100).map { $0 }
+  }
+
+  public var favoriteActionPresetIDs: Set<String> {
+    Set(
+      userDefaults.stringArray(
+        forKey: Key.favoriteActionPresetIDs
+      ) ?? []
+    )
+  }
+
+  public var recentActionPresetIDs: [String] {
+    Array(
+      orderedUniqueStrings(
+        userDefaults.stringArray(
+          forKey: Key.recentActionPresetIDs
+        ) ?? []
+      ).prefix(12)
+    )
+  }
+
   public func setRecognitionEnabled(_ isEnabled: Bool) {
     userDefaults.set(isEnabled, forKey: Key.recognitionEnabled)
   }
@@ -433,6 +474,35 @@ public final class AppPreferencesStore {
     userDefaults.removeObject(forKey: Key.gestureSidebarApplications)
   }
 
+  public func setCustomActionPresets(_ presets: [ActionPreset]) {
+    let builtInIDs = Set(ActionPresetLibrary.builtIn.map(\.id))
+    var seen: Set<String> = []
+    let retained = presets.filter {
+      $0.isUserDefined
+        && $0.isValid
+        && !builtInIDs.contains($0.id)
+        && seen.insert($0.id).inserted
+    }.prefix(100)
+    guard let data = try? JSONEncoder().encode(Array(retained)) else {
+      return
+    }
+    userDefaults.set(data, forKey: Key.customActionPresets)
+  }
+
+  public func setFavoriteActionPresetIDs(_ identifiers: Set<String>) {
+    userDefaults.set(
+      identifiers.sorted(),
+      forKey: Key.favoriteActionPresetIDs
+    )
+  }
+
+  public func setRecentActionPresetIDs(_ identifiers: [String]) {
+    userDefaults.set(
+      Array(orderedUniqueStrings(identifiers).prefix(12)),
+      forKey: Key.recentActionPresetIDs
+    )
+  }
+
   private func storedBool(
     forKey key: String,
     defaultValue: Bool
@@ -454,6 +524,19 @@ public final class AppPreferencesStore {
         }
       )
     ).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+  }
+
+  private func orderedUniqueStrings(_ values: [String]) -> [String] {
+    var seen: Set<String> = []
+    return values.compactMap {
+      let value = $0.trimmingCharacters(
+        in: .whitespacesAndNewlines
+      )
+      guard !value.isEmpty, seen.insert(value).inserted else {
+        return nil
+      }
+      return value
+    }
   }
 }
 

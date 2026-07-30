@@ -40,11 +40,15 @@ final class ShortcutExecutorTests: XCTestCase {
 
   func testEverySystemActionHasAnExecutionRoute() {
     for action in SystemGestureAction.allCases {
-      if action == .sleep {
-        XCTAssertNil(SystemGestureActionExecutor.shortcut(for: action))
-      } else {
-        XCTAssertNotNil(SystemGestureActionExecutor.shortcut(for: action))
-      }
+      let hasShortcut =
+        SystemGestureActionExecutor.shortcut(for: action) != nil
+      let hasMediaKey =
+        SystemGestureActionExecutor.mediaKeyType(for: action) != nil
+      let hasProcessRoute = action == .sleep || action == .launchpad
+      XCTAssertTrue(
+        hasShortcut || hasMediaKey || hasProcessRoute,
+        "\(action) has no execution route"
+      )
     }
   }
 
@@ -84,6 +88,22 @@ final class ShortcutExecutorTests: XCTestCase {
       ),
       visibleFrame
     )
+    XCTAssertEqual(
+      WindowLayoutCalculator.targetFrame(
+        for: .topHalf,
+        currentFrame: currentFrame,
+        visibleFrame: visibleFrame
+      ),
+      CGRect(x: 100, y: 50, width: 1200, height: 400)
+    )
+    XCTAssertEqual(
+      WindowLayoutCalculator.targetFrame(
+        for: .rightThird,
+        currentFrame: currentFrame,
+        visibleFrame: visibleFrame
+      ),
+      CGRect(x: 900, y: 50, width: 400, height: 800)
+    )
     for action in WindowGestureAction.allCases {
       let frame = WindowLayoutCalculator.targetFrame(
         for: action,
@@ -94,6 +114,43 @@ final class ShortcutExecutorTests: XCTestCase {
       XCTAssertGreaterThan(frame.height, 0)
       XCTAssertTrue(visibleFrame.contains(frame))
     }
+  }
+
+  func testCustomAndAdjacentDisplayWindowLayouts() {
+    let currentVisibleFrame = CGRect(
+      x: 0,
+      y: 0,
+      width: 1000,
+      height: 800
+    )
+    let targetVisibleFrame = CGRect(
+      x: 1000,
+      y: 0,
+      width: 2000,
+      height: 1200
+    )
+    let currentFrame = CGRect(x: 250, y: 200, width: 500, height: 400)
+
+    XCTAssertEqual(
+      WindowLayoutCalculator.targetFrame(
+        for: NormalizedWindowFrame(
+          x: 0.1,
+          y: 0.2,
+          width: 0.6,
+          height: 0.5
+        ),
+        visibleFrame: currentVisibleFrame
+      ),
+      CGRect(x: 100, y: 160, width: 600, height: 400)
+    )
+    XCTAssertEqual(
+      WindowLayoutCalculator.targetFrameOnAdjacentDisplay(
+        currentFrame: currentFrame,
+        currentVisibleFrame: currentVisibleFrame,
+        targetVisibleFrame: targetVisibleFrame
+      ),
+      CGRect(x: 1500, y: 300, width: 1000, height: 600)
+    )
   }
 
   func testActionDispatcherReturnsExecutorResult() async {

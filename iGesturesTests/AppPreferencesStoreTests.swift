@@ -160,6 +160,43 @@ final class AppPreferencesStoreTests: XCTestCase {
     XCTAssertTrue(store.diagnosticRecords.isEmpty)
   }
 
+  @MainActor
+  func testActionPresetPreferencesPersistAndNormalize() {
+    let (suiteName, userDefaults) = makeUserDefaults()
+    defer {
+      userDefaults.removePersistentDomain(forName: suiteName)
+    }
+    let store = AppPreferencesStore(userDefaults: userDefaults)
+    let preset = ActionPreset(
+      id: "user.test",
+      name: "My Copy",
+      category: .editing,
+      action: .keyboardShortcut(
+        KeyboardShortcut(keyCode: 8, modifiers: 0x10_0000)
+      ),
+      isUserDefined: true
+    )
+
+    store.setCustomActionPresets([preset, preset])
+    store.setFavoriteActionPresetIDs(["user.test", "browser.back"])
+    store.setRecentActionPresetIDs([
+      "browser.back",
+      "user.test",
+      "browser.back",
+    ])
+
+    let reloaded = AppPreferencesStore(userDefaults: userDefaults)
+    XCTAssertEqual(reloaded.customActionPresets, [preset])
+    XCTAssertEqual(
+      reloaded.favoriteActionPresetIDs,
+      Set(["user.test", "browser.back"])
+    )
+    XCTAssertEqual(
+      reloaded.recentActionPresetIDs,
+      ["browser.back", "user.test"]
+    )
+  }
+
   func testUpdateManifestRequiresValidSignature() async throws {
     let privateKey = Curve25519.Signing.PrivateKey()
     let unsigned = UpdateManifest(

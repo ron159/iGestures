@@ -1814,6 +1814,12 @@ enum GestureActionSummary {
       return KeyboardShortcutFormatter.string(for: shortcut)
     case .openURL:
       return String(localized: "Open URL")
+    case .openPath(let path):
+      let expanded = NSString(string: path).expandingTildeInPath
+      let name = URL(fileURLWithPath: expanded).lastPathComponent
+      return name.isEmpty
+        ? String(localized: "Open File or Folder")
+        : name
     case .launchApplication(let bundleIdentifier):
       return NSWorkspace.shared.urlForApplication(
         withBundleIdentifier: bundleIdentifier
@@ -1823,6 +1829,14 @@ enum GestureActionSummary {
       return systemActionName(action)
     case .window(let action):
       return windowActionName(action)
+    case .customWindow:
+      return String(localized: "Custom Window Size and Position")
+    case .typeText:
+      return String(localized: "Type Fixed Text")
+    case .applicationMenu(let menuAction):
+      return menuAction.normalizedPath.isEmpty
+        ? String(localized: "Choose Application Menu Item")
+        : menuAction.normalizedPath.joined(separator: " › ")
     case .appleShortcut(let name):
       return name.isEmpty
         ? String(localized: "Run Shortcut")
@@ -1863,6 +1877,30 @@ enum GestureActionSummary {
       String(localized: "Brightness Down")
     case .appSwitcher:
       String(localized: "Application Switcher")
+    case .spotlight:
+      String(localized: "Spotlight Search")
+    case .launchpad:
+      String(localized: "Launchpad")
+    case .previousSpace:
+      String(localized: "Previous Desktop")
+    case .nextSpace:
+      String(localized: "Next Desktop")
+    case .screenshotFullScreen:
+      String(localized: "Capture Entire Screen")
+    case .screenshotSelection:
+      String(localized: "Capture Screen Selection")
+    case .screenshotToolbar:
+      String(localized: "Open Screenshot Toolbar")
+    case .playPause:
+      String(localized: "Play or Pause")
+    case .previousTrack:
+      String(localized: "Previous Track")
+    case .nextTrack:
+      String(localized: "Next Track")
+    case .emojiPicker:
+      String(localized: "Emoji and Symbols")
+    case .forceQuit:
+      String(localized: "Force Quit Applications")
     }
   }
 
@@ -1874,6 +1912,10 @@ enum GestureActionSummary {
       String(localized: "Window · Left Half")
     case .rightHalf:
       String(localized: "Window · Right Half")
+    case .topHalf:
+      String(localized: "Window · Top Half")
+    case .bottomHalf:
+      String(localized: "Window · Bottom Half")
     case .topLeftQuarter:
       String(localized: "Window · Top Left")
     case .topRightQuarter:
@@ -1882,10 +1924,36 @@ enum GestureActionSummary {
       String(localized: "Window · Bottom Left")
     case .bottomRightQuarter:
       String(localized: "Window · Bottom Right")
+    case .leftThird:
+      String(localized: "Window · Left Third")
+    case .centerThird:
+      String(localized: "Window · Center Third")
+    case .rightThird:
+      String(localized: "Window · Right Third")
+    case .leftTwoThirds:
+      String(localized: "Window · Left Two Thirds")
+    case .rightTwoThirds:
+      String(localized: "Window · Right Two Thirds")
     case .center:
       String(localized: "Window · Center")
     case .maximize:
       String(localized: "Window · Maximize")
+    case .maximizeHeight:
+      String(localized: "Window · Maximize Height")
+    case .maximizeWidth:
+      String(localized: "Window · Maximize Width")
+    case .close:
+      String(localized: "Window · Close")
+    case .minimize:
+      String(localized: "Window · Minimize")
+    case .toggleFullScreen:
+      String(localized: "Window · Enter or Exit Full Screen")
+    case .previousDisplay:
+      String(localized: "Window · Previous Display")
+    case .nextDisplay:
+      String(localized: "Window · Next Display")
+    case .restorePreviousFrame:
+      String(localized: "Window · Restore Previous Position")
     }
   }
 }
@@ -1934,9 +2002,13 @@ struct GestureActionEditor: View {
   private enum Kind: String, CaseIterable, Identifiable {
     case keyboardShortcut
     case openURL
+    case openPath
     case launchApplication
     case system
     case window
+    case customWindow
+    case typeText
+    case applicationMenu
     case appleShortcut
     case sequence
     case script
@@ -1949,12 +2021,20 @@ struct GestureActionEditor: View {
         String(localized: "Keyboard Shortcut")
       case .openURL:
         String(localized: "Open URL")
+      case .openPath:
+        String(localized: "Open File or Folder")
       case .launchApplication:
         String(localized: "Open Application")
       case .system:
         String(localized: "System Action")
       case .window:
         String(localized: "Window Management")
+      case .customWindow:
+        String(localized: "Custom Window Layout")
+      case .typeText:
+        String(localized: "Type Fixed Text")
+      case .applicationMenu:
+        String(localized: "Application Menu Item")
       case .appleShortcut:
         String(localized: "Run Apple Shortcut")
       case .sequence:
@@ -1966,10 +2046,21 @@ struct GestureActionEditor: View {
   }
 
   @Binding var action: GestureAction
-  let model: AppModel
+  @ObservedObject var model: AppModel
+  @State private var presetSearchText = ""
+  @State private var isPresentingPresetLibrary = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
+      ActionPresetSearchSection(
+        searchText: $presetSearchText,
+        action: $action,
+        model: model,
+        isPresentingLibrary: $isPresentingPresetLibrary
+      )
+
+      Divider()
+
       Picker(String(localized: "Action Type"), selection: kind) {
         ForEach(Kind.allCases) { kind in
           Text(kind.label).tag(kind)
@@ -1994,6 +2085,16 @@ struct GestureActionEditor: View {
             embed: GestureAction.openURL
           )
         )
+      case .openPath(let path):
+        HStack {
+          Text(path.isEmpty ? String(localized: "No file selected") : path)
+            .lineLimit(1)
+            .truncationMode(.middle)
+          Spacer()
+          Button(String(localized: "Choose File or Folder…")) {
+            choosePath()
+          }
+        }
       case .launchApplication(let bundleIdentifier):
         HStack {
           Text(
@@ -2026,6 +2127,25 @@ struct GestureActionEditor: View {
             Text(GestureActionSummary.windowActionName($0)).tag($0)
           }
         }
+      case .customWindow:
+        CustomWindowActionEditor(frame: customWindowFrame)
+      case .typeText:
+        VStack(alignment: .leading, spacing: 6) {
+          TextEditor(text: fixedText)
+            .frame(height: 80)
+            .border(.secondary.opacity(0.3))
+          Label(
+            String(
+              localized:
+                "Use this only for non-sensitive text. Passwords and secrets should not be stored in gestures."
+            ),
+            systemImage: "exclamationmark.shield"
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        }
+      case .applicationMenu:
+        ApplicationMenuActionEditor(menuAction: applicationMenuAction)
       case .appleShortcut:
         TextField(
           String(localized: "Shortcut Name"),
@@ -2045,6 +2165,12 @@ struct GestureActionEditor: View {
         ScriptActionEditor(script: script, model: model)
       }
     }
+    .sheet(isPresented: $isPresentingPresetLibrary) {
+      ActionPresetLibrarySheet(
+        action: $action,
+        model: model
+      )
+    }
   }
 
   private var kind: Binding<Kind> {
@@ -2055,12 +2181,20 @@ struct GestureActionEditor: View {
           .keyboardShortcut
         case .openURL:
           .openURL
+        case .openPath:
+          .openPath
         case .launchApplication:
           .launchApplication
         case .system:
           .system
         case .window:
           .window
+        case .customWindow:
+          .customWindow
+        case .typeText:
+          .typeText
+        case .applicationMenu:
+          .applicationMenu
         case .appleShortcut:
           .appleShortcut
         case .sequence:
@@ -2077,12 +2211,22 @@ struct GestureActionEditor: View {
           )
         case .openURL:
           action = .openURL("https://")
+        case .openPath:
+          action = .openPath("")
         case .launchApplication:
           action = .launchApplication(bundleIdentifier: "")
         case .system:
           action = .system(.missionControl)
         case .window:
           action = .window(.leftHalf)
+        case .customWindow:
+          action = .customWindow(NormalizedWindowFrame())
+        case .typeText:
+          action = .typeText("")
+        case .applicationMenu:
+          action = .applicationMenu(
+            ApplicationMenuAction(path: [])
+          )
         case .appleShortcut:
           action = .appleShortcut(name: "")
         case .sequence:
@@ -2139,6 +2283,40 @@ struct GestureActionEditor: View {
     )
   }
 
+  private var customWindowFrame: Binding<NormalizedWindowFrame> {
+    Binding(
+      get: {
+        guard case .customWindow(let value) = action else {
+          return NormalizedWindowFrame()
+        }
+        return value
+      },
+      set: { action = .customWindow($0) }
+    )
+  }
+
+  private var fixedText: Binding<String> {
+    stringValue(
+      extract: {
+        guard case .typeText(let value) = $0 else { return "" }
+        return value
+      },
+      embed: GestureAction.typeText
+    )
+  }
+
+  private var applicationMenuAction: Binding<ApplicationMenuAction> {
+    Binding(
+      get: {
+        guard case .applicationMenu(let value) = action else {
+          return ApplicationMenuAction(path: [])
+        }
+        return value
+      },
+      set: { action = .applicationMenu($0) }
+    )
+  }
+
   private var sequence: Binding<GestureActionSequence> {
     Binding(
       get: {
@@ -2192,6 +2370,534 @@ struct GestureActionEditor: View {
     }
     action = .launchApplication(
       bundleIdentifier: bundleIdentifier
+    )
+  }
+
+  private func choosePath() {
+    let panel = NSOpenPanel()
+    panel.allowsMultipleSelection = false
+    panel.canChooseDirectories = true
+    panel.canChooseFiles = true
+    panel.treatsFilePackagesAsDirectories = false
+    panel.prompt = String(localized: "Choose")
+    guard panel.runModal() == .OK, let url = panel.url else {
+      return
+    }
+    action = .openPath(url.path)
+  }
+}
+
+private struct ActionPresetSearchSection: View {
+  @Binding var searchText: String
+  @Binding var action: GestureAction
+  @ObservedObject var model: AppModel
+  @Binding var isPresentingLibrary: Bool
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack {
+        TextField(
+          String(localized: "Search Quick Actions"),
+          text: $searchText
+        )
+        .textFieldStyle(.roundedBorder)
+
+        Button {
+          isPresentingLibrary = true
+        } label: {
+          Label(
+            String(localized: "Browse All"),
+            systemImage: "square.grid.2x2"
+          )
+        }
+      }
+
+      if !normalizedSearchText.isEmpty {
+        if matchingPresets.isEmpty {
+          Text(String(localized: "No matching quick actions."))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          VStack(spacing: 4) {
+            ForEach(matchingPresets.prefix(6)) { preset in
+              Button {
+                apply(preset)
+              } label: {
+                ActionPresetCompactRow(preset: preset)
+              }
+              .buttonStyle(.plain)
+            }
+          }
+          .padding(6)
+          .background(.quaternary.opacity(0.35))
+          .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+      }
+    }
+  }
+
+  private var normalizedSearchText: String {
+    searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private var matchingPresets: [ActionPreset] {
+    ActionPresetLibrary.matching(
+      normalizedSearchText,
+      in: model.allActionPresets
+    )
+  }
+
+  private func apply(_ preset: ActionPreset) {
+    action = preset.action
+    model.recordActionPresetUse(id: preset.id)
+    searchText = ""
+  }
+}
+
+private struct ActionPresetCompactRow: View {
+  let preset: ActionPreset
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Image(systemName: preset.category.systemImage)
+        .frame(width: 20)
+        .foregroundStyle(.secondary)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(preset.name)
+        if !preset.summary.isEmpty {
+          Text(preset.summary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        }
+      }
+      Spacer()
+      Text(preset.category.label)
+        .font(.caption)
+        .foregroundStyle(.tertiary)
+    }
+    .contentShape(Rectangle())
+    .padding(.vertical, 3)
+  }
+}
+
+private struct ActionPresetLibrarySheet: View {
+  private enum Mode: String, CaseIterable, Identifiable {
+    case all
+    case favorites
+    case recent
+    case mine
+
+    var id: Self { self }
+
+    var label: String {
+      switch self {
+      case .all:
+        String(localized: "All")
+      case .favorites:
+        String(localized: "Favorites")
+      case .recent:
+        String(localized: "Recent")
+      case .mine:
+        String(localized: "My Presets")
+      }
+    }
+  }
+
+  @Environment(\.dismiss) private var dismiss
+  @Binding var action: GestureAction
+  @ObservedObject var model: AppModel
+  @State private var searchText = ""
+  @State private var selectedCategory: ActionPresetCategory?
+  @State private var mode: Mode = .all
+  @State private var isSavingPreset = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      HStack {
+        Text(String(localized: "Quick Actions"))
+          .font(.title2)
+        Spacer()
+        Button(String(localized: "Done")) {
+          dismiss()
+        }
+      }
+
+      TextField(
+        String(localized: "Search actions, commands, and folders"),
+        text: $searchText
+      )
+      .textFieldStyle(.roundedBorder)
+
+      Picker(String(localized: "Library"), selection: $mode) {
+        ForEach(Mode.allCases) {
+          Text($0.label).tag($0)
+        }
+      }
+      .pickerStyle(.segmented)
+
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+          categoryButton(nil, label: String(localized: "All"))
+          ForEach(ActionPresetCategory.allCases, id: \.self) {
+            categoryButton($0, label: $0.label)
+          }
+        }
+      }
+
+      if filteredPresets.isEmpty {
+        ContentUnavailableView(
+          String(localized: "No Quick Actions"),
+          systemImage: "sparkles",
+          description: Text(
+            String(localized: "Try another search or category.")
+          )
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else {
+        List(filteredPresets) { preset in
+          ActionPresetLibraryRow(
+            preset: preset,
+            isFavorite:
+              model.favoriteActionPresetIDs.contains(preset.id),
+            onSelect: {
+              action = preset.action
+              model.recordActionPresetUse(id: preset.id)
+              dismiss()
+            },
+            onToggleFavorite: {
+              model.toggleFavoriteActionPreset(id: preset.id)
+            },
+            onDelete:
+              preset.isUserDefined
+              ? {
+                model.deleteCustomActionPreset(id: preset.id)
+              }
+              : nil
+          )
+        }
+        .listStyle(.inset)
+      }
+
+      HStack {
+        Button {
+          isSavingPreset = true
+        } label: {
+          Label(
+            String(localized: "Save Current Action as Preset"),
+            systemImage: "plus"
+          )
+        }
+        .disabled(!action.isValid)
+
+        Spacer()
+
+        Text(
+          String(
+            format: String(localized: "%d actions"),
+            filteredPresets.count
+          )
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      }
+    }
+    .padding(20)
+    .frame(width: 760, height: 600)
+    .sheet(isPresented: $isSavingPreset) {
+      SaveActionPresetSheet(
+        action: action,
+        model: model
+      )
+    }
+  }
+
+  private var filteredPresets: [ActionPreset] {
+    let allPresets = model.allActionPresets
+    let modePresets: [ActionPreset]
+    switch mode {
+    case .all:
+      modePresets = allPresets
+    case .favorites:
+      modePresets = allPresets.filter {
+        model.favoriteActionPresetIDs.contains($0.id)
+      }
+    case .recent:
+      let byID = Dictionary(
+        uniqueKeysWithValues: allPresets.map { ($0.id, $0) }
+      )
+      modePresets = model.recentActionPresetIDs.compactMap {
+        byID[$0]
+      }
+    case .mine:
+      modePresets = model.customActionPresets
+    }
+    return modePresets.filter {
+      (selectedCategory == nil || $0.category == selectedCategory)
+        && $0.matches(searchText)
+    }
+  }
+
+  private func categoryButton(
+    _ category: ActionPresetCategory?,
+    label: String
+  ) -> some View {
+    Button {
+      selectedCategory = category
+    } label: {
+      HStack(spacing: 5) {
+        if let category {
+          Image(systemName: category.systemImage)
+        }
+        Text(label)
+      }
+      .padding(.horizontal, 10)
+      .padding(.vertical, 5)
+      .background(
+        selectedCategory == category
+          ? Color.accentColor.opacity(0.18)
+          : Color.secondary.opacity(0.08)
+      )
+      .clipShape(Capsule())
+    }
+    .buttonStyle(.plain)
+  }
+}
+
+private struct ActionPresetLibraryRow: View {
+  let preset: ActionPreset
+  let isFavorite: Bool
+  let onSelect: () -> Void
+  let onToggleFavorite: () -> Void
+  let onDelete: (() -> Void)?
+
+  var body: some View {
+    HStack(spacing: 12) {
+      Image(systemName: preset.category.systemImage)
+        .font(.title3)
+        .frame(width: 28)
+        .foregroundStyle(.secondary)
+
+      Button(action: onSelect) {
+        VStack(alignment: .leading, spacing: 3) {
+          Text(preset.name)
+            .foregroundStyle(.primary)
+          HStack(spacing: 8) {
+            Text(preset.category.label)
+            if let hint = preset.scopeHint.label {
+              Text("·")
+              Text(hint)
+            }
+          }
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          if !preset.summary.isEmpty {
+            Text(preset.summary)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .lineLimit(2)
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+
+      Button(action: onToggleFavorite) {
+        Image(systemName: isFavorite ? "star.fill" : "star")
+          .foregroundStyle(isFavorite ? .yellow : .secondary)
+      }
+      .buttonStyle(.borderless)
+      .help(
+        isFavorite
+          ? String(localized: "Remove from Favorites")
+          : String(localized: "Add to Favorites")
+      )
+
+      if let onDelete {
+        Button(role: .destructive, action: onDelete) {
+          Image(systemName: "trash")
+        }
+        .buttonStyle(.borderless)
+        .help(String(localized: "Delete Preset"))
+      }
+    }
+    .padding(.vertical, 4)
+  }
+}
+
+private struct SaveActionPresetSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let action: GestureAction
+  @ObservedObject var model: AppModel
+  @State private var name = ""
+  @State private var category: ActionPresetCategory = .editing
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text(String(localized: "Save Action Preset"))
+        .font(.title2)
+      TextField(String(localized: "Preset Name"), text: $name)
+      Picker(String(localized: "Category"), selection: $category) {
+        ForEach(ActionPresetCategory.allCases, id: \.self) {
+          Label($0.label, systemImage: $0.systemImage).tag($0)
+        }
+      }
+      HStack {
+        Spacer()
+        Button(String(localized: "Cancel")) {
+          dismiss()
+        }
+        Button(String(localized: "Save")) {
+          guard
+            model.createCustomActionPreset(
+              name: name,
+              category: category,
+              action: action
+            ) != nil
+          else {
+            return
+          }
+          dismiss()
+        }
+        .keyboardShortcut(.defaultAction)
+        .disabled(
+          name.trimmingCharacters(
+            in: .whitespacesAndNewlines
+          ).isEmpty || !action.isValid
+        )
+      }
+    }
+    .padding(20)
+    .frame(width: 420)
+  }
+}
+
+private struct CustomWindowActionEditor: View {
+  @Binding var frame: NormalizedWindowFrame
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      GeometryReader { proxy in
+        ZStack(alignment: .topLeading) {
+          RoundedRectangle(cornerRadius: 8)
+            .fill(.secondary.opacity(0.12))
+          RoundedRectangle(cornerRadius: 5)
+            .fill(Color.accentColor.opacity(0.65))
+            .frame(
+              width: proxy.size.width * previewWidth,
+              height: proxy.size.height * previewHeight
+            )
+            .offset(
+              x: proxy.size.width * previewX,
+              y: proxy.size.height * previewY
+            )
+        }
+      }
+      .frame(height: 130)
+
+      Grid(alignment: .leading, horizontalSpacing: 16) {
+        GridRow {
+          percentageStepper(
+            String(localized: "Horizontal Position"),
+            value: $frame.x
+          )
+          percentageStepper(
+            String(localized: "Vertical Position"),
+            value: $frame.y
+          )
+        }
+        GridRow {
+          percentageStepper(
+            String(localized: "Width"),
+            value: $frame.width
+          )
+          percentageStepper(
+            String(localized: "Height"),
+            value: $frame.height
+          )
+        }
+      }
+
+      if !frame.isValid {
+        Label(
+          String(
+            localized:
+              "The window rectangle must stay within the visible screen."
+          ),
+          systemImage: "exclamationmark.triangle"
+        )
+        .font(.caption)
+        .foregroundStyle(.orange)
+      }
+    }
+  }
+
+  private var previewX: Double {
+    max(0, min(1, frame.x))
+  }
+
+  private var previewY: Double {
+    max(0, min(1, frame.y))
+  }
+
+  private var previewWidth: Double {
+    max(0.02, min(1 - previewX, frame.width))
+  }
+
+  private var previewHeight: Double {
+    max(0.02, min(1 - previewY, frame.height))
+  }
+
+  private func percentageStepper(
+    _ title: String,
+    value: Binding<Double>
+  ) -> some View {
+    Stepper(
+      value: value,
+      in: 0...1,
+      step: 0.05
+    ) {
+      Text("\(title): \(Int(value.wrappedValue * 100))%")
+        .font(.caption)
+    }
+  }
+}
+
+private struct ApplicationMenuActionEditor: View {
+  @Binding var menuAction: ApplicationMenuAction
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      TextField(
+        String(localized: "File > Export > PDF"),
+        text: menuPath
+      )
+      Text(
+        String(
+          localized:
+            "Enter menu titles from the menu bar to the command, separated by >."
+        )
+      )
+      .font(.caption)
+      .foregroundStyle(.secondary)
+    }
+  }
+
+  private var menuPath: Binding<String> {
+    Binding(
+      get: {
+        menuAction.path.joined(separator: " > ")
+      },
+      set: {
+        menuAction.path = $0.split(whereSeparator: {
+          $0 == ">" || $0 == "›"
+        }).map {
+          String($0).trimmingCharacters(
+            in: .whitespacesAndNewlines
+          )
+        }.filter { !$0.isEmpty }
+      }
     )
   }
 }
@@ -2416,5 +3122,58 @@ struct ScriptActionEditor: View {
         script.isConfirmed = false
       }
     )
+  }
+}
+
+extension ActionPresetCategory {
+  fileprivate var label: String {
+    switch self {
+    case .window:
+      String(localized: "Window")
+    case .browser:
+      String(localized: "Browser")
+    case .finder:
+      String(localized: "Finder")
+    case .appDesktop:
+      String(localized: "Apps and Desktop")
+    case .editing:
+      String(localized: "Editing and Input")
+    case .mediaSystem:
+      String(localized: "Media and System")
+    case .automation:
+      String(localized: "Automation")
+    }
+  }
+
+  fileprivate var systemImage: String {
+    switch self {
+    case .window:
+      "macwindow"
+    case .browser:
+      "globe"
+    case .finder:
+      "folder"
+    case .appDesktop:
+      "square.grid.2x2"
+    case .editing:
+      "text.cursor"
+    case .mediaSystem:
+      "play.circle"
+    case .automation:
+      "gearshape.2"
+    }
+  }
+}
+
+extension ActionPresetScopeHint {
+  fileprivate var label: String? {
+    switch self {
+    case .allApplications:
+      nil
+    case .browsers:
+      String(localized: "Recommended for browser groups")
+    case .finder:
+      String(localized: "Recommended for Finder")
+    }
   }
 }

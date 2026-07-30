@@ -79,6 +79,9 @@ final class AppModel: ObservableObject {
   @Published private(set) var userScriptLibrary: [ScriptLibraryItem] = []
   @Published private(set) var scriptLibraryError: String?
   @Published private(set) var isLoadingScriptLibrary = true
+  @Published private(set) var customActionPresets: [ActionPreset] = []
+  @Published private(set) var favoriteActionPresetIDs: Set<String> = []
+  @Published private(set) var recentActionPresetIDs: [String] = []
   @Published private(set) var loginItemState: LoginItemState
   @Published private(set) var loginItemError: String?
   @Published private(set) var isTransferringMappings = false
@@ -161,6 +164,11 @@ final class AppModel: ObservableObject {
     )
     self.diagnosticsBuffer = diagnosticsBuffer
     self.recentDiagnostics = preferencesStore.diagnosticRecords
+    self.customActionPresets = preferencesStore.customActionPresets
+    self.favoriteActionPresetIDs =
+      preferencesStore.favoriteActionPresetIDs
+    self.recentActionPresetIDs =
+      preferencesStore.recentActionPresetIDs
     let manifestURL =
       (Bundle.main.object(
         forInfoDictionaryKey: "IGesturesUpdateManifestURL"
@@ -1093,6 +1101,72 @@ final class AppModel: ObservableObject {
       library.create(preset.draft, id: preset.id)
     }
     apply(library.database)
+  }
+
+  var allActionPresets: [ActionPreset] {
+    ActionPresetLibrary.builtIn + customActionPresets
+  }
+
+  @discardableResult
+  func createCustomActionPreset(
+    name: String,
+    category: ActionPresetCategory,
+    action: GestureAction
+  ) -> String? {
+    let normalizedName = name.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+    let preset = ActionPreset(
+      id: "user.\(UUID().uuidString.lowercased())",
+      name: normalizedName,
+      category: category,
+      action: action,
+      keywords: ["custom"],
+      isUserDefined: true
+    )
+    guard preset.isValid, customActionPresets.count < 100 else {
+      return nil
+    }
+    customActionPresets.append(preset)
+    preferencesStore.setCustomActionPresets(customActionPresets)
+    return preset.id
+  }
+
+  func deleteCustomActionPreset(id: String) {
+    let previousCount = customActionPresets.count
+    customActionPresets.removeAll { $0.id == id }
+    guard customActionPresets.count != previousCount else { return }
+    favoriteActionPresetIDs.remove(id)
+    recentActionPresetIDs.removeAll { $0 == id }
+    preferencesStore.setCustomActionPresets(customActionPresets)
+    preferencesStore.setFavoriteActionPresetIDs(
+      favoriteActionPresetIDs
+    )
+    preferencesStore.setRecentActionPresetIDs(
+      recentActionPresetIDs
+    )
+  }
+
+  func toggleFavoriteActionPreset(id: String) {
+    if favoriteActionPresetIDs.contains(id) {
+      favoriteActionPresetIDs.remove(id)
+    } else {
+      favoriteActionPresetIDs.insert(id)
+    }
+    preferencesStore.setFavoriteActionPresetIDs(
+      favoriteActionPresetIDs
+    )
+  }
+
+  func recordActionPresetUse(id: String) {
+    recentActionPresetIDs.removeAll { $0 == id }
+    recentActionPresetIDs.insert(id, at: 0)
+    recentActionPresetIDs = Array(
+      recentActionPresetIDs.prefix(12)
+    )
+    preferencesStore.setRecentActionPresetIDs(
+      recentActionPresetIDs
+    )
   }
 
   @discardableResult

@@ -449,12 +449,20 @@ public actor MappingStore {
       "keyboardShortcut"
     case .openURL:
       "openURL"
+    case .openPath:
+      "openPath"
     case .launchApplication:
       "launchApplication"
     case .system:
       "system"
     case .window:
       "window"
+    case .customWindow:
+      "customWindow"
+    case .typeText:
+      "typeText"
+    case .applicationMenu:
+      "applicationMenu"
     case .appleShortcut:
       "appleShortcut"
     case .sequence:

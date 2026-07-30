@@ -25,17 +25,94 @@ public enum SystemGestureAction: String, Codable, CaseIterable, Sendable {
   case brightnessUp
   case brightnessDown
   case appSwitcher
+  case spotlight
+  case launchpad
+  case previousSpace
+  case nextSpace
+  case screenshotFullScreen
+  case screenshotSelection
+  case screenshotToolbar
+  case playPause
+  case previousTrack
+  case nextTrack
+  case emojiPicker
+  case forceQuit
 }
 
 public enum WindowGestureAction: String, Codable, CaseIterable, Sendable {
   case leftHalf
   case rightHalf
+  case topHalf
+  case bottomHalf
   case topLeftQuarter
   case topRightQuarter
   case bottomLeftQuarter
   case bottomRightQuarter
+  case leftThird
+  case centerThird
+  case rightThird
+  case leftTwoThirds
+  case rightTwoThirds
   case center
   case maximize
+  case maximizeHeight
+  case maximizeWidth
+  case close
+  case minimize
+  case toggleFullScreen
+  case previousDisplay
+  case nextDisplay
+  case restorePreviousFrame
+}
+
+public struct NormalizedWindowFrame: Codable, Hashable, Sendable {
+  public var x: Double
+  public var y: Double
+  public var width: Double
+  public var height: Double
+
+  public init(
+    x: Double = 0.1,
+    y: Double = 0.1,
+    width: Double = 0.8,
+    height: Double = 0.8
+  ) {
+    self.x = x
+    self.y = y
+    self.width = width
+    self.height = height
+  }
+
+  public var isValid: Bool {
+    [x, y, width, height].allSatisfy(\.isFinite)
+      && (0...1).contains(x)
+      && (0...1).contains(y)
+      && width > 0
+      && height > 0
+      && x + width <= 1.000_001
+      && y + height <= 1.000_001
+  }
+}
+
+public struct ApplicationMenuAction: Codable, Hashable, Sendable {
+  public var path: [String]
+
+  public init(path: [String]) {
+    self.path = path
+  }
+
+  public var normalizedPath: [String] {
+    path.map {
+      $0.trimmingCharacters(in: .whitespacesAndNewlines)
+    }.filter { !$0.isEmpty }
+  }
+
+  public var isValid: Bool {
+    let normalizedPath = normalizedPath
+    return !normalizedPath.isEmpty
+      && normalizedPath.count <= 8
+      && normalizedPath.allSatisfy { $0.utf8.count <= 120 }
+  }
 }
 
 public enum AutomationScriptKind: String, Codable, CaseIterable, Sendable {
@@ -139,9 +216,13 @@ public struct GestureActionSequence: Codable, Hashable, Sendable {
 public indirect enum GestureAction: Codable, Hashable, Sendable {
   case keyboardShortcut(KeyboardShortcut)
   case openURL(String)
+  case openPath(String)
   case launchApplication(bundleIdentifier: String)
   case system(SystemGestureAction)
   case window(WindowGestureAction)
+  case customWindow(NormalizedWindowFrame)
+  case typeText(String)
+  case applicationMenu(ApplicationMenuAction)
   case appleShortcut(name: String)
   case sequence(GestureActionSequence)
   case script(AutomationScript)
@@ -150,9 +231,13 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
     case type
     case shortcut
     case url
+    case path
     case bundleIdentifier
     case systemAction
     case windowAction
+    case windowFrame
+    case text
+    case menuAction
     case name
     case sequence
     case script
@@ -161,9 +246,13 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
   private enum ActionType: String, Codable {
     case keyboardShortcut
     case openURL
+    case openPath
     case launchApplication
     case system
     case window
+    case customWindow
+    case typeText
+    case applicationMenu
     case appleShortcut
     case sequence
     case script
@@ -182,6 +271,10 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
     case .openURL:
       self = .openURL(
         try container.decode(String.self, forKey: .url)
+      )
+    case .openPath:
+      self = .openPath(
+        try container.decode(String.self, forKey: .path)
       )
     case .launchApplication:
       self = .launchApplication(
@@ -202,6 +295,24 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
         try container.decode(
           WindowGestureAction.self,
           forKey: .windowAction
+        )
+      )
+    case .customWindow:
+      self = .customWindow(
+        try container.decode(
+          NormalizedWindowFrame.self,
+          forKey: .windowFrame
+        )
+      )
+    case .typeText:
+      self = .typeText(
+        try container.decode(String.self, forKey: .text)
+      )
+    case .applicationMenu:
+      self = .applicationMenu(
+        try container.decode(
+          ApplicationMenuAction.self,
+          forKey: .menuAction
         )
       )
     case .appleShortcut:
@@ -237,6 +348,9 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
     case .openURL(let url):
       try container.encode(ActionType.openURL, forKey: .type)
       try container.encode(url, forKey: .url)
+    case .openPath(let path):
+      try container.encode(ActionType.openPath, forKey: .type)
+      try container.encode(path, forKey: .path)
     case .launchApplication(let bundleIdentifier):
       try container.encode(
         ActionType.launchApplication,
@@ -252,6 +366,18 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
     case .window(let action):
       try container.encode(ActionType.window, forKey: .type)
       try container.encode(action, forKey: .windowAction)
+    case .customWindow(let frame):
+      try container.encode(ActionType.customWindow, forKey: .type)
+      try container.encode(frame, forKey: .windowFrame)
+    case .typeText(let text):
+      try container.encode(ActionType.typeText, forKey: .type)
+      try container.encode(text, forKey: .text)
+    case .applicationMenu(let menuAction):
+      try container.encode(
+        ActionType.applicationMenu,
+        forKey: .type
+      )
+      try container.encode(menuAction, forKey: .menuAction)
     case .appleShortcut(let name):
       try container.encode(
         ActionType.appleShortcut,
@@ -297,12 +423,26 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
         return false
       }
       return true
+    case .openPath(let value):
+      let normalized = value.trimmingCharacters(
+        in: .whitespacesAndNewlines
+      )
+      return normalized.utf8.count <= 4_096
+        && (normalized.hasPrefix("/")
+          || normalized == "~"
+          || normalized.hasPrefix("~/"))
     case .launchApplication(let bundleIdentifier):
       return !bundleIdentifier.trimmingCharacters(
         in: .whitespacesAndNewlines
       ).isEmpty
     case .system, .window:
       return true
+    case .customWindow(let frame):
+      return frame.isValid
+    case .typeText(let text):
+      return !text.isEmpty && text.utf8.count <= 16 * 1_024
+    case .applicationMenu(let menuAction):
+      return menuAction.isValid
     case .appleShortcut(let name):
       return !name.trimmingCharacters(
         in: .whitespacesAndNewlines
@@ -356,8 +496,9 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
         + sequenceFallbackScripts(sequence.failurePolicy)
     case .script(let script):
       return [script]
-    case .keyboardShortcut, .openURL, .launchApplication, .system,
-      .window, .appleShortcut:
+    case .keyboardShortcut, .openURL, .openPath, .launchApplication,
+      .system, .window, .customWindow, .typeText, .applicationMenu,
+      .appleShortcut:
       return []
     }
   }
@@ -380,8 +521,9 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
         )
       }
       return .sequence(sequence)
-    case .keyboardShortcut, .openURL, .launchApplication, .system,
-      .window, .appleShortcut:
+    case .keyboardShortcut, .openURL, .openPath, .launchApplication,
+      .system, .window, .customWindow, .typeText, .applicationMenu,
+      .appleShortcut:
       return self
     }
   }

@@ -160,6 +160,16 @@ public struct SystemGestureActionExecutor: ActionExecuting {
       return NSWorkspace.shared.open(url)
         ? .succeeded
         : .failed(.launchFailed)
+    case .openPath(let value):
+      guard action.isValid else {
+        return .failed(.invalidAction)
+      }
+      let path = NSString(string: value).expandingTildeInPath
+      return NSWorkspace.shared.open(
+        URL(fileURLWithPath: path)
+      )
+        ? .succeeded
+        : .failed(.launchFailed)
     case .launchApplication(let bundleIdentifier):
       guard action.isValid else {
         return .failed(.invalidAction)
@@ -172,6 +182,26 @@ public struct SystemGestureActionExecutor: ActionExecuting {
     case .window(let action):
       return await MainActor.run {
         WindowGestureActionExecutor.execute(action)
+      }
+    case .customWindow(let frame):
+      return await MainActor.run {
+        WindowGestureActionExecutor.execute(frame)
+      }
+    case .typeText(let text):
+      guard action.isValid else {
+        return .failed(.invalidAction)
+      }
+      return await MainActor.run {
+        SyntheticTextInputExecutor.execute(text)
+      }
+        ? .succeeded
+        : .failed(.launchFailed)
+    case .applicationMenu(let menuAction):
+      guard action.isValid else {
+        return .failed(.invalidAction)
+      }
+      return await MainActor.run {
+        ApplicationMenuActionExecutor.execute(menuAction)
       }
     case .appleShortcut(let name):
       guard action.isValid else {
@@ -230,6 +260,7 @@ public struct SystemGestureActionExecutor: ActionExecuting {
     for action: SystemGestureAction
   ) -> KeyboardShortcut? {
     let command = CGEventFlags.maskCommand.rawValue
+    let shift = CGEventFlags.maskShift.rawValue
     let control = CGEventFlags.maskControl.rawValue
     let function = CGEventFlags.maskSecondaryFn.rawValue
 
@@ -255,7 +286,53 @@ public struct SystemGestureActionExecutor: ActionExecuting {
       return KeyboardShortcut(keyCode: 122, modifiers: function)
     case .appSwitcher:
       return KeyboardShortcut(keyCode: 48, modifiers: command)
-    case .sleep:
+    case .spotlight:
+      return KeyboardShortcut(keyCode: 49, modifiers: command)
+    case .previousSpace:
+      return KeyboardShortcut(keyCode: 123, modifiers: control)
+    case .nextSpace:
+      return KeyboardShortcut(keyCode: 124, modifiers: control)
+    case .screenshotFullScreen:
+      return KeyboardShortcut(
+        keyCode: 20,
+        modifiers: shift | command
+      )
+    case .screenshotSelection:
+      return KeyboardShortcut(
+        keyCode: 21,
+        modifiers: shift | command
+      )
+    case .screenshotToolbar:
+      return KeyboardShortcut(
+        keyCode: 23,
+        modifiers: shift | command
+      )
+    case .emojiPicker:
+      return KeyboardShortcut(
+        keyCode: 49,
+        modifiers: control | command
+      )
+    case .forceQuit:
+      return KeyboardShortcut(
+        keyCode: 53,
+        modifiers: CGEventFlags.maskAlternate.rawValue | command
+      )
+    case .sleep, .launchpad, .playPause, .previousTrack, .nextTrack:
+      return nil
+    }
+  }
+
+  public static func mediaKeyType(
+    for action: SystemGestureAction
+  ) -> Int32? {
+    switch action {
+    case .playPause:
+      return 16
+    case .nextTrack:
+      return 17
+    case .previousTrack:
+      return 18
+    default:
       return nil
     }
   }
@@ -294,10 +371,27 @@ public struct SystemGestureActionExecutor: ActionExecuting {
         ? .succeeded
         : .failed(.launchFailed)
     }
-    return await runProcess(
-      executableURL: URL(fileURLWithPath: "/usr/bin/pmset"),
-      arguments: ["sleepnow"]
-    )
+    if let keyType = Self.mediaKeyType(for: action) {
+      return await MainActor.run {
+        SystemMediaKeyExecutor.execute(keyType)
+      }
+        ? .succeeded
+        : .failed(.launchFailed)
+    }
+    switch action {
+    case .launchpad:
+      return await runProcess(
+        executableURL: URL(fileURLWithPath: "/usr/bin/open"),
+        arguments: ["-b", "com.apple.launchpad.launcher"]
+      )
+    case .sleep:
+      return await runProcess(
+        executableURL: URL(fileURLWithPath: "/usr/bin/pmset"),
+        arguments: ["sleepnow"]
+      )
+    default:
+      return .failed(.invalidAction)
+    }
   }
 
   private func runProcess(
@@ -417,6 +511,20 @@ public enum WindowLayoutCalculator {
         width: halfWidth,
         height: visibleFrame.height
       )
+    case .topHalf:
+      return CGRect(
+        x: visibleFrame.minX,
+        y: visibleFrame.minY,
+        width: visibleFrame.width,
+        height: halfHeight
+      )
+    case .bottomHalf:
+      return CGRect(
+        x: visibleFrame.minX,
+        y: visibleFrame.midY,
+        width: visibleFrame.width,
+        height: halfHeight
+      )
     case .topLeftQuarter:
       return CGRect(
         x: visibleFrame.minX,
@@ -445,6 +553,41 @@ public enum WindowLayoutCalculator {
         width: halfWidth,
         height: halfHeight
       )
+    case .leftThird:
+      return CGRect(
+        x: visibleFrame.minX,
+        y: visibleFrame.minY,
+        width: visibleFrame.width / 3,
+        height: visibleFrame.height
+      )
+    case .centerThird:
+      return CGRect(
+        x: visibleFrame.minX + visibleFrame.width / 3,
+        y: visibleFrame.minY,
+        width: visibleFrame.width / 3,
+        height: visibleFrame.height
+      )
+    case .rightThird:
+      return CGRect(
+        x: visibleFrame.minX + visibleFrame.width * 2 / 3,
+        y: visibleFrame.minY,
+        width: visibleFrame.width / 3,
+        height: visibleFrame.height
+      )
+    case .leftTwoThirds:
+      return CGRect(
+        x: visibleFrame.minX,
+        y: visibleFrame.minY,
+        width: visibleFrame.width * 2 / 3,
+        height: visibleFrame.height
+      )
+    case .rightTwoThirds:
+      return CGRect(
+        x: visibleFrame.minX + visibleFrame.width / 3,
+        y: visibleFrame.minY,
+        width: visibleFrame.width * 2 / 3,
+        height: visibleFrame.height
+      )
     case .center:
       let width = min(currentFrame.width, visibleFrame.width)
       let height = min(currentFrame.height, visibleFrame.height)
@@ -456,20 +599,201 @@ public enum WindowLayoutCalculator {
       )
     case .maximize:
       return visibleFrame
+    case .maximizeHeight:
+      return CGRect(
+        x: max(
+          visibleFrame.minX,
+          min(currentFrame.minX, visibleFrame.maxX - currentFrame.width)
+        ),
+        y: visibleFrame.minY,
+        width: min(currentFrame.width, visibleFrame.width),
+        height: visibleFrame.height
+      )
+    case .maximizeWidth:
+      return CGRect(
+        x: visibleFrame.minX,
+        y: max(
+          visibleFrame.minY,
+          min(currentFrame.minY, visibleFrame.maxY - currentFrame.height)
+        ),
+        width: visibleFrame.width,
+        height: min(currentFrame.height, visibleFrame.height)
+      )
+    case .close, .minimize, .toggleFullScreen, .previousDisplay,
+      .nextDisplay, .restorePreviousFrame:
+      return currentFrame
     }
+  }
+
+  public static func targetFrame(
+    for frame: NormalizedWindowFrame,
+    visibleFrame: CGRect
+  ) -> CGRect {
+    guard frame.isValid else { return visibleFrame }
+    return CGRect(
+      x: visibleFrame.minX + visibleFrame.width * frame.x,
+      y: visibleFrame.minY + visibleFrame.height * frame.y,
+      width: visibleFrame.width * frame.width,
+      height: visibleFrame.height * frame.height
+    )
+  }
+
+  public static func targetFrameOnAdjacentDisplay(
+    currentFrame: CGRect,
+    currentVisibleFrame: CGRect,
+    targetVisibleFrame: CGRect
+  ) -> CGRect {
+    let widthRatio =
+      currentVisibleFrame.width > 0
+      ? currentFrame.width / currentVisibleFrame.width
+      : 1
+    let heightRatio =
+      currentVisibleFrame.height > 0
+      ? currentFrame.height / currentVisibleFrame.height
+      : 1
+    let xRatio =
+      currentVisibleFrame.width > currentFrame.width
+      ? (currentFrame.minX - currentVisibleFrame.minX)
+        / (currentVisibleFrame.width - currentFrame.width)
+      : 0
+    let yRatio =
+      currentVisibleFrame.height > currentFrame.height
+      ? (currentFrame.minY - currentVisibleFrame.minY)
+        / (currentVisibleFrame.height - currentFrame.height)
+      : 0
+    let width = min(
+      targetVisibleFrame.width,
+      targetVisibleFrame.width * widthRatio
+    )
+    let height = min(
+      targetVisibleFrame.height,
+      targetVisibleFrame.height * heightRatio
+    )
+    return CGRect(
+      x: targetVisibleFrame.minX
+        + max(0, min(1, xRatio)) * (targetVisibleFrame.width - width),
+      y: targetVisibleFrame.minY
+        + max(0, min(1, yRatio)) * (targetVisibleFrame.height - height),
+      width: width,
+      height: height
+    )
   }
 }
 
 @MainActor
 private enum WindowGestureActionExecutor {
+  private struct WindowKey: Hashable {
+    let processIdentifier: pid_t
+    let elementHash: CFHashCode
+  }
+
+  private struct Context {
+    let window: AXUIElement
+    let key: WindowKey
+    let currentFrame: CGRect
+    let visibleFrames: [CGRect]
+    let currentDisplayIndex: Int
+  }
+
+  private static var previousFrames: [WindowKey: CGRect] = [:]
+
   static func execute(
     _ action: WindowGestureAction
   ) -> ActionExecutionResult {
+    guard let context = context() else {
+      return .failed(.targetNotFound)
+    }
+
+    switch action {
+    case .close:
+      return performClose(on: context.window)
+    case .minimize:
+      return setBooleanAttribute(
+        kAXMinimizedAttribute,
+        value: true,
+        on: context.window
+      )
+    case .toggleFullScreen:
+      return toggleBooleanAttribute(
+        "AXFullScreen",
+        on: context.window
+      )
+    case .previousDisplay, .nextDisplay:
+      guard context.visibleFrames.count > 1 else {
+        return .failed(.targetNotFound)
+      }
+      let offset = action == .nextDisplay ? 1 : -1
+      let targetIndex =
+        (context.currentDisplayIndex + offset
+          + context.visibleFrames.count) % context.visibleFrames.count
+      let targetFrame =
+        WindowLayoutCalculator.targetFrameOnAdjacentDisplay(
+          currentFrame: context.currentFrame,
+          currentVisibleFrame:
+            context.visibleFrames[context.currentDisplayIndex],
+          targetVisibleFrame: context.visibleFrames[targetIndex]
+        )
+      return setFrame(
+        targetFrame,
+        on: context,
+        rememberCurrentFrame: true
+      )
+    case .restorePreviousFrame:
+      guard let previousFrame = previousFrames[context.key] else {
+        return .failed(.targetNotFound)
+      }
+      let result = setFrame(
+        previousFrame,
+        on: context,
+        rememberCurrentFrame: false
+      )
+      if result == .succeeded {
+        previousFrames[context.key] = context.currentFrame
+      }
+      return result
+    default:
+      let visibleFrame =
+        context.visibleFrames[context.currentDisplayIndex]
+      let targetFrame = WindowLayoutCalculator.targetFrame(
+        for: action,
+        currentFrame: context.currentFrame,
+        visibleFrame: visibleFrame
+      )
+      return setFrame(
+        targetFrame,
+        on: context,
+        rememberCurrentFrame: true
+      )
+    }
+  }
+
+  static func execute(
+    _ frame: NormalizedWindowFrame
+  ) -> ActionExecutionResult {
+    guard frame.isValid else {
+      return .failed(.invalidAction)
+    }
+    guard let context = context() else {
+      return .failed(.targetNotFound)
+    }
+    let targetFrame = WindowLayoutCalculator.targetFrame(
+      for: frame,
+      visibleFrame:
+        context.visibleFrames[context.currentDisplayIndex]
+    )
+    return setFrame(
+      targetFrame,
+      on: context,
+      rememberCurrentFrame: true
+    )
+  }
+
+  private static func context() -> Context? {
     guard
       let application = NSWorkspace.shared.frontmostApplication,
       application.processIdentifier != ProcessInfo.processInfo.processIdentifier
     else {
-      return .failed(.targetNotFound)
+      return nil
     }
 
     let applicationElement = AXUIElementCreateApplication(
@@ -485,7 +809,7 @@ private enum WindowGestureActionExecutor {
       let focusedWindowValue,
       CFGetTypeID(focusedWindowValue) == AXUIElementGetTypeID()
     else {
-      return .failed(.targetNotFound)
+      return nil
     }
     let window = focusedWindowValue as! AXUIElement
     guard
@@ -498,22 +822,38 @@ private enum WindowGestureActionExecutor {
         from: window
       )
     else {
-      return .failed(.targetNotFound)
+      return nil
     }
 
     let currentFrame = CGRect(
       origin: currentPosition,
       size: currentSize
     )
-    guard let visibleFrame = visibleFrame(for: currentFrame) else {
-      return .failed(.targetNotFound)
-    }
-    let targetFrame = WindowLayoutCalculator.targetFrame(
-      for: action,
+    let visibleFrames = visibleFrames()
+    guard !visibleFrames.isEmpty else { return nil }
+    let currentDisplayIndex =
+      visibleFrames.indices.max {
+        intersectionArea(visibleFrames[$0], currentFrame)
+          < intersectionArea(visibleFrames[$1], currentFrame)
+      } ?? 0
+    return Context(
+      window: window,
+      key: WindowKey(
+        processIdentifier: application.processIdentifier,
+        elementHash: CFHash(window)
+      ),
       currentFrame: currentFrame,
-      visibleFrame: visibleFrame
-    ).integral
+      visibleFrames: visibleFrames,
+      currentDisplayIndex: currentDisplayIndex
+    )
+  }
 
+  private static func setFrame(
+    _ frame: CGRect,
+    on context: Context,
+    rememberCurrentFrame: Bool
+  ) -> ActionExecutionResult {
+    let targetFrame = frame.integral
     var targetPosition = targetFrame.origin
     var targetSize = targetFrame.size
     guard
@@ -526,19 +866,87 @@ private enum WindowGestureActionExecutor {
       return .failed(.launchFailed)
     }
     let sizeResult = AXUIElementSetAttributeValue(
-      window,
+      context.window,
       kAXSizeAttribute as CFString,
       sizeValue
     )
     let positionResult = AXUIElementSetAttributeValue(
-      window,
+      context.window,
       kAXPositionAttribute as CFString,
       positionValue
     )
     guard sizeResult == .success, positionResult == .success else {
       return .failed(.launchFailed)
     }
+    if rememberCurrentFrame {
+      previousFrames[context.key] = context.currentFrame
+      if previousFrames.count > 100,
+        let firstKey = previousFrames.keys.first
+      {
+        previousFrames.removeValue(forKey: firstKey)
+      }
+    }
     return .succeeded
+  }
+
+  private static func performClose(
+    on window: AXUIElement
+  ) -> ActionExecutionResult {
+    var closeButtonValue: CFTypeRef?
+    guard
+      AXUIElementCopyAttributeValue(
+        window,
+        kAXCloseButtonAttribute as CFString,
+        &closeButtonValue
+      ) == .success,
+      let closeButtonValue,
+      CFGetTypeID(closeButtonValue) == AXUIElementGetTypeID()
+    else {
+      return .failed(.targetNotFound)
+    }
+    return AXUIElementPerformAction(
+      closeButtonValue as! AXUIElement,
+      kAXPressAction as CFString
+    ) == .success
+      ? .succeeded
+      : .failed(.launchFailed)
+  }
+
+  private static func setBooleanAttribute(
+    _ attribute: String,
+    value: Bool,
+    on window: AXUIElement
+  ) -> ActionExecutionResult {
+    AXUIElementSetAttributeValue(
+      window,
+      attribute as CFString,
+      value ? kCFBooleanTrue : kCFBooleanFalse
+    ) == .success
+      ? .succeeded
+      : .failed(.launchFailed)
+  }
+
+  private static func toggleBooleanAttribute(
+    _ attribute: String,
+    on window: AXUIElement
+  ) -> ActionExecutionResult {
+    var value: CFTypeRef?
+    guard
+      AXUIElementCopyAttributeValue(
+        window,
+        attribute as CFString,
+        &value
+      ) == .success,
+      let value,
+      CFGetTypeID(value) == CFBooleanGetTypeID()
+    else {
+      return .failed(.targetNotFound)
+    }
+    return setBooleanAttribute(
+      attribute,
+      value: !CFBooleanGetValue((value as! CFBoolean)),
+      on: window
+    )
   }
 
   private static func pointAttribute(
@@ -591,11 +999,9 @@ private enum WindowGestureActionExecutor {
     return size
   }
 
-  private static func visibleFrame(
-    for windowFrame: CGRect
-  ) -> CGRect? {
+  private static func visibleFrames() -> [CGRect] {
     let screens = NSScreen.screens
-    guard !screens.isEmpty else { return nil }
+    guard !screens.isEmpty else { return [] }
     let primaryTop =
       screens.first(where: {
         guard
@@ -609,17 +1015,18 @@ private enum WindowGestureActionExecutor {
           == CGMainDisplayID()
       })?.frame.maxY
       ?? screens[0].frame.maxY
-    let visibleFrames = screens.map {
+    return screens.map {
       CGRect(
         x: $0.visibleFrame.minX,
         y: primaryTop - $0.visibleFrame.maxY,
         width: $0.visibleFrame.width,
         height: $0.visibleFrame.height
       )
-    }
-    return visibleFrames.max {
-      intersectionArea($0, windowFrame)
-        < intersectionArea($1, windowFrame)
+    }.sorted {
+      if $0.minX == $1.minX {
+        return $0.minY < $1.minY
+      }
+      return $0.minX < $1.minX
     }
   }
 
@@ -630,6 +1037,184 @@ private enum WindowGestureActionExecutor {
     let intersection = left.intersection(right)
     guard !intersection.isNull else { return 0 }
     return intersection.width * intersection.height
+  }
+}
+
+@MainActor
+private enum SyntheticTextInputExecutor {
+  static func execute(_ text: String) -> Bool {
+    let utf16 = Array(text.utf16)
+    guard !utf16.isEmpty,
+      let source = CGEventSource(stateID: .hidSystemState),
+      let keyDown = CGEvent(
+        keyboardEventSource: source,
+        virtualKey: 0,
+        keyDown: true
+      ),
+      let keyUp = CGEvent(
+        keyboardEventSource: source,
+        virtualKey: 0,
+        keyDown: false
+      )
+    else {
+      return false
+    }
+    utf16.withUnsafeBufferPointer { buffer in
+      guard let address = buffer.baseAddress else { return }
+      keyDown.keyboardSetUnicodeString(
+        stringLength: buffer.count,
+        unicodeString: address
+      )
+      keyUp.keyboardSetUnicodeString(
+        stringLength: buffer.count,
+        unicodeString: address
+      )
+    }
+    for event in [keyDown, keyUp] {
+      event.setIntegerValueField(
+        .eventSourceUserData,
+        value: EventSourceMarker.syntheticEventUserData
+      )
+      event.post(tap: .cgSessionEventTap)
+    }
+    return true
+  }
+}
+
+@MainActor
+private enum SystemMediaKeyExecutor {
+  static func execute(_ keyType: Int32) -> Bool {
+    for isKeyDown in [true, false] {
+      let keyState = isKeyDown ? 0xA : 0xB
+      guard
+        let event = NSEvent.otherEvent(
+          with: .systemDefined,
+          location: .zero,
+          modifierFlags: [],
+          timestamp: 0,
+          windowNumber: 0,
+          context: nil,
+          subtype: 8,
+          data1: Int((keyType << 16) | (Int32(keyState) << 8)),
+          data2: -1
+        )?.cgEvent
+      else {
+        return false
+      }
+      event.setIntegerValueField(
+        .eventSourceUserData,
+        value: EventSourceMarker.syntheticEventUserData
+      )
+      event.post(tap: .cgSessionEventTap)
+    }
+    return true
+  }
+}
+
+@MainActor
+private enum ApplicationMenuActionExecutor {
+  static func execute(
+    _ action: ApplicationMenuAction
+  ) -> ActionExecutionResult {
+    guard
+      let application = NSWorkspace.shared.frontmostApplication,
+      application.processIdentifier
+        != ProcessInfo.processInfo.processIdentifier
+    else {
+      return .failed(.targetNotFound)
+    }
+    let applicationElement = AXUIElementCreateApplication(
+      application.processIdentifier
+    )
+    var menuBarValue: CFTypeRef?
+    guard
+      AXUIElementCopyAttributeValue(
+        applicationElement,
+        kAXMenuBarAttribute as CFString,
+        &menuBarValue
+      ) == .success,
+      let menuBarValue,
+      CFGetTypeID(menuBarValue) == AXUIElementGetTypeID()
+    else {
+      return .failed(.targetNotFound)
+    }
+
+    var current = menuBarValue as! AXUIElement
+    for (index, title) in action.normalizedPath.enumerated() {
+      guard
+        let item = firstDescendant(
+          titled: title,
+          in: current,
+          maximumDepth: 4
+        )
+      else {
+        return .failed(.targetNotFound)
+      }
+      if index == action.normalizedPath.count - 1 {
+        return AXUIElementPerformAction(
+          item,
+          kAXPressAction as CFString
+        ) == .success
+          ? .succeeded
+          : .failed(.launchFailed)
+      }
+      current = item
+    }
+    return .failed(.targetNotFound)
+  }
+
+  private static func firstDescendant(
+    titled title: String,
+    in element: AXUIElement,
+    maximumDepth: Int
+  ) -> AXUIElement? {
+    guard maximumDepth >= 0 else { return nil }
+    for child in children(of: element) {
+      if elementTitle(of: child) == title {
+        return child
+      }
+      if let match = firstDescendant(
+        titled: title,
+        in: child,
+        maximumDepth: maximumDepth - 1
+      ) {
+        return match
+      }
+    }
+    return nil
+  }
+
+  private static func children(
+    of element: AXUIElement
+  ) -> [AXUIElement] {
+    var value: CFTypeRef?
+    guard
+      AXUIElementCopyAttributeValue(
+        element,
+        kAXChildrenAttribute as CFString,
+        &value
+      ) == .success,
+      let children = value as? [AXUIElement]
+    else {
+      return []
+    }
+    return children
+  }
+
+  private static func elementTitle(
+    of element: AXUIElement
+  ) -> String? {
+    var value: CFTypeRef?
+    guard
+      AXUIElementCopyAttributeValue(
+        element,
+        kAXTitleAttribute as CFString,
+        &value
+      ) == .success
+    else {
+      return nil
+    }
+    return value as? String
   }
 }
 
