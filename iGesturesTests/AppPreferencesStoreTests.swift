@@ -15,6 +15,8 @@ final class AppPreferencesStoreTests: XCTestCase {
 
     XCTAssertTrue(store.recognitionEnabled)
     XCTAssertTrue(store.overlayEnabled)
+    XCTAssertFalse(store.scriptExecutionNoticeAcknowledged)
+    XCTAssertNil(store.trailColor)
     XCTAssertEqual(store.triggerButton, .right)
     XCTAssertEqual(
       store.triggerDuration,
@@ -23,7 +25,7 @@ final class AppPreferencesStoreTests: XCTestCase {
   }
 
   @MainActor
-  func testValuesPersistAcrossStoreInstances() {
+  func testValuesPersistAcrossStoreInstances() throws {
     let (suiteName, userDefaults) = makeUserDefaults()
     defer {
       userDefaults.removePersistentDomain(forName: suiteName)
@@ -31,10 +33,15 @@ final class AppPreferencesStoreTests: XCTestCase {
     let store = AppPreferencesStore(userDefaults: userDefaults)
     store.setRecognitionEnabled(false)
     store.setOverlayEnabled(false)
+    let trailColor = try XCTUnwrap(
+      GestureTrailColor(red: 0.2, green: 0.4, blue: 0.8)
+    )
+    store.setTrailColor(trailColor)
     store.setTriggerButton(
       GestureTriggerButton(buttonNumber: 7)
     )
     store.setTriggerDuration(0.35)
+    store.setScriptExecutionNoticeAcknowledged(true)
     store.setGestureSidebarGroups(["Browser", "  Work  ", "Browser"])
     store.setGestureSidebarApplications([
       "com.apple.Safari",
@@ -45,11 +52,13 @@ final class AppPreferencesStoreTests: XCTestCase {
     let reloaded = AppPreferencesStore(userDefaults: userDefaults)
     XCTAssertFalse(reloaded.recognitionEnabled)
     XCTAssertFalse(reloaded.overlayEnabled)
+    XCTAssertEqual(reloaded.trailColor, trailColor)
     XCTAssertEqual(
       reloaded.triggerButton,
       GestureTriggerButton(buttonNumber: 7)
     )
     XCTAssertEqual(reloaded.triggerDuration, 0.35)
+    XCTAssertTrue(reloaded.scriptExecutionNoticeAcknowledged)
     XCTAssertEqual(reloaded.gestureSidebarGroups, ["Browser", "Work"])
     XCTAssertEqual(
       reloaded.gestureSidebarApplications,
@@ -59,6 +68,22 @@ final class AppPreferencesStoreTests: XCTestCase {
     reloaded.clearGestureSidebarConfiguration()
     XCTAssertTrue(reloaded.gestureSidebarGroups.isEmpty)
     XCTAssertTrue(reloaded.gestureSidebarApplications.isEmpty)
+  }
+
+  @MainActor
+  func testInvalidTrailColorIsIgnored() {
+    let (suiteName, userDefaults) = makeUserDefaults()
+    defer {
+      userDefaults.removePersistentDomain(forName: suiteName)
+    }
+    userDefaults.set(
+      Data(#"{"red":2,"green":0.5,"blue":0.5}"#.utf8),
+      forKey: "general.trail-color"
+    )
+
+    let store = AppPreferencesStore(userDefaults: userDefaults)
+
+    XCTAssertNil(store.trailColor)
   }
 
   @MainActor

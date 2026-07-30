@@ -15,6 +15,14 @@ struct SettingsRootView: View {
           )
         }
 
+      ScriptLibraryView(model: model)
+        .tabItem {
+          Label(
+            String(localized: "Scripts"),
+            systemImage: "books.vertical"
+          )
+        }
+
       GeneralSettingsView(model: model)
         .tabItem {
           Label(
@@ -33,11 +41,50 @@ struct SettingsRootView: View {
 
     }
     .frame(
-      minWidth: 760,
+      minWidth: SettingsWindowConfiguration.minimumContentSize.width,
       idealWidth: 1_100,
-      minHeight: 520,
-      idealHeight: 700
+      maxWidth: .infinity,
+      minHeight: SettingsWindowConfiguration.minimumContentSize.height,
+      idealHeight: 700,
+      maxHeight: .infinity
     )
+    .background(SettingsWindowConfigurator())
+  }
+}
+
+enum SettingsWindowConfiguration {
+  static let minimumContentSize = NSSize(width: 640, height: 480)
+
+  @MainActor
+  static func apply(to window: NSWindow) {
+    window.styleMask.insert(.resizable)
+    window.contentMinSize = minimumContentSize
+    window.contentMaxSize = NSSize(width: 100_000, height: 100_000)
+  }
+}
+
+private struct SettingsWindowConfigurator: NSViewRepresentable {
+  func makeNSView(context: Context) -> SettingsWindowConfigurationView {
+    SettingsWindowConfigurationView()
+  }
+
+  func updateNSView(
+    _ nsView: SettingsWindowConfigurationView,
+    context: Context
+  ) {
+    nsView.configureWindow()
+  }
+}
+
+private final class SettingsWindowConfigurationView: NSView {
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    configureWindow()
+  }
+
+  func configureWindow() {
+    guard let window else { return }
+    SettingsWindowConfiguration.apply(to: window)
   }
 }
 
@@ -63,6 +110,16 @@ private struct GeneralSettingsView: View {
           set: { model.setOverlayEnabled($0) }
         )
       )
+
+      ColorPicker(
+        String(localized: "Gesture Trail Color"),
+        selection: Binding(
+          get: { Color(nsColor: model.trailColor) },
+          set: { model.setTrailColor(NSColor($0)) }
+        ),
+        supportsOpacity: false
+      )
+      .disabled(!model.isOverlayEnabled)
 
       Toggle(
         String(localized: "Show Recognition Feedback"),

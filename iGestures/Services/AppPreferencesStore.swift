@@ -24,12 +24,36 @@ public struct ApplicationExclusionRule:
   }
 }
 
+public struct GestureTrailColor: Codable, Equatable, Sendable {
+  public let red: Double
+  public let green: Double
+  public let blue: Double
+
+  public init?(red: Double, green: Double, blue: Double) {
+    guard
+      Self.isValid(red),
+      Self.isValid(green),
+      Self.isValid(blue)
+    else {
+      return nil
+    }
+    self.red = red
+    self.green = green
+    self.blue = blue
+  }
+
+  private static func isValid(_ component: Double) -> Bool {
+    component.isFinite && (0...1).contains(component)
+  }
+}
+
 @MainActor
 public final class AppPreferencesStore {
   private enum Key {
     static let recognitionEnabled =
       "general.recognition-enabled"
     static let overlayEnabled = "general.overlay-enabled"
+    static let trailColor = "general.trail-color"
     static let triggerButton = "general.trigger-button"
     static let triggerDuration = "general.trigger-duration"
     static let onboardingCompleted = "onboarding.completed"
@@ -45,6 +69,8 @@ public final class AppPreferencesStore {
     static let diagnosticPersistenceEnabled =
       "diagnostics.persistence-enabled"
     static let diagnosticRecords = "diagnostics.records"
+    static let scriptExecutionNoticeAcknowledged =
+      "scripts.execution-notice-acknowledged"
     static let skippedUpdateVersion = "updates.skipped-version"
     static let gestureSidebarGroups = "gestures.sidebar-groups"
     static let gestureSidebarApplications =
@@ -63,6 +89,23 @@ public final class AppPreferencesStore {
 
   public var overlayEnabled: Bool {
     storedBool(forKey: Key.overlayEnabled, defaultValue: true)
+  }
+
+  public var trailColor: GestureTrailColor? {
+    guard
+      let data = userDefaults.data(forKey: Key.trailColor),
+      let storedColor = try? JSONDecoder().decode(
+        GestureTrailColor.self,
+        from: data
+      )
+    else {
+      return nil
+    }
+    return GestureTrailColor(
+      red: storedColor.red,
+      green: storedColor.green,
+      blue: storedColor.blue
+    )
   }
 
   public var triggerButton: GestureTriggerButton {
@@ -189,6 +232,10 @@ public final class AppPreferencesStore {
     userDefaults.string(forKey: Key.skippedUpdateVersion)
   }
 
+  public var scriptExecutionNoticeAcknowledged: Bool {
+    userDefaults.bool(forKey: Key.scriptExecutionNoticeAcknowledged)
+  }
+
   public var gestureSidebarGroups: [String] {
     userDefaults.stringArray(forKey: Key.gestureSidebarGroups) ?? []
   }
@@ -205,6 +252,20 @@ public final class AppPreferencesStore {
 
   public func setOverlayEnabled(_ isEnabled: Bool) {
     userDefaults.set(isEnabled, forKey: Key.overlayEnabled)
+  }
+
+  public func setTrailColor(_ color: GestureTrailColor) {
+    guard
+      let validatedColor = GestureTrailColor(
+        red: color.red,
+        green: color.green,
+        blue: color.blue
+      ),
+      let data = try? JSONEncoder().encode(validatedColor)
+    else {
+      return
+    }
+    userDefaults.set(data, forKey: Key.trailColor)
   }
 
   public func setTriggerButton(_ triggerButton: GestureTriggerButton) {
@@ -301,6 +362,15 @@ public final class AppPreferencesStore {
 
   public func setSkippedUpdateVersion(_ version: String?) {
     userDefaults.set(version, forKey: Key.skippedUpdateVersion)
+  }
+
+  public func setScriptExecutionNoticeAcknowledged(
+    _ acknowledged: Bool
+  ) {
+    userDefaults.set(
+      acknowledged,
+      forKey: Key.scriptExecutionNoticeAcknowledged
+    )
   }
 
   public func setGestureSidebarGroups(_ groups: [String]) {

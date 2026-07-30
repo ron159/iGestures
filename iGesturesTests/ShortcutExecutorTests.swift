@@ -185,6 +185,33 @@ final class ShortcutExecutorTests: XCTestCase {
 
     XCTAssertEqual(result, .failed(.timedOut))
   }
+
+  @MainActor
+  func testConfirmedScriptRequiresFirstExecutionAuthorization() async {
+    var authorizationRequests = 0
+    let executor = SystemGestureActionExecutor(
+      scriptExecutionAuthorizer: { _ in
+        authorizationRequests += 1
+        return false
+      }
+    )
+    let request = ActionRequest(
+      mappingID: UUID(),
+      mappingName: "Rejected Script",
+      action: .script(
+        AutomationScript(
+          kind: .shell,
+          source: "exit 0",
+          isConfirmed: true
+        )
+      )
+    )
+
+    let result = await executor.execute(request)
+
+    XCTAssertEqual(result, .failed(.notConfirmed))
+    XCTAssertEqual(authorizationRequests, 1)
+  }
 }
 
 private struct StubActionExecutor: ActionExecuting {

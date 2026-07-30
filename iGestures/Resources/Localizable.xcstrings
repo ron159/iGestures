@@ -3170,6 +3170,376 @@
           }
         }
       }
+    },
+    "Gesture Trail Color": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势轨迹颜色"
+          }
+        }
+      }
+    },
+    "Scripts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本"
+          }
+        }
+      }
+    },
+    "Script Library": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本库"
+          }
+        }
+      }
+    },
+    "Save scripts you use often, then choose them directly while editing a gesture action.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存常用脚本，然后在编辑手势动作时直接选择。"
+          }
+        }
+      }
+    },
+    "Search Scripts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索脚本"
+          }
+        }
+      }
+    },
+    "New Script": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建脚本"
+          }
+        }
+      }
+    },
+    "Built-In Scripts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内置脚本"
+          }
+        }
+      }
+    },
+    "My Scripts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的脚本"
+          }
+        }
+      }
+    },
+    "No saved scripts yet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未保存任何脚本。"
+          }
+        }
+      }
+    },
+    "No matching scripts.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的脚本。"
+          }
+        }
+      }
+    },
+    "Copy to My Scripts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制到我的脚本"
+          }
+        }
+      }
+    },
+    "Description": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "描述"
+          }
+        }
+      }
+    },
+    "Category": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分类"
+          }
+        }
+      }
+    },
+    "Finder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "访达"
+          }
+        }
+      }
+    },
+    "Choose from Script Library": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从脚本库选择"
+          }
+        }
+      }
+    },
+    "Delete this script?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除此脚本？"
+          }
+        }
+      }
+    },
+    "Script library storage is unavailable.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本库存储不可用。"
+          }
+        }
+      }
+    },
+    "The script library could not be loaded.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载脚本库。"
+          }
+        }
+      }
+    },
+    "Script library changes could not be saved.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存脚本库更改。"
+          }
+        }
+      }
+    },
+    "Toggle Dark Mode": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换深色模式"
+          }
+        }
+      }
+    },
+    "Switch between the light and dark system appearances.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在浅色与深色系统外观之间切换。"
+          }
+        }
+      }
+    },
+    "Start Screen Saver": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动屏幕保护程序"
+          }
+        }
+      }
+    },
+    "Start the macOS screen saver immediately.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即启动 macOS 屏幕保护程序。"
+          }
+        }
+      }
+    },
+    "Toggle Dock Auto-Hide": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换程序坞自动隐藏"
+          }
+        }
+      }
+    },
+    "Toggle Dock auto-hide and restart the Dock to apply it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换程序坞自动隐藏，并重新启动程序坞以应用设置。"
+          }
+        }
+      }
+    },
+    "Toggle Hidden Files": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换隐藏文件显示"
+          }
+        }
+      }
+    },
+    "Show or hide hidden files and restart Finder to apply it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示或隐藏隐藏文件，并重新启动访达以应用设置。"
+          }
+        }
+      }
+    },
+    "Copy Finder Selection Paths": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制访达所选项目路径"
+          }
+        }
+      }
+    },
+    "Copy the full paths of selected Finder items to the clipboard.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将访达所选项目的完整路径复制到剪贴板。"
+          }
+        }
+      }
+    },
+    "Open Terminal at Finder Folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在访达文件夹中打开终端"
+          }
+        }
+      }
+    },
+    "Open Terminal in the front Finder window's folder.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在最前方访达窗口的文件夹中打开终端。"
+          }
+        }
+      }
+    },
+    "Clear Clipboard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清空剪贴板"
+          }
+        }
+      }
+    },
+    "Remove the current text content from the clipboard.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除剪贴板中的当前文本内容。"
+          }
+        }
+      }
+    },
+    "Choosing a library script copies it into this gesture. Later library edits will not change the gesture.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从脚本库选择时会将脚本复制到当前手势；之后编辑脚本库不会改变该手势。"
+          }
+        }
+      }
+    },
+    "Run Automation Scripts?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行自动化脚本？"
+          }
+        }
+      }
+    },
+    "Shell scripts run directly with /bin/zsh; Terminal does not open. AppleScript runs with /usr/bin/osascript and macOS may ask for Automation access to each app it controls. Scripts can modify files and system settings, so only continue with scripts you trust.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shell 脚本由 /bin/zsh 直接运行，不会打开“终端”。AppleScript 由 /usr/bin/osascript 运行，macOS 可能会针对它控制的每个应用请求“自动化”权限。脚本能够修改文件和系统设置，请仅运行您信任的脚本。"
+          }
+        }
+      }
+    },
+    "Shell scripts run directly without opening Terminal. AppleScript may request Automation access the first time it controls another app.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shell 脚本会直接运行，不会打开“终端”。AppleScript 首次控制其他应用时可能会请求“自动化”权限。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

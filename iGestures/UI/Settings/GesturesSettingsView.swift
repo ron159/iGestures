@@ -23,10 +23,14 @@ struct GesturesSettingsView: View {
   var body: some View {
     HSplitView {
       targetSidebar
-        .frame(minWidth: 180, idealWidth: 235, maxWidth: 300)
+        .frame(minWidth: 160, idealWidth: 225, maxWidth: 320)
 
       gestureWorkspace
-        .frame(minWidth: 540)
+        .frame(
+          minWidth: 0,
+          maxWidth: .infinity,
+          maxHeight: .infinity
+        )
     }
     .sheet(isPresented: $isPresentingRecorder) {
       GestureRecorderSheet(
@@ -364,13 +368,30 @@ struct GesturesSettingsView: View {
   }
 
   private var workspaceHeader: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 12) {
+        workspaceTitle
+        Spacer()
+        workspaceActions
+      }
+
+      VStack(alignment: .leading, spacing: 12) {
+        workspaceTitle
+        workspaceActions
+      }
+    }
+    .padding(16)
+  }
+
+  private var workspaceTitle: some View {
+    Label(targetTitle, systemImage: targetSystemImage)
+      .font(.title2)
+      .fontWeight(.semibold)
+      .lineLimit(1)
+  }
+
+  private var workspaceActions: some View {
     HStack(spacing: 12) {
-      Label(targetTitle, systemImage: targetSystemImage)
-        .font(.title2)
-        .fontWeight(.semibold)
-
-      Spacer()
-
       Button {
         isPresentingPresets = true
       } label: {
@@ -392,7 +413,6 @@ struct GesturesSettingsView: View {
       .buttonStyle(.borderedProminent)
       .disabled(model.isLoadingMappings)
     }
-    .padding(16)
   }
 
   private var gestureList: some View {
@@ -447,7 +467,7 @@ struct GesturesSettingsView: View {
             isPresentingRecorder = true
           }
         }
-        .frame(maxWidth: .infinity, minHeight: 205)
+        .frame(maxWidth: .infinity, minHeight: 150)
       } else {
         List(selection: $selectedMappingID) {
           ForEach(filteredMappings, id: \.mapping.id) { item in
@@ -456,7 +476,7 @@ struct GesturesSettingsView: View {
           }
         }
         .listStyle(.inset)
-        .frame(minHeight: 205, idealHeight: 245, maxHeight: 285)
+        .frame(minHeight: 150, idealHeight: 220, maxHeight: 285)
       }
     }
   }
@@ -1843,7 +1863,7 @@ struct GestureActionEditor: View {
       case .sequence:
         SequenceActionEditor(sequence: sequence, model: model)
       case .script:
-        ScriptActionEditor(script: script)
+        ScriptActionEditor(script: script, model: model)
       }
     }
   }
@@ -2102,19 +2122,55 @@ private struct SequenceActionEditor: View {
   }
 }
 
-private struct ScriptActionEditor: View {
+struct ScriptActionEditor: View {
   @Binding var script: AutomationScript
+  @ObservedObject var model: AppModel
+  var showsLibraryPicker = true
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Picker(String(localized: "Script Type"), selection: $script.kind) {
+      if showsLibraryPicker {
+        Menu {
+          Section(String(localized: "Built-In Scripts")) {
+            ForEach(BuiltInScriptLibrary.items) { item in
+              Button(item.name) {
+                script = item.script
+              }
+            }
+          }
+          if !model.userScriptLibrary.isEmpty {
+            Section(String(localized: "My Scripts")) {
+              ForEach(model.userScriptLibrary) { item in
+                Button(item.name) {
+                  script = item.script
+                }
+              }
+            }
+          }
+        } label: {
+          Label(
+            String(localized: "Choose from Script Library"),
+            systemImage: "books.vertical"
+          )
+        }
+        Text(
+          String(
+            localized:
+              "Choosing a library script copies it into this gesture. Later library edits will not change the gesture."
+          )
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      }
+
+      Picker(String(localized: "Script Type"), selection: scriptKind) {
         Text(String(localized: "AppleScript"))
           .tag(AutomationScriptKind.appleScript)
         Text(String(localized: "Shell"))
           .tag(AutomationScriptKind.shell)
       }
 
-      TextEditor(text: $script.source)
+      TextEditor(text: scriptSource)
         .font(.system(.body, design: .monospaced))
         .frame(height: 120)
         .border(.secondary.opacity(0.3))
@@ -2143,5 +2199,27 @@ private struct ScriptActionEditor: View {
         script.isConfirmed ? Color.primary : Color.orange
       )
     }
+  }
+
+  private var scriptKind: Binding<AutomationScriptKind> {
+    Binding(
+      get: { script.kind },
+      set: {
+        guard script.kind != $0 else { return }
+        script.kind = $0
+        script.isConfirmed = false
+      }
+    )
+  }
+
+  private var scriptSource: Binding<String> {
+    Binding(
+      get: { script.source },
+      set: {
+        guard script.source != $0 else { return }
+        script.source = $0
+        script.isConfirmed = false
+      }
+    )
   }
 }

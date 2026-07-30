@@ -106,13 +106,20 @@ public protocol ActionExecuting: Sendable {
   func execute(_ request: ActionRequest) async -> ActionExecutionResult
 }
 
+public typealias ScriptExecutionAuthorizer =
+  @MainActor @Sendable (AutomationScript) -> Bool
+
 public struct SystemGestureActionExecutor: ActionExecuting {
   private let shortcutExecutor: any ShortcutExecuting
+  private let scriptExecutionAuthorizer: ScriptExecutionAuthorizer
 
   public init(
-    shortcutExecutor: any ShortcutExecuting = SystemShortcutExecutor()
+    shortcutExecutor: any ShortcutExecuting = SystemShortcutExecutor(),
+    scriptExecutionAuthorizer:
+      @escaping ScriptExecutionAuthorizer = { _ in true }
   ) {
     self.shortcutExecutor = shortcutExecutor
+    self.scriptExecutionAuthorizer = scriptExecutionAuthorizer
   }
 
   public func execute(
@@ -206,6 +213,9 @@ public struct SystemGestureActionExecutor: ActionExecuting {
       }
       guard action.isValid else {
         return .failed(.invalidAction)
+      }
+      guard await scriptExecutionAuthorizer(script) else {
+        return .failed(.notConfirmed)
       }
       return await runScript(script)
     }

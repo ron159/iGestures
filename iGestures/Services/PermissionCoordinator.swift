@@ -1,3 +1,4 @@
+import AppKit
 @preconcurrency import ApplicationServices
 import CoreGraphics
 import Foundation
@@ -32,10 +33,16 @@ public protocol PermissionProviding {
   func diagnostics(promptForAccessibility: Bool) -> PermissionDiagnostics
   func requestListenEventAccess() -> Bool
   func requestPostEventAccess() -> Bool
+  func openInputMonitoringSettings() -> Bool
 }
 
 @MainActor
 public struct SystemPermissionProvider: PermissionProviding {
+  private static let inputMonitoringSettingsURL = URL(
+    string:
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+  )!
+
   public init() {}
 
   public func diagnostics(
@@ -65,6 +72,10 @@ public struct SystemPermissionProvider: PermissionProviding {
 
   public func requestPostEventAccess() -> Bool {
     CGRequestPostEventAccess()
+  }
+
+  public func openInputMonitoringSettings() -> Bool {
+    NSWorkspace.shared.open(Self.inputMonitoringSettingsURL)
   }
 }
 
@@ -99,14 +110,20 @@ public final class PermissionCoordinator {
   public func requestAccess() -> PermissionState {
     hasRequestedAccess = true
     let current = provider.diagnostics(promptForAccessibility: true)
+    let listenEventAccess =
+      current.listenEventAccess
+      || provider.requestListenEventAccess()
+    let postEventAccess =
+      current.postEventAccess
+      || provider.requestPostEventAccess()
     diagnostics = PermissionDiagnostics(
       accessibilityTrusted: current.accessibilityTrusted,
-      listenEventAccess:
-        current.listenEventAccess
-        || provider.requestListenEventAccess(),
-      postEventAccess:
-        current.postEventAccess
-        || provider.requestPostEventAccess()
+      listenEventAccess: listenEventAccess,
+      postEventAccess: postEventAccess
+    )
+    openInputMonitoringSettingsIfNeeded(
+      listenEventAccess: listenEventAccess,
+      postEventAccess: postEventAccess
     )
     state = .checking
     return state
@@ -124,13 +141,17 @@ public final class PermissionCoordinator {
   public func requestListenEventAccess() -> PermissionState {
     hasRequestedAccess = true
     let current = provider.diagnostics(promptForAccessibility: false)
+    let listenEventAccess =
+      current.listenEventAccess
+      || provider.requestListenEventAccess()
     diagnostics = PermissionDiagnostics(
       accessibilityTrusted: current.accessibilityTrusted,
-      listenEventAccess:
-        current.listenEventAccess
-        || provider.requestListenEventAccess(),
+      listenEventAccess: listenEventAccess,
       postEventAccess: current.postEventAccess
     )
+    if !listenEventAccess {
+      _ = provider.openInputMonitoringSettings()
+    }
     state = .checking
     return state
   }
@@ -139,13 +160,17 @@ public final class PermissionCoordinator {
   public func requestPostEventAccess() -> PermissionState {
     hasRequestedAccess = true
     let current = provider.diagnostics(promptForAccessibility: false)
+    let postEventAccess =
+      current.postEventAccess
+      || provider.requestPostEventAccess()
     diagnostics = PermissionDiagnostics(
       accessibilityTrusted: current.accessibilityTrusted,
       listenEventAccess: current.listenEventAccess,
-      postEventAccess:
-        current.postEventAccess
-        || provider.requestPostEventAccess()
+      postEventAccess: postEventAccess
     )
+    if !postEventAccess {
+      _ = provider.openInputMonitoringSettings()
+    }
     state = .checking
     return state
   }
@@ -160,5 +185,13 @@ public final class PermissionCoordinator {
     diagnostics.accessibilityTrusted
       && diagnostics.listenEventAccess
       && diagnostics.postEventAccess
+  }
+
+  private func openInputMonitoringSettingsIfNeeded(
+    listenEventAccess: Bool,
+    postEventAccess: Bool
+  ) {
+    guard !listenEventAccess || !postEventAccess else { return }
+    _ = provider.openInputMonitoringSettings()
   }
 }

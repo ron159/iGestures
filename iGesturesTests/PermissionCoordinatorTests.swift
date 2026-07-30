@@ -24,6 +24,7 @@ final class PermissionCoordinatorTests: XCTestCase {
     XCTAssertEqual(provider.promptValues, [true])
     XCTAssertEqual(provider.listenRequestCount, 1)
     XCTAssertEqual(provider.postRequestCount, 1)
+    XCTAssertEqual(provider.inputMonitoringSettingsOpenCount, 1)
     XCTAssertEqual(coordinator.refresh(), .denied)
     XCTAssertEqual(provider.promptValues, [true, false])
   }
@@ -40,6 +41,7 @@ final class PermissionCoordinatorTests: XCTestCase {
     )
     XCTAssertEqual(provider.listenRequestCount, 1)
     XCTAssertEqual(provider.postRequestCount, 0)
+    XCTAssertEqual(provider.inputMonitoringSettingsOpenCount, 1)
 
     XCTAssertEqual(
       coordinator.requestPostEventAccess(),
@@ -47,6 +49,19 @@ final class PermissionCoordinatorTests: XCTestCase {
     )
     XCTAssertEqual(provider.listenRequestCount, 1)
     XCTAssertEqual(provider.postRequestCount, 1)
+    XCTAssertEqual(provider.inputMonitoringSettingsOpenCount, 2)
+  }
+
+  func testGrantedEventPermissionsDoNotOpenSystemSettings() {
+    let provider = PermissionProviderStub(
+      diagnostics: grantedDiagnostics
+    )
+    let coordinator = PermissionCoordinator(provider: provider)
+
+    XCTAssertEqual(coordinator.requestAccess(), .checking)
+    XCTAssertEqual(provider.listenRequestCount, 0)
+    XCTAssertEqual(provider.postRequestCount, 0)
+    XCTAssertEqual(provider.inputMonitoringSettingsOpenCount, 0)
   }
 
   func testTrustedPermissionWaitsForEventTapCreation() {
@@ -98,6 +113,7 @@ private final class PermissionProviderStub: PermissionProviding {
   private(set) var promptValues: [Bool] = []
   private(set) var listenRequestCount = 0
   private(set) var postRequestCount = 0
+  private(set) var inputMonitoringSettingsOpenCount = 0
 
   init(diagnostics: PermissionDiagnostics) {
     value = diagnostics
@@ -118,5 +134,10 @@ private final class PermissionProviderStub: PermissionProviding {
   func requestPostEventAccess() -> Bool {
     postRequestCount += 1
     return value.postEventAccess
+  }
+
+  func openInputMonitoringSettings() -> Bool {
+    inputMonitoringSettingsOpenCount += 1
+    return true
   }
 }

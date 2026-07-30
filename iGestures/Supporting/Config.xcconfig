@@ -14,16 +14,18 @@ DEAD_CODE_STRIPPING = YES
 
 PRODUCT_NAME = iGestures
 PRODUCT_BUNDLE_IDENTIFIER = com.ron159.igestures.dev
-MARKETING_VERSION = 0.4.0
-CURRENT_PROJECT_VERSION = 4
+MARKETING_VERSION = 0.5.0
+CURRENT_PROJECT_VERSION = 5
 
 CODE_SIGN_STYLE = Automatic
+CODE_SIGN_ENTITLEMENTS = iGestures/Supporting/iGestures.entitlements
 CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO
 CODE_SIGN_INJECT_BASE_ENTITLEMENTS[config=Debug] = YES
 GENERATE_INFOPLIST_FILE = YES
 INFOPLIST_KEY_CFBundleDisplayName = iGestures
 INFOPLIST_KEY_LSApplicationCategoryType = public.app-category.utilities
 INFOPLIST_KEY_LSUIElement = YES
+INFOPLIST_KEY_NSAppleEventsUsageDescription = Run the AppleScript actions you choose to control apps and system features.
 INFOPLIST_KEY_IGesturesUpdateManifestURL = $(IGESTURES_UPDATE_MANIFEST_URL)
 INFOPLIST_KEY_IGesturesUpdatePublicKey = $(IGESTURES_UPDATE_PUBLIC_KEY)
 

@@ -14,6 +14,7 @@ final class OverlayController {
   private var displayLink: CADisplayLink!
   private var screenLayout = ScreenLayout.current
   private var screenOverlays: [ScreenOverlay]
+  private var trailColor = NSColor.controlAccentColor
   private let feedbackPanel: NSPanel
   private let feedbackLabel: NSTextField
   private var feedbackTask: Task<Void, Never>?
@@ -25,7 +26,9 @@ final class OverlayController {
   ) {
     self.eventSink = eventSink
     self.feedbackSink = feedbackSink
-    self.screenOverlays = screenLayout.screens.map(ScreenOverlay.init)
+    self.screenOverlays = screenLayout.screens.map {
+      ScreenOverlay(screen: $0)
+    }
     self.feedbackLabel = NSTextField(labelWithString: "")
     self.feedbackPanel = NSPanel(
       contentRect: NSRect(x: 0, y: 0, width: 320, height: 58),
@@ -106,6 +109,13 @@ final class OverlayController {
 
   func setHapticFeedbackEnabled(_ enabled: Bool) {
     isHapticFeedbackEnabled = enabled
+  }
+
+  func setTrailColor(_ color: NSColor) {
+    trailColor = color
+    for overlay in screenOverlays {
+      overlay.pathView.setStrokeColor(color)
+    }
   }
 
   private func hapticPattern(
@@ -215,7 +225,9 @@ final class OverlayController {
       overlay.panel.orderOut(nil)
     }
     screenLayout = layout
-    screenOverlays = layout.screens.map(ScreenOverlay.init)
+    screenOverlays = layout.screens.map {
+      ScreenOverlay(screen: $0, trailColor: trailColor)
+    }
     configureDisplayLink(isPaused: wasPaused)
   }
 
@@ -238,10 +250,14 @@ private final class ScreenOverlay {
   let panel: NSPanel
   let pathView: GesturePathView
 
-  init(screen: ScreenLayout.Screen) {
+  init(
+    screen: ScreenLayout.Screen,
+    trailColor: NSColor = .controlAccentColor
+  ) {
     self.screen = screen
     self.pathView = GesturePathView(
-      frame: NSRect(origin: .zero, size: screen.appKitFrame.size)
+      frame: NSRect(origin: .zero, size: screen.appKitFrame.size),
+      trailColor: trailColor
     )
     self.panel = NSPanel(
       contentRect: screen.appKitFrame,
@@ -379,20 +395,14 @@ private final class GesturePathView: NSView {
   private let shapeLayer = CAShapeLayer()
   private var path = CGMutablePath()
 
-  override init(frame frameRect: NSRect) {
+  init(frame frameRect: NSRect, trailColor: NSColor) {
     super.init(frame: frameRect)
     wantsLayer = true
     shapeLayer.fillColor = NSColor.clear.cgColor
     shapeLayer.lineCap = .round
     shapeLayer.lineJoin = .round
     shapeLayer.lineWidth = 4
-    shapeLayer.strokeColor =
-      NSColor.controlAccentColor
-      .withAlphaComponent(
-        NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
-          ? 1
-          : 0.9
-      ).cgColor
+    setStrokeColor(trailColor)
     layer?.addSublayer(shapeLayer)
   }
 
@@ -423,6 +433,18 @@ private final class GesturePathView: NSView {
   func clear() {
     path = CGMutablePath()
     commitPath()
+  }
+
+  func setStrokeColor(_ color: NSColor) {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    shapeLayer.strokeColor =
+      color.withAlphaComponent(
+        NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+          ? 1
+          : 0.9
+      ).cgColor
+    CATransaction.commit()
   }
 
   private func commitPath() {

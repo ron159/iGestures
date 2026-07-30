@@ -53,6 +53,10 @@
 		A2000000000000000000002C /* AppPreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000002F /* AppPreferencesStore.swift */; };
 		A2000000000000000000002D /* AppPreferencesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000030 /* AppPreferencesStoreTests.swift */; };
 		A2000000000000000000002E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000031 /* Assets.xcassets */; };
+		A2000000000000000000002F /* SettingsWindowConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000032 /* SettingsWindowConfigurationTests.swift */; };
+		A20000000000000000000030 /* ScriptLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000033 /* ScriptLibrary.swift */; };
+		A20000000000000000000031 /* ScriptLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000034 /* ScriptLibraryView.swift */; };
+		A20000000000000000000032 /* ScriptLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000035 /* ScriptLibraryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -115,6 +119,11 @@
 		A2100000000000000000002F /* AppPreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferencesStore.swift; sourceTree = "<group>"; };
 		A21000000000000000000030 /* AppPreferencesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferencesStoreTests.swift; sourceTree = "<group>"; };
 		A21000000000000000000031 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A21000000000000000000032 /* SettingsWindowConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowConfigurationTests.swift; sourceTree = "<group>"; };
+		A21000000000000000000033 /* ScriptLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptLibrary.swift; sourceTree = "<group>"; };
+		A21000000000000000000034 /* ScriptLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptLibraryView.swift; sourceTree = "<group>"; };
+		A21000000000000000000035 /* ScriptLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptLibraryTests.swift; sourceTree = "<group>"; };
+		A21000000000000000000036 /* iGestures.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = iGestures.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -225,6 +234,7 @@
 			isa = PBXGroup;
 			children = (
 				A2100000000000000000000B /* Config.xcconfig */,
+				A21000000000000000000036 /* iGestures.entitlements */,
 			);
 			path = Supporting;
 			sourceTree = "<group>";
@@ -242,8 +252,10 @@
 				A2100000000000000000001D /* MappingStoreTests.swift */,
 				A2100000000000000000001E /* OverlayEventBufferTests.swift */,
 				A21000000000000000000012 /* PermissionCoordinatorTests.swift */,
+				A21000000000000000000035 /* ScriptLibraryTests.swift */,
 				A21000000000000000000018 /* ShortcutExecutorTests.swift */,
 				A21000000000000000000029 /* ShortcutRecordingSessionTests.swift */,
+				A21000000000000000000032 /* SettingsWindowConfigurationTests.swift */,
 				A2100000000000000000002E /* SystemShortcutConflictDetectorTests.swift */,
 			);
 			path = iGesturesTests;
@@ -267,6 +279,7 @@
 				A21000000000000000000016 /* FrontmostAppProvider.swift */,
 				A2100000000000000000002B /* LoginItemController.swift */,
 				A21000000000000000000010 /* PermissionCoordinator.swift */,
+				A21000000000000000000033 /* ScriptLibrary.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -305,6 +318,7 @@
 				A21000000000000000000025 /* GesturesSettingsView.swift */,
 				A21000000000000000000022 /* KeyboardShortcutFormatter.swift */,
 				A21000000000000000000024 /* SettingsRootView.swift */,
+				A21000000000000000000034 /* ScriptLibraryView.swift */,
 				A21000000000000000000023 /* ShortcutRecorderView.swift */,
 			);
 			path = Settings;
@@ -443,6 +457,8 @@
 				A20000000000000000000028 /* LoginItemController.swift in Sources */,
 				A2000000000000000000002A /* SystemShortcutConflictDetector.swift in Sources */,
 				A2000000000000000000002C /* AppPreferencesStore.swift in Sources */,
+				A20000000000000000000030 /* ScriptLibrary.swift in Sources */,
+				A20000000000000000000031 /* ScriptLibraryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -460,8 +476,10 @@
 				A2000000000000000000001A /* MappingStoreTests.swift in Sources */,
 				A2000000000000000000001B /* OverlayEventBufferTests.swift in Sources */,
 				A2000000000000000000000F /* PermissionCoordinatorTests.swift in Sources */,
+				A20000000000000000000032 /* ScriptLibraryTests.swift in Sources */,
 				A20000000000000000000015 /* ShortcutExecutorTests.swift in Sources */,
 				A20000000000000000000026 /* ShortcutRecordingSessionTests.swift in Sources */,
+				A2000000000000000000002F /* SettingsWindowConfigurationTests.swift in Sources */,
 				A2000000000000000000002B /* SystemShortcutConflictDetectorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

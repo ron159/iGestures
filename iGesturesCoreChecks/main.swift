@@ -17,6 +17,7 @@ private final class CoreChecks {
     try checkLoginItemController()
     checkShortcutEventSequence()
     try await checkMappingStore()
+    checkScriptLibrary()
     checkOverlayBuffer()
     try checkGestureLibraryAndTraining()
     checkShortcutRecording()
@@ -386,7 +387,8 @@ private final class CoreChecks {
       coordinator.requestAccess() == .checking
         && provider.promptValues == [false, true]
         && provider.listenRequestCount == 1
-        && provider.postRequestCount == 1,
+        && provider.postRequestCount == 1
+        && provider.inputMonitoringSettingsOpenCount == 1,
       "permission prompt was not explicitly requested"
     )
     check(
@@ -591,6 +593,22 @@ private final class CoreChecks {
     check(
       buffer.drain() == nil,
       "disabled overlay accepted a new path"
+    )
+  }
+
+  private func checkScriptLibrary() {
+    let items = BuiltInScriptLibrary.items
+    check(!items.isEmpty, "the built-in script library is empty")
+    check(
+      Set(items.map(\.id)).count == items.count,
+      "built-in script identifiers are not unique"
+    )
+    check(
+      items.allSatisfy {
+        $0.script.isConfirmed
+          && GestureAction.script($0.script).isValid
+      },
+      "a built-in script is invalid or unconfirmed"
     )
   }
 
@@ -851,6 +869,7 @@ private final class PermissionProviderCheckStub: PermissionProviding {
   private(set) var promptValues: [Bool] = []
   private(set) var listenRequestCount = 0
   private(set) var postRequestCount = 0
+  private(set) var inputMonitoringSettingsOpenCount = 0
 
   init(value: PermissionDiagnostics) {
     self.value = value
@@ -871,6 +890,11 @@ private final class PermissionProviderCheckStub: PermissionProviding {
   func requestPostEventAccess() -> Bool {
     postRequestCount += 1
     return value.postEventAccess
+  }
+
+  func openInputMonitoringSettings() -> Bool {
+    inputMonitoringSettingsOpenCount += 1
+    return true
   }
 }
 

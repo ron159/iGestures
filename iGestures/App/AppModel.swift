@@ -14,9 +14,44 @@ enum AppUpdateState: Equatable {
 }
 
 @MainActor
+private final class ScriptExecutionNoticeAuthorizer {
+  private let preferencesStore: AppPreferencesStore
+
+  init(preferencesStore: AppPreferencesStore) {
+    self.preferencesStore = preferencesStore
+  }
+
+  func authorize(_ script: AutomationScript) -> Bool {
+    guard !preferencesStore.scriptExecutionNoticeAcknowledged else {
+      return true
+    }
+
+    NSApp.activate()
+    let alert = NSAlert()
+    alert.alertStyle = .warning
+    alert.messageText = String(
+      localized: "Run Automation Scripts?"
+    )
+    alert.informativeText = String(
+      localized:
+        "Shell scripts run directly with /bin/zsh; Terminal does not open. AppleScript runs with /usr/bin/osascript and macOS may ask for Automation access to each app it controls. Scripts can modify files and system settings, so only continue with scripts you trust."
+    )
+    alert.addButton(withTitle: String(localized: "Continue"))
+    alert.addButton(withTitle: String(localized: "Cancel"))
+
+    guard alert.runModal() == .alertFirstButtonReturn else {
+      return false
+    }
+    preferencesStore.setScriptExecutionNoticeAcknowledged(true)
+    return true
+  }
+}
+
+@MainActor
 final class AppModel: ObservableObject {
   @Published private(set) var isEnabled = false
   @Published private(set) var isOverlayEnabled = true
+  @Published private(set) var trailColor = NSColor.controlAccentColor
   @Published private(set) var triggerButton: GestureTriggerButton = .right
   @Published private(set) var triggerDuration =
     GestureInputConfiguration.defaultTriggerDuration
@@ -39,6 +74,9 @@ final class AppModel: ObservableObject {
   @Published private(set) var mappings: [GestureMapping] = []
   @Published private(set) var mappingStoreError: String?
   @Published private(set) var isLoadingMappings = true
+  @Published private(set) var userScriptLibrary: [ScriptLibraryItem] = []
+  @Published private(set) var scriptLibraryError: String?
+  @Published private(set) var isLoadingScriptLibrary = true
   @Published private(set) var loginItemState: LoginItemState
   @Published private(set) var loginItemError: String?
   @Published private(set) var isTransferringMappings = false
@@ -59,6 +97,7 @@ final class AppModel: ObservableObject {
   private let loginItemController: LoginItemController
   private let eventTapManager: EventTapManager
   private let mappingStore: MappingStore?
+  private let scriptLibraryStore: ScriptLibraryStore?
   private let overlayController: OverlayController
   private let diagnosticsBuffer: GestureDiagnosticsBuffer
   private let updateService: UpdateService?
@@ -69,6 +108,7 @@ final class AppModel: ObservableObject {
   private var availableGitHubRelease: GitHubRelease?
   private var database = GestureDatabase.empty
   private var persistenceTask: Task<Void, Never>?
+  private var scriptLibraryPersistenceTask: Task<Void, Never>?
   private var applicationActivationTask: Task<Void, Never>?
   private var applicationLifecycleTask: Task<Void, Never>?
   private var pendingImportURL: URL?
@@ -78,7 +118,8 @@ final class AppModel: ObservableObject {
     preferencesStore: AppPreferencesStore? = nil,
     loginItemController: LoginItemController? = nil,
     eventTapManager: EventTapManager? = nil,
-    mappingStore: MappingStore? = nil
+    mappingStore: MappingStore? = nil,
+    scriptLibraryStore: ScriptLibraryStore? = nil
   ) {
     let overlayController = OverlayController()
     self.permissionCoordinator =
@@ -86,8 +127,15 @@ final class AppModel: ObservableObject {
     let preferencesStore =
       preferencesStore ?? AppPreferencesStore()
     self.preferencesStore = preferencesStore
+    let scriptExecutionAuthorizer =
+      ScriptExecutionNoticeAuthorizer(
+        preferencesStore: preferencesStore
+      )
     self.isEnabled = preferencesStore.recognitionEnabled
     self.isOverlayEnabled = preferencesStore.overlayEnabled
+    self.trailColor =
+      preferencesStore.trailColor?.nsColor
+      ?? .controlAccentColor
     self.triggerButton = preferencesStore.triggerButton
     self.triggerDuration = preferencesStore.triggerDuration
     self.recognitionSensitivity =
@@ -159,6 +207,11 @@ final class AppModel: ObservableObject {
     self.eventTapManager =
       eventTapManager
       ?? EventTapManager(
+        actionExecutor: SystemGestureActionExecutor(
+          scriptExecutionAuthorizer: { script in
+            scriptExecutionAuthorizer.authorize(script)
+          }
+        ),
         overlaySink: overlayController.eventSink,
         feedbackSink: CompositeGestureFeedbackSink([
           overlayController.feedbackSink,
@@ -171,7 +224,14 @@ final class AppModel: ObservableObject {
         bundleIdentifier: Bundle.main.bundleIdentifier
           ?? "com.ron159.igestures.dev"
       ))
+    self.scriptLibraryStore =
+      scriptLibraryStore
+      ?? (try? ScriptLibraryStore.live(
+        bundleIdentifier: Bundle.main.bundleIdentifier
+          ?? "com.ron159.igestures.dev"
+      ))
     overlayController.eventSink.setEnabled(isOverlayEnabled)
+    overlayController.setTrailColor(trailColor)
     overlayController.feedbackSink.setEnabled(isFeedbackEnabled)
     overlayController.setHapticFeedbackEnabled(
       isHapticFeedbackEnabled
@@ -209,6 +269,7 @@ final class AppModel: ObservableObject {
     observeApplicationLifecycle()
     refreshPermissions()
     reloadMappings()
+    reloadScriptLibrary()
     if hasSignedUpdateFeed || githubReleaseService != nil {
       checkForUpdates()
     }
@@ -218,6 +279,7 @@ final class AppModel: ObservableObject {
     applicationActivationTask?.cancel()
     applicationLifecycleTask?.cancel()
     persistenceTask?.cancel()
+    scriptLibraryPersistenceTask?.cancel()
   }
 
   var permissionStatusText: String {
@@ -342,6 +404,22 @@ final class AppModel: ObservableObject {
     isOverlayEnabled = isEnabled
     preferencesStore.setOverlayEnabled(isEnabled)
     overlayController.eventSink.setEnabled(isEnabled)
+  }
+
+  func setTrailColor(_ color: NSColor) {
+    guard
+      let color = color.usingColorSpace(.sRGB),
+      let storedColor = GestureTrailColor(
+        red: color.redComponent,
+        green: color.greenComponent,
+        blue: color.blueComponent
+      )
+    else {
+      return
+    }
+    trailColor = color
+    preferencesStore.setTrailColor(storedColor)
+    overlayController.setTrailColor(color)
   }
 
   func setFeedbackEnabled(_ isEnabled: Bool) {
@@ -919,6 +997,77 @@ final class AppModel: ObservableObject {
     apply(library.database)
   }
 
+  @discardableResult
+  func createUserScript(
+    copying template: ScriptLibraryItem? = nil
+  ) -> UUID? {
+    let item = ScriptLibraryItem(
+      name:
+        template.map {
+          String(
+            format: String(localized: "%@ Copy"),
+            $0.name
+          )
+        } ?? String(localized: "New Script"),
+      summary: template?.summary ?? "",
+      category: template?.category ?? .productivity,
+      script:
+        template?.script
+        ?? AutomationScript(
+          kind: .appleScript,
+          source: "-- Enter AppleScript here"
+        )
+    )
+    var updated = userScriptLibrary
+    updated.append(item)
+    guard applyScriptLibrary(updated) else { return nil }
+    return item.id
+  }
+
+  func updateUserScript(_ item: ScriptLibraryItem) {
+    var updated = userScriptLibrary
+    if let index = updated.firstIndex(where: {
+      $0.id == item.id
+    }) {
+      updated[index] = item
+    } else {
+      updated.append(item)
+    }
+    _ = applyScriptLibrary(updated)
+  }
+
+  func deleteUserScript(id: UUID) {
+    var updated = userScriptLibrary
+    updated.removeAll { $0.id == id }
+    guard updated.count != userScriptLibrary.count else { return }
+    _ = applyScriptLibrary(updated)
+  }
+
+  func reloadScriptLibrary() {
+    isLoadingScriptLibrary = true
+    guard let scriptLibraryStore else {
+      isLoadingScriptLibrary = false
+      scriptLibraryError = String(
+        localized: "Script library storage is unavailable."
+      )
+      return
+    }
+
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      do {
+        userScriptLibrary = try await scriptLibraryStore.load()
+        scriptLibraryError = nil
+      } catch {
+        userScriptLibrary = []
+        scriptLibraryError = String(
+          localized: "The script library could not be loaded."
+        )
+      }
+      isLoadingScriptLibrary = false
+    }
+  }
+
   func prepareMappingImport(from sourceURL: URL) {
     guard let mappingStore else {
       mappingStoreError = String(
@@ -1193,6 +1342,45 @@ final class AppModel: ObservableObject {
     }
   }
 
+  @discardableResult
+  private func applyScriptLibrary(
+    _ updatedItems: [ScriptLibraryItem]
+  ) -> Bool {
+    guard let scriptLibraryStore else {
+      scriptLibraryError = String(
+        localized: "Script library storage is unavailable."
+      )
+      return false
+    }
+    do {
+      try scriptLibraryStore.validate(updatedItems)
+    } catch {
+      scriptLibraryError = String(
+        localized: "Script library changes could not be saved."
+      )
+      return false
+    }
+
+    userScriptLibrary = updatedItems
+    scriptLibraryError = nil
+    let previousTask = scriptLibraryPersistenceTask
+    scriptLibraryPersistenceTask = Task { @MainActor [weak self] in
+      await previousTask?.value
+      do {
+        try await scriptLibraryStore.save(updatedItems)
+      } catch {
+        guard let self, userScriptLibrary == updatedItems else {
+          return
+        }
+        userScriptLibrary = await scriptLibraryStore.currentItems()
+        scriptLibraryError = String(
+          localized: "Script library changes could not be saved."
+        )
+      }
+    }
+    return true
+  }
+
   private func install(_ loadedDatabase: GestureDatabase) {
     database = loadedDatabase
     mappings = loadedDatabase.mappings
@@ -1344,6 +1532,17 @@ final class AppModel: ObservableObject {
       triggerDuration: triggerDuration,
       isTrackpadGestureEnabled: isTrackpadGestureEnabled,
       trackpadModifiers: trackpadModifiers
+    )
+  }
+}
+
+extension GestureTrailColor {
+  fileprivate var nsColor: NSColor {
+    NSColor(
+      srgbRed: red,
+      green: green,
+      blue: blue,
+      alpha: 1
     )
   }
 }
