@@ -9,6 +9,7 @@ public enum ActionPresetCategory:
 {
   case window
   case browser
+  case website
   case finder
   case appDesktop
   case editing
@@ -97,6 +98,7 @@ public enum ActionPresetLibrary {
   public static let builtIn: [ActionPreset] =
     windowPresets
     + browserPresets
+    + websitePresets
     + finderPresets
     + appDesktopPresets
     + editingPresets
@@ -283,6 +285,79 @@ public enum ActionPresetLibrary {
       command,
       scopeHint: .browsers
     ),
+  ]
+
+  private static let websitePresets: [ActionPreset] = [
+    website(
+      "website.google",
+      "Google",
+      "https://www.google.com/",
+      keywords: ["search", "谷歌"]
+    ),
+    website(
+      "website.bing",
+      "Bing",
+      "https://www.bing.com/",
+      keywords: ["search", "microsoft", "必应"]
+    ),
+    website(
+      "website.chatgpt",
+      "ChatGPT",
+      "https://chatgpt.com/",
+      keywords: ["ai", "openai"]
+    ),
+    website(
+      "website.claude",
+      "Claude",
+      "https://claude.ai/",
+      keywords: ["ai", "anthropic"]
+    ),
+    website(
+      "website.gemini",
+      "Gemini",
+      "https://gemini.google.com/",
+      keywords: ["ai", "google"]
+    ),
+    website(
+      "website.perplexity",
+      "Perplexity",
+      "https://www.perplexity.ai/",
+      keywords: ["ai", "search"]
+    ),
+    website("website.github", "GitHub", "https://github.com/"),
+    website(
+      "website.stack-overflow",
+      "Stack Overflow",
+      "https://stackoverflow.com/",
+      keywords: ["developer", "questions"]
+    ),
+    website(
+      "website.mdn",
+      "MDN Web Docs",
+      "https://developer.mozilla.org/",
+      keywords: ["developer", "documentation"]
+    ),
+    website(
+      "website.youtube",
+      "YouTube",
+      "https://www.youtube.com/",
+      keywords: ["video"]
+    ),
+    website(
+      "website.bilibili",
+      "Bilibili",
+      "https://www.bilibili.com/",
+      keywords: ["video", "哔哩哔哩", "B站"]
+    ),
+    website("website.gmail", "Gmail", "https://mail.google.com/"),
+    website(
+      "website.google-drive",
+      "Google Drive",
+      "https://drive.google.com/",
+      keywords: ["files", "cloud", "云端硬盘"]
+    ),
+    website("website.notion", "Notion", "https://www.notion.com/"),
+    website("website.figma", "Figma", "https://www.figma.com/"),
   ]
 
   private static let finderPresets: [ActionPreset] = [
@@ -553,6 +628,21 @@ public enum ActionPresetLibrary {
       category: .window,
       action: .window(action),
       keywords: ["window", "layout"]
+    )
+  }
+
+  private static func website(
+    _ id: String,
+    _ name: String.LocalizationValue,
+    _ url: String,
+    keywords: [String] = []
+  ) -> ActionPreset {
+    ActionPreset(
+      id: id,
+      name: String(localized: name),
+      category: .website,
+      action: .openURL(url),
+      keywords: ["website", "web"] + keywords
     )
   }
 

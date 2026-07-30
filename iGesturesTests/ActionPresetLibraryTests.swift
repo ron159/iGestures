@@ -26,6 +26,39 @@ final class ActionPresetLibraryTests: XCTestCase {
     XCTAssertEqual(empty.count, ActionPresetLibrary.builtIn.count)
   }
 
+  func testWebsitePresetsUseHTTPSAndMatchCuratedSet() {
+    let presets = ActionPresetLibrary.builtIn.filter {
+      $0.category == .website
+    }
+
+    XCTAssertEqual(
+      Set(presets.map(\.id)),
+      Set([
+        "website.bilibili",
+        "website.bing",
+        "website.chatgpt",
+        "website.claude",
+        "website.figma",
+        "website.gemini",
+        "website.github",
+        "website.gmail",
+        "website.google",
+        "website.google-drive",
+        "website.mdn",
+        "website.notion",
+        "website.perplexity",
+        "website.stack-overflow",
+        "website.youtube",
+      ])
+    )
+    for preset in presets {
+      guard case .openURL(let value) = preset.action else {
+        return XCTFail("\(preset.id) is not an open URL action")
+      }
+      XCTAssertEqual(URL(string: value)?.scheme, "https")
+    }
+  }
+
   func testNewActionTypesRoundTripThroughCodable() throws {
     let actions: [GestureAction] = [
       .openPath("~/Downloads"),

@@ -3132,6 +3132,8 @@ extension ActionPresetCategory {
       String(localized: "Window")
     case .browser:
       String(localized: "Browser")
+    case .website:
+      String(localized: "Websites")
     case .finder:
       String(localized: "Finder")
     case .appDesktop:
@@ -3151,6 +3153,8 @@ extension ActionPresetCategory {
       "macwindow"
     case .browser:
       "globe"
+    case .website:
+      "link"
     case .finder:
       "folder"
     case .appDesktop:

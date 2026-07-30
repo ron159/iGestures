@@ -98,131 +98,159 @@ private enum MenuBarTemplateImage {
         path.stroke()
       }
 
-      let leftEar = NSBezierPath(
-        ovalIn: NSRect(x: 4.2, y: 2.8, width: 5.2, height: 5.2)
+      let tail = NSBezierPath()
+      tail.move(to: NSPoint(x: 18.4, y: 15.5))
+      tail.curve(
+        to: NSPoint(x: 20.7, y: 15.1),
+        controlPoint1: NSPoint(x: 19.5, y: 14.5),
+        controlPoint2: NSPoint(x: 20.7, y: 14.6)
       )
-      stroke(leftEar, width: 1.2)
-      let rightEar = NSBezierPath(
-        ovalIn: NSRect(x: 12.6, y: 2.8, width: 5.2, height: 5.2)
+      tail.curve(
+        to: NSPoint(x: 18.1, y: 16.7),
+        controlPoint1: NSPoint(x: 21.3, y: 16.1),
+        controlPoint2: NSPoint(x: 19.7, y: 17.2)
       )
-      stroke(rightEar, width: 1.2)
+      stroke(tail, width: 1.15)
 
-      let leftInnerEar = NSBezierPath()
-      leftInnerEar.move(to: NSPoint(x: 5.5, y: 5.8))
-      leftInnerEar.curve(
-        to: NSPoint(x: 8, y: 5.2),
-        controlPoint1: NSPoint(x: 5.9, y: 4.3),
-        controlPoint2: NSPoint(x: 7.5, y: 4.1)
+      let rearEar = NSBezierPath()
+      rearEar.move(to: NSPoint(x: 4.3, y: 4.2))
+      rearEar.curve(
+        to: NSPoint(x: 4.7, y: 1.8),
+        controlPoint1: NSPoint(x: 4.2, y: 3.1),
+        controlPoint2: NSPoint(x: 4.2, y: 2.3)
       )
-      stroke(leftInnerEar, width: 0.65)
+      rearEar.curve(
+        to: NSPoint(x: 7.6, y: 3.5),
+        controlPoint1: NSPoint(x: 6.2, y: 1),
+        controlPoint2: NSPoint(x: 7.4, y: 2)
+      )
+      stroke(rearEar, width: 1.15)
 
-      let rightInnerEar = NSBezierPath()
-      rightInnerEar.move(to: NSPoint(x: 14, y: 5.2))
-      rightInnerEar.curve(
-        to: NSPoint(x: 16.5, y: 5.8),
-        controlPoint1: NSPoint(x: 14.5, y: 4.1),
-        controlPoint2: NSPoint(x: 16.1, y: 4.3)
+      let outline = NSBezierPath()
+      outline.move(to: NSPoint(x: 7.6, y: 3.6))
+      outline.curve(
+        to: NSPoint(x: 1.6, y: 7.9),
+        controlPoint1: NSPoint(x: 4.7, y: 3.5),
+        controlPoint2: NSPoint(x: 2.2, y: 5.4)
       )
-      stroke(rightInnerEar, width: 0.65)
+      outline.curve(
+        to: NSPoint(x: 3.2, y: 10.9),
+        controlPoint1: NSPoint(x: 1.2, y: 9.3),
+        controlPoint2: NSPoint(x: 2, y: 10.4)
+      )
+      outline.curve(
+        to: NSPoint(x: 5.3, y: 11.6),
+        controlPoint1: NSPoint(x: 3.9, y: 11.4),
+        controlPoint2: NSPoint(x: 4.7, y: 11.6)
+      )
+      outline.curve(
+        to: NSPoint(x: 7.4, y: 15.9),
+        controlPoint1: NSPoint(x: 5.1, y: 13.7),
+        controlPoint2: NSPoint(x: 6.1, y: 15.1)
+      )
+      outline.curve(
+        to: NSPoint(x: 9.1, y: 16.7),
+        controlPoint1: NSPoint(x: 6.7, y: 16.3),
+        controlPoint2: NSPoint(x: 7.4, y: 16.7)
+      )
+      outline.line(to: NSPoint(x: 17.1, y: 16.7))
+      outline.curve(
+        to: NSPoint(x: 20.2, y: 13.2),
+        controlPoint1: NSPoint(x: 19.2, y: 16.7),
+        controlPoint2: NSPoint(x: 20.2, y: 15.5)
+      )
+      outline.curve(
+        to: NSPoint(x: 17.8, y: 8),
+        controlPoint1: NSPoint(x: 20.1, y: 10.7),
+        controlPoint2: NSPoint(x: 19.2, y: 9)
+      )
+      outline.curve(
+        to: NSPoint(x: 10.9, y: 3.6),
+        controlPoint1: NSPoint(x: 15.2, y: 6.1),
+        controlPoint2: NSPoint(x: 12.8, y: 5.2)
+      )
+      stroke(outline, width: 1.2)
 
-      let body = NSBezierPath()
-      body.move(to: NSPoint(x: 8.1, y: 12.9))
-      body.curve(
-        to: NSPoint(x: 5.3, y: 17.3),
-        controlPoint1: NSPoint(x: 6.5, y: 13.8),
-        controlPoint2: NSPoint(x: 5.5, y: 15.4)
+      let frontEar = NSBezierPath()
+      frontEar.move(to: NSPoint(x: 7.5, y: 4.1))
+      frontEar.curve(
+        to: NSPoint(x: 8.1, y: 1.6),
+        controlPoint1: NSPoint(x: 7.6, y: 3),
+        controlPoint2: NSPoint(x: 7.7, y: 2.1)
       )
-      body.line(to: NSPoint(x: 16.7, y: 17.3))
-      body.curve(
-        to: NSPoint(x: 13.9, y: 12.9),
-        controlPoint1: NSPoint(x: 16.5, y: 15.4),
-        controlPoint2: NSPoint(x: 15.5, y: 13.8)
+      frontEar.curve(
+        to: NSPoint(x: 10.8, y: 1.8),
+        controlPoint1: NSPoint(x: 9.2, y: 0.9),
+        controlPoint2: NSPoint(x: 10.5, y: 1.1)
       )
-      stroke(body, width: 1.2)
-
-      let face = NSBezierPath()
-      face.move(to: NSPoint(x: 7.2, y: 6))
-      face.line(to: NSPoint(x: 8.3, y: 4.9))
-      face.line(to: NSPoint(x: 8.6, y: 5.9))
-      face.line(to: NSPoint(x: 10, y: 4.7))
-      face.line(to: NSPoint(x: 10.2, y: 5.8))
-      face.line(to: NSPoint(x: 11.7, y: 4.8))
-      face.line(to: NSPoint(x: 11.9, y: 6))
-      face.curve(
-        to: NSPoint(x: 16, y: 10.2),
-        controlPoint1: NSPoint(x: 14.4, y: 6.3),
-        controlPoint2: NSPoint(x: 15.8, y: 8)
+      frontEar.curve(
+        to: NSPoint(x: 9.5, y: 5.4),
+        controlPoint1: NSPoint(x: 12.1, y: 3.4),
+        controlPoint2: NSPoint(x: 10.9, y: 5)
       )
-      face.curve(
-        to: NSPoint(x: 14.1, y: 13.3),
-        controlPoint1: NSPoint(x: 16.1, y: 11.7),
-        controlPoint2: NSPoint(x: 15.2, y: 12.7)
-      )
-      face.curve(
-        to: NSPoint(x: 11, y: 14.2),
-        controlPoint1: NSPoint(x: 13.1, y: 13.9),
-        controlPoint2: NSPoint(x: 12, y: 14.2)
-      )
-      face.curve(
-        to: NSPoint(x: 7.9, y: 13.3),
-        controlPoint1: NSPoint(x: 10, y: 14.2),
-        controlPoint2: NSPoint(x: 8.9, y: 13.9)
-      )
-      face.curve(
-        to: NSPoint(x: 6, y: 10.2),
-        controlPoint1: NSPoint(x: 6.8, y: 12.7),
-        controlPoint2: NSPoint(x: 5.9, y: 11.7)
-      )
-      face.curve(
-        to: NSPoint(x: 7.2, y: 6),
-        controlPoint1: NSPoint(x: 6.2, y: 8),
-        controlPoint2: NSPoint(x: 6.7, y: 6.8)
-      )
-      face.close()
-      stroke(face, width: 1.25)
-
-      NSBezierPath(
-        ovalIn: NSRect(x: 7.7, y: 8, width: 1.8, height: 2.5)
-      ).fill()
-      NSBezierPath(
-        ovalIn: NSRect(x: 12.5, y: 8, width: 1.8, height: 2.5)
-      ).fill()
-      NSBezierPath(
-        ovalIn: NSRect(x: 10.25, y: 10.55, width: 1.5, height: 1.05)
-      ).fill()
-
-      let mouth = NSBezierPath()
-      mouth.move(to: NSPoint(x: 11, y: 11.5))
-      mouth.curve(
-        to: NSPoint(x: 9.4, y: 12.5),
-        controlPoint1: NSPoint(x: 10.7, y: 12.2),
-        controlPoint2: NSPoint(x: 10.1, y: 12.5)
-      )
-      mouth.move(to: NSPoint(x: 11, y: 11.5))
-      mouth.curve(
-        to: NSPoint(x: 12.6, y: 12.5),
-        controlPoint1: NSPoint(x: 11.3, y: 12.2),
-        controlPoint2: NSPoint(x: 11.9, y: 12.5)
-      )
-      stroke(mouth, width: 0.7)
-
-      let whiskers = NSBezierPath()
-      whiskers.move(to: NSPoint(x: 7.4, y: 11.3))
-      whiskers.line(to: NSPoint(x: 4.8, y: 10.9))
-      whiskers.move(to: NSPoint(x: 7.4, y: 12))
-      whiskers.line(to: NSPoint(x: 4.7, y: 12.5))
-      whiskers.move(to: NSPoint(x: 14.6, y: 11.3))
-      whiskers.line(to: NSPoint(x: 17.2, y: 10.9))
-      whiskers.move(to: NSPoint(x: 14.6, y: 12))
-      whiskers.line(to: NSPoint(x: 17.3, y: 12.5))
-      stroke(whiskers, width: 0.5)
+      stroke(frontEar, width: 1.15)
 
       NSBezierPath(
-        ovalIn: NSRect(x: 6.2, y: 13.1, width: 3.4, height: 2.4)
+        ovalIn: NSRect(x: 3.8, y: 6.1, width: 1.55, height: 1.8)
       ).fill()
       NSBezierPath(
-        ovalIn: NSRect(x: 13.2, y: 14, width: 3.1, height: 2.2)
+        ovalIn: NSRect(x: 1.05, y: 8, width: 1.15, height: 0.85)
       ).fill()
+
+      let faceDetails = NSBezierPath()
+      faceDetails.move(to: NSPoint(x: 2, y: 9))
+      faceDetails.curve(
+        to: NSPoint(x: 3.6, y: 9.4),
+        controlPoint1: NSPoint(x: 2.2, y: 9.8),
+        controlPoint2: NSPoint(x: 3, y: 9.8)
+      )
+      faceDetails.move(to: NSPoint(x: 3.8, y: 8.7))
+      faceDetails.curve(
+        to: NSPoint(x: 6.6, y: 8.5),
+        controlPoint1: NSPoint(x: 4.8, y: 8.4),
+        controlPoint2: NSPoint(x: 5.8, y: 8.4)
+      )
+      faceDetails.move(to: NSPoint(x: 3.8, y: 9.35))
+      faceDetails.curve(
+        to: NSPoint(x: 6.4, y: 10),
+        controlPoint1: NSPoint(x: 4.7, y: 9.4),
+        controlPoint2: NSPoint(x: 5.7, y: 9.7)
+      )
+      stroke(faceDetails, width: 0.65)
+
+      let forepaws = NSBezierPath()
+      forepaws.move(to: NSPoint(x: 8.6, y: 12.2))
+      forepaws.curve(
+        to: NSPoint(x: 7, y: 14.2),
+        controlPoint1: NSPoint(x: 7.5, y: 12.9),
+        controlPoint2: NSPoint(x: 7, y: 13.6)
+      )
+      forepaws.curve(
+        to: NSPoint(x: 7.7, y: 14.6),
+        controlPoint1: NSPoint(x: 6.9, y: 14.7),
+        controlPoint2: NSPoint(x: 7.3, y: 14.8)
+      )
+      forepaws.curve(
+        to: NSPoint(x: 8.3, y: 13.9),
+        controlPoint1: NSPoint(x: 8, y: 14.4),
+        controlPoint2: NSPoint(x: 8.1, y: 14.1)
+      )
+      forepaws.move(to: NSPoint(x: 7.7, y: 14.6))
+      forepaws.curve(
+        to: NSPoint(x: 8.9, y: 13.9),
+        controlPoint1: NSPoint(x: 8.2, y: 15),
+        controlPoint2: NSPoint(x: 8.6, y: 14.4)
+      )
+      stroke(forepaws, width: 0.8)
+
+      let hindLeg = NSBezierPath()
+      hindLeg.move(to: NSPoint(x: 15.7, y: 11.5))
+      hindLeg.curve(
+        to: NSPoint(x: 14.6, y: 16.5),
+        controlPoint1: NSPoint(x: 13.8, y: 12.8),
+        controlPoint2: NSPoint(x: 13.5, y: 15)
+      )
+      stroke(hindLeg, width: 0.85)
 
       return true
     }
