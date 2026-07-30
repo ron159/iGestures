@@ -13,14 +13,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ron159/iGestures/releases/latest">
-    <img src="https://img.shields.io/github/v/release/ron159/iGestures?display_name=tag&sort=semver" alt="最新版本">
-  </a>
+  <a href="https://github.com/ron159/iGestures/releases/latest"><img src="https://img.shields.io/github/v/release/ron159/iGestures?display_name=tag&sort=semver" alt="最新版本"></a>
   <img src="https://img.shields.io/badge/macOS-26%2B-black?logo=apple" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6-orange?logo=swift" alt="Swift 6">
-  <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later">
-  </a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
 </p>
 
 iGestures 常驻菜单栏。按住触发键绘制轨迹，松开后即可在当前应用中执行快捷键、
