@@ -2,11 +2,51 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum SettingsSidebarMetrics {
+  static let minimumWidth: CGFloat = 145
+  static let idealWidth: CGFloat = 185
+  static let maximumWidth: CGFloat = 280
+}
+
+private enum SettingsRootTab: Hashable {
+  case gestures
+  case settings
+}
+
+private enum SettingsCategory: CaseIterable, Hashable, Identifiable {
+  case general
+  case permissions
+
+  var id: Self { self }
+
+  var title: String {
+    switch self {
+    case .general:
+      String(localized: "General")
+    case .permissions:
+      String(localized: "Permissions")
+    }
+  }
+
+  var systemImage: String {
+    switch self {
+    case .general:
+      "gearshape"
+    case .permissions:
+      "hand.raised"
+    }
+  }
+}
+
 struct SettingsRootView: View {
+  static let minimumContentSize = NSSize(width: 640, height: 480)
+
   @ObservedObject var model: AppModel
+  @State private var selectedTab: SettingsRootTab = .gestures
+  @State private var selectedCategory: SettingsCategory? = .general
 
   var body: some View {
-    TabView {
+    TabView(selection: $selectedTab) {
       GesturesSettingsView(model: model)
         .tabItem {
           Label(
@@ -14,77 +54,65 @@ struct SettingsRootView: View {
             systemImage: "scribble.variable"
           )
         }
+        .tag(SettingsRootTab.gestures)
 
-      ScriptLibraryView(model: model)
-        .tabItem {
-          Label(
-            String(localized: "Scripts"),
-            systemImage: "books.vertical"
-          )
-        }
-
-      GeneralSettingsView(model: model)
-        .tabItem {
-          Label(
-            String(localized: "General"),
-            systemImage: "gearshape"
-          )
-        }
-
-      PermissionsSettingsView(model: model)
-        .tabItem {
-          Label(
-            String(localized: "Permissions"),
-            systemImage: "hand.raised"
-          )
-        }
+      SettingsCategoriesView(
+        model: model,
+        selection: $selectedCategory
+      )
+      .tabItem {
+        Label(
+          String(localized: "Settings"),
+          systemImage: "gearshape"
+        )
+      }
+      .tag(SettingsRootTab.settings)
 
     }
     .frame(
-      minWidth: SettingsWindowConfiguration.minimumContentSize.width,
+      minWidth: Self.minimumContentSize.width,
       idealWidth: 1_100,
       maxWidth: .infinity,
-      minHeight: SettingsWindowConfiguration.minimumContentSize.height,
+      minHeight: Self.minimumContentSize.height,
       idealHeight: 700,
       maxHeight: .infinity
     )
-    .background(SettingsWindowConfigurator())
   }
 }
 
-enum SettingsWindowConfiguration {
-  static let minimumContentSize = NSSize(width: 640, height: 480)
+private struct SettingsCategoriesView: View {
+  @ObservedObject var model: AppModel
+  @Binding var selection: SettingsCategory?
 
-  @MainActor
-  static func apply(to window: NSWindow) {
-    window.styleMask.insert(.resizable)
-    window.contentMinSize = minimumContentSize
-    window.contentMaxSize = NSSize(width: 100_000, height: 100_000)
-  }
-}
-
-private struct SettingsWindowConfigurator: NSViewRepresentable {
-  func makeNSView(context: Context) -> SettingsWindowConfigurationView {
-    SettingsWindowConfigurationView()
-  }
-
-  func updateNSView(
-    _ nsView: SettingsWindowConfigurationView,
-    context: Context
-  ) {
-    nsView.configureWindow()
-  }
-}
-
-private final class SettingsWindowConfigurationView: NSView {
-  override func viewDidMoveToWindow() {
-    super.viewDidMoveToWindow()
-    configureWindow()
-  }
-
-  func configureWindow() {
-    guard let window else { return }
-    SettingsWindowConfiguration.apply(to: window)
+  var body: some View {
+    NavigationSplitView {
+      List(selection: $selection) {
+        ForEach(SettingsCategory.allCases) { category in
+          Label(category.title, systemImage: category.systemImage)
+            .tag(category)
+        }
+      }
+      .listStyle(.sidebar)
+      .navigationSplitViewColumnWidth(
+        min: SettingsSidebarMetrics.minimumWidth,
+        ideal: SettingsSidebarMetrics.idealWidth,
+        max: SettingsSidebarMetrics.maximumWidth
+      )
+    } detail: {
+      Group {
+        switch selection ?? .general {
+        case .general:
+          GeneralSettingsView(model: model)
+        case .permissions:
+          PermissionsSettingsView(model: model)
+        }
+      }
+      .frame(
+        minWidth: 0,
+        maxWidth: .infinity,
+        maxHeight: .infinity
+      )
+    }
   }
 }
 
@@ -242,7 +270,7 @@ private struct GeneralSettingsView: View {
       }
 
       LabeledContent(String(localized: "Software Update")) {
-        HStack {
+        adaptiveControlGroup {
           Button(String(localized: "Check for Updates")) {
             model.checkForUpdates(manual: true)
           }
@@ -279,7 +307,7 @@ private struct GeneralSettingsView: View {
       }
 
       LabeledContent(String(localized: "Getting Started")) {
-        HStack {
+        adaptiveControlGroup {
           Button(String(localized: "Practice Gestures")) {
             isPracticePresented = true
           }
@@ -314,7 +342,7 @@ private struct GeneralSettingsView: View {
       }
 
       LabeledContent(String(localized: "Configuration")) {
-        HStack {
+        adaptiveControlGroup {
           Button(String(localized: "Import…")) {
             chooseImportFile()
           }
@@ -440,6 +468,19 @@ private struct GeneralSettingsView: View {
       true
     default:
       false
+    }
+  }
+
+  private func adaptiveControlGroup<Content: View>(
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 8) {
+        content()
+      }
+      VStack(alignment: .trailing, spacing: 8) {
+        content()
+      }
     }
   }
 }

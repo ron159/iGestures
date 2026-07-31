@@ -14,6 +14,7 @@ struct GesturesSettingsView: View {
   @State private var selectedMappingID: UUID?
   @State private var isPresentingRecorder = false
   @State private var isPresentingPresets = false
+  @State private var isPresentingActionLibrary = false
   @State private var isAddingGroup = false
   @State private var newGroupName = ""
   @State private var expandedGroupIDs: Set<UUID> = []
@@ -21,10 +22,14 @@ struct GesturesSettingsView: View {
   @State private var searchText = ""
 
   var body: some View {
-    HSplitView {
+    NavigationSplitView {
       targetSidebar
-        .frame(minWidth: 160, idealWidth: 225, maxWidth: 320)
-
+        .navigationSplitViewColumnWidth(
+          min: SettingsSidebarMetrics.minimumWidth,
+          ideal: SettingsSidebarMetrics.idealWidth,
+          max: SettingsSidebarMetrics.maximumWidth
+        )
+    } detail: {
       gestureWorkspace
         .frame(
           minWidth: 0,
@@ -45,6 +50,9 @@ struct GesturesSettingsView: View {
     }
     .sheet(isPresented: $isPresentingPresets) {
       GesturePresetLibraryView(model: model)
+    }
+    .sheet(isPresented: $isPresentingActionLibrary) {
+      ActionPresetLibrarySheet(model: model)
     }
     .alert(
       String(localized: "New Group"),
@@ -264,9 +272,22 @@ struct GesturesSettingsView: View {
         ProgressView(String(localized: "Loading Gestures…"))
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
-        gestureList
-        Divider()
-        gestureInspector
+        HSplitView {
+          gestureList
+            .frame(
+              minWidth: 205,
+              idealWidth: 300,
+              maxWidth: 420,
+              maxHeight: .infinity
+            )
+
+          gestureInspector
+            .frame(
+              minWidth: 280,
+              maxWidth: .infinity,
+              maxHeight: .infinity
+            )
+        }
       }
 
       if let error = model.mappingStoreError {
@@ -284,19 +305,15 @@ struct GesturesSettingsView: View {
   private var triggerConfiguration: some View {
     VStack(alignment: .leading, spacing: 8) {
       ViewThatFits(in: .horizontal) {
-        HStack(alignment: .center, spacing: 16) {
+        HStack(alignment: .top, spacing: 24) {
           triggerConfigurationTitle
             .frame(maxWidth: .infinity, alignment: .leading)
-          triggerButtonControls
-          Divider()
-            .frame(height: 62)
-          triggerDurationControl
+          triggerControls
         }
 
         VStack(alignment: .leading, spacing: 12) {
           triggerConfigurationTitle
-          triggerButtonControls
-          triggerDurationControl
+          compactTriggerControls
         }
       }
       if let error = model.triggerConfigurationError {
@@ -307,7 +324,11 @@ struct GesturesSettingsView: View {
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
-    .background(.secondary.opacity(0.045))
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(
+      .secondary.opacity(0.045),
+      ignoresSafeAreaEdges: []
+    )
   }
 
   private var triggerConfigurationTitle: some View {
@@ -328,60 +349,134 @@ struct GesturesSettingsView: View {
     }
   }
 
-  private var triggerButtonControls: some View {
-    VStack(alignment: .trailing, spacing: 8) {
-      LabeledContent(String(localized: "Primary Trigger")) {
+  private var triggerControls: some View {
+    Grid(
+      alignment: .leading,
+      horizontalSpacing: 12,
+      verticalSpacing: 8
+    ) {
+      GridRow {
+        Text(String(localized: "Primary Trigger"))
+          .foregroundStyle(.secondary)
         HStack(spacing: 8) {
-          Picker(
-            "",
-            selection: Binding(
-              get: { model.triggerButton },
-              set: { model.setTriggerButton($0) }
-            )
-          ) {
-            ForEach(GestureTriggerButton.commonPresets) { button in
-              Text(triggerButtonName(button)).tag(button)
-            }
-            if !GestureTriggerButton.commonPresets.contains(
-              model.triggerButton
-            ) {
-              Text(triggerButtonName(model.triggerButton))
-                .tag(model.triggerButton)
-            }
-          }
-          .labelsHidden()
-          .frame(width: 165)
+          primaryTriggerPicker
+          primaryTriggerRecorder
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
 
-          TriggerButtonRecorderView(model: model) {
-            model.setTriggerButton($0)
-          }
+      GridRow {
+        Text(String(localized: "Secondary Trigger"))
+          .foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+          secondaryTriggerPicker
+          secondaryTriggerRecorder
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+
+      GridRow {
+        Text(String(localized: "Trigger Hold Duration"))
+          .foregroundStyle(.secondary)
+        triggerDurationStepper
+          .gridCellColumns(2)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+  }
+
+  private var compactTriggerControls: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      VStack(alignment: .leading, spacing: 6) {
+        Text(String(localized: "Primary Trigger"))
+          .foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+          primaryTriggerPicker
+          primaryTriggerRecorder
         }
       }
 
-      LabeledContent(String(localized: "Secondary Trigger")) {
+      VStack(alignment: .leading, spacing: 6) {
+        Text(String(localized: "Secondary Trigger"))
+          .foregroundStyle(.secondary)
         HStack(spacing: 8) {
-          Picker(
-            "",
-            selection: Binding(
-              get: { model.secondaryTriggerButton },
-              set: { model.setSecondaryTriggerButton($0) }
-            )
-          ) {
-            Text(String(localized: "Disabled"))
-              .tag(GestureTriggerButton?.none)
-            ForEach(availableSecondaryTriggerButtons) { button in
-              Text(triggerButtonName(button))
-                .tag(GestureTriggerButton?.some(button))
-            }
-          }
-          .labelsHidden()
-          .frame(width: 165)
-
-          TriggerButtonRecorderView(model: model) {
-            model.setSecondaryTriggerButton($0)
-          }
+          secondaryTriggerPicker
+          secondaryTriggerRecorder
         }
       }
+
+      LabeledContent(String(localized: "Trigger Hold Duration")) {
+        triggerDurationStepper
+      }
+    }
+  }
+
+  private var primaryTriggerPicker: some View {
+    Picker(
+      "",
+      selection: Binding(
+        get: { model.triggerButton },
+        set: { model.setTriggerButton($0) }
+      )
+    ) {
+      ForEach(GestureTriggerButton.commonPresets) { button in
+        Text(triggerButtonName(button)).tag(button)
+      }
+      if !GestureTriggerButton.commonPresets.contains(
+        model.triggerButton
+      ) {
+        Text(triggerButtonName(model.triggerButton))
+          .tag(model.triggerButton)
+      }
+    }
+    .labelsHidden()
+    .frame(width: 165)
+  }
+
+  private var primaryTriggerRecorder: some View {
+    TriggerButtonRecorderView(model: model) {
+      model.setTriggerButton($0)
+    }
+    .frame(width: 170, alignment: .leading)
+  }
+
+  private var secondaryTriggerPicker: some View {
+    Picker(
+      "",
+      selection: Binding(
+        get: { model.secondaryTriggerButton },
+        set: { model.setSecondaryTriggerButton($0) }
+      )
+    ) {
+      Text(String(localized: "Disabled"))
+        .tag(GestureTriggerButton?.none)
+      ForEach(availableSecondaryTriggerButtons) { button in
+        Text(triggerButtonName(button))
+          .tag(GestureTriggerButton?.some(button))
+      }
+    }
+    .labelsHidden()
+    .frame(width: 165)
+  }
+
+  private var secondaryTriggerRecorder: some View {
+    TriggerButtonRecorderView(model: model) {
+      model.setSecondaryTriggerButton($0)
+    }
+    .frame(width: 170, alignment: .leading)
+  }
+
+  private var triggerDurationStepper: some View {
+    Stepper(
+      value: Binding(
+        get: { model.triggerDuration },
+        set: { model.setTriggerDuration($0) }
+      ),
+      in: triggerDurationRange,
+      step: 0.05
+    ) {
+      Text(triggerDurationLabel(model.triggerDuration))
+        .monospacedDigit()
     }
   }
 
@@ -398,22 +493,6 @@ struct GesturesSettingsView: View {
       buttons.append(current)
     }
     return buttons
-  }
-
-  private var triggerDurationControl: some View {
-    LabeledContent(String(localized: "Trigger Hold Duration")) {
-      Stepper(
-        value: Binding(
-          get: { model.triggerDuration },
-          set: { model.setTriggerDuration($0) }
-        ),
-        in: triggerDurationRange,
-        step: 0.05
-      ) {
-        Text(triggerDurationLabel(model.triggerDuration))
-          .monospacedDigit()
-      }
-    }
   }
 
   private var workspaceHeader: some View {
@@ -441,6 +520,15 @@ struct GesturesSettingsView: View {
 
   private var workspaceActions: some View {
     HStack(spacing: 12) {
+      Button {
+        isPresentingActionLibrary = true
+      } label: {
+        Label(
+          String(localized: "Quick Actions"),
+          systemImage: "sparkles"
+        )
+      }
+
       Button {
         isPresentingPresets = true
       } label: {
@@ -525,9 +613,10 @@ struct GesturesSettingsView: View {
           }
         }
         .listStyle(.inset)
-        .frame(minHeight: 150, idealHeight: 220, maxHeight: 285)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
   @ViewBuilder
@@ -1075,131 +1164,208 @@ private struct GestureMappingInspector: View {
   }
 
   private var mappingFields: some View {
+    ViewThatFits(in: .horizontal) {
+      mappingFieldsGrid
+      mappingFieldsStack
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var mappingFieldsGrid: some View {
     Grid(
       alignment: .leading,
       horizontalSpacing: 12,
       verticalSpacing: 12
     ) {
       GridRow {
-        Text(String(localized: "Gesture Name"))
-          .foregroundStyle(.secondary)
-        TextField(String(localized: "Gesture Name"), text: $name)
-          .onSubmit(commitName)
+        mappingFieldLabel(String(localized: "Gesture Name"))
+        mappingNameField
       }
 
       GridRow {
-        Text(String(localized: "Application Scope"))
-          .foregroundStyle(.secondary)
-        if let applicationGroupName {
-          Label(applicationGroupName, systemImage: "folder")
-        } else {
-          Button(scopeSummary(mapping.appScope)) {
-            isEditingScope = true
-          }
-        }
+        mappingFieldLabel(String(localized: "Application Scope"))
+        mappingScopeControl
       }
 
       GridRow {
-        Text(String(localized: "Trigger"))
-          .foregroundStyle(.secondary)
-        HStack(spacing: 8) {
-          Picker(
-            "",
-            selection: Binding(
-              get: { mapping.triggerButton },
-              set: {
-                model.setMappingTriggerButton(
-                  id: mapping.id,
-                  triggerButton: $0
-                )
-              }
-            )
-          ) {
-            Text(String(localized: "Use Global Default"))
-              .tag(GestureTriggerButton?.none)
-            ForEach(
-              GestureTriggerButton.commonPresets.filter {
-                $0 != model.secondaryTriggerButton
-              }
-            ) { button in
-              Text(triggerButtonName(button))
-                .tag(GestureTriggerButton?.some(button))
-            }
-            if let customButton = mapping.triggerButton,
-              !GestureTriggerButton.commonPresets.contains(customButton)
-            {
-              Text(triggerButtonName(customButton))
-                .tag(GestureTriggerButton?.some(customButton))
-            }
-          }
-          .labelsHidden()
-          .frame(width: 180)
-
-          TriggerButtonRecorderView(model: model) { button in
-            model.setMappingTriggerButton(
-              id: mapping.id,
-              triggerButton: button
-            )
-            if mapping.deviceScope == .trackpad {
-              model.setMappingDeviceScope(
-                id: mapping.id,
-                deviceScope: .mouse(identifier: nil)
-              )
-            }
-          }
-        }
+        mappingFieldLabel(String(localized: "Trigger"))
+        mappingTriggerControls
+          .gridCellAnchor(.leading)
       }
 
       GridRow {
-        Text(String(localized: "Input Device"))
-          .foregroundStyle(.secondary)
-        Picker(
-          "",
-          selection: Binding(
-            get: { mapping.deviceScope },
-            set: {
-              model.setMappingDeviceScope(
-                id: mapping.id,
-                deviceScope: $0
-              )
-            }
-          )
-        ) {
-          Text(String(localized: "Any Device"))
-            .tag(InputDeviceScope.any)
-          Text(String(localized: "Mouse"))
-            .tag(InputDeviceScope.mouse(identifier: nil))
-          Text(String(localized: "Trackpad"))
-            .tag(InputDeviceScope.trackpad)
-          if case .mouse(let identifier?) = mapping.deviceScope {
-            Text(identifier)
-              .tag(InputDeviceScope.mouse(identifier: identifier))
-          }
-        }
-        .labelsHidden()
+        mappingFieldLabel(String(localized: "Input Device"))
+        mappingDevicePicker
+          .gridCellAnchor(.leading)
       }
 
       GridRow {
         Text("")
-        Toggle(
-          String(localized: "Repeat"),
-          isOn: Binding(
-            get: { mapping.repeatModeEnabled },
-            set: {
-              model.setMappingRepeatModeEnabled(
-                id: mapping.id,
-                enabled: $0
-              )
-            }
+        mappingRepeatToggle
+      }
+    }
+  }
+
+  private var mappingFieldsStack: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      stackedMappingField(String(localized: "Gesture Name")) {
+        mappingNameField
+      }
+      stackedMappingField(String(localized: "Application Scope")) {
+        mappingScopeControl
+      }
+      stackedMappingField(String(localized: "Trigger")) {
+        mappingTriggerControls
+      }
+      stackedMappingField(String(localized: "Input Device")) {
+        mappingDevicePicker
+      }
+      mappingRepeatToggle
+    }
+  }
+
+  private var mappingNameField: some View {
+    TextField(String(localized: "Gesture Name"), text: $name)
+      .onSubmit(commitName)
+  }
+
+  @ViewBuilder
+  private var mappingScopeControl: some View {
+    if let applicationGroupName {
+      Label(applicationGroupName, systemImage: "folder")
+    } else {
+      Button(scopeSummary(mapping.appScope)) {
+        isEditingScope = true
+      }
+    }
+  }
+
+  private var mappingTriggerControls: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 8) {
+        mappingTriggerPicker
+        mappingTriggerRecorder
+      }
+      VStack(alignment: .leading, spacing: 8) {
+        mappingTriggerPicker
+        mappingTriggerRecorder
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var mappingTriggerPicker: some View {
+    Picker(
+      "",
+      selection: Binding(
+        get: { mapping.triggerButton },
+        set: {
+          model.setMappingTriggerButton(
+            id: mapping.id,
+            triggerButton: $0
           )
-        )
-        .help(
-          String(
-            localized:
-              "Repeat the last successful action with another trigger click."
-          )
+        }
+      )
+    ) {
+      Text(String(localized: "Use Global Default"))
+        .tag(GestureTriggerButton?.none)
+      ForEach(
+        GestureTriggerButton.commonPresets.filter {
+          $0 != model.secondaryTriggerButton
+        }
+      ) { button in
+        Text(triggerButtonName(button))
+          .tag(GestureTriggerButton?.some(button))
+      }
+      if let customButton = mapping.triggerButton,
+        !GestureTriggerButton.commonPresets.contains(customButton)
+      {
+        Text(triggerButtonName(customButton))
+          .tag(GestureTriggerButton?.some(customButton))
+      }
+    }
+    .labelsHidden()
+    .frame(width: 155, alignment: .leading)
+  }
+
+  private var mappingTriggerRecorder: some View {
+    TriggerButtonRecorderView(model: model) { button in
+      model.setMappingTriggerButton(
+        id: mapping.id,
+        triggerButton: button
+      )
+      if mapping.deviceScope == .trackpad {
+        model.setMappingDeviceScope(
+          id: mapping.id,
+          deviceScope: .mouse(identifier: nil)
         )
       }
+    }
+    .frame(width: 155, alignment: .leading)
+  }
+
+  private var mappingDevicePicker: some View {
+    Picker(
+      "",
+      selection: Binding(
+        get: { mapping.deviceScope },
+        set: {
+          model.setMappingDeviceScope(
+            id: mapping.id,
+            deviceScope: $0
+          )
+        }
+      )
+    ) {
+      Text(String(localized: "Any Device"))
+        .tag(InputDeviceScope.any)
+      Text(String(localized: "Mouse"))
+        .tag(InputDeviceScope.mouse(identifier: nil))
+      Text(String(localized: "Trackpad"))
+        .tag(InputDeviceScope.trackpad)
+      if case .mouse(let identifier?) = mapping.deviceScope {
+        Text(identifier)
+          .tag(InputDeviceScope.mouse(identifier: identifier))
+      }
+    }
+    .labelsHidden()
+    .frame(width: 190, alignment: .leading)
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var mappingRepeatToggle: some View {
+    Toggle(
+      String(localized: "Repeat"),
+      isOn: Binding(
+        get: { mapping.repeatModeEnabled },
+        set: {
+          model.setMappingRepeatModeEnabled(
+            id: mapping.id,
+            enabled: $0
+          )
+        }
+      )
+    )
+    .help(
+      String(
+        localized:
+          "Repeat the last successful action with another trigger click."
+      )
+    )
+  }
+
+  private func mappingFieldLabel(_ title: String) -> some View {
+    Text(title)
+      .foregroundStyle(.secondary)
+  }
+
+  private func stackedMappingField<Content: View>(
+    _ title: String,
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      mappingFieldLabel(title)
+      content()
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
@@ -2487,6 +2653,7 @@ private struct ActionPresetLibrarySheet: View {
     case favorites
     case recent
     case mine
+    case scripts
 
     var id: Self { self }
 
@@ -2500,17 +2667,28 @@ private struct ActionPresetLibrarySheet: View {
         String(localized: "Recent")
       case .mine:
         String(localized: "My Presets")
+      case .scripts:
+        String(localized: "Scripts")
       }
     }
   }
 
   @Environment(\.dismiss) private var dismiss
-  @Binding var action: GestureAction
+  let action: Binding<GestureAction>?
   @ObservedObject var model: AppModel
   @State private var searchText = ""
   @State private var selectedCategory: ActionPresetCategory?
   @State private var mode: Mode = .all
   @State private var isSavingPreset = false
+
+  init(
+    action: Binding<GestureAction>? = nil,
+    model: AppModel
+  ) {
+    self.action = action
+    self.model = model
+    _mode = State(initialValue: action == nil ? .scripts : .all)
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -2523,12 +2701,6 @@ private struct ActionPresetLibrarySheet: View {
         }
       }
 
-      TextField(
-        String(localized: "Search actions, commands, and folders"),
-        text: $searchText
-      )
-      .textFieldStyle(.roundedBorder)
-
       Picker(String(localized: "Library"), selection: $mode) {
         ForEach(Mode.allCases) {
           Text($0.label).tag($0)
@@ -2536,79 +2708,93 @@ private struct ActionPresetLibrarySheet: View {
       }
       .pickerStyle(.segmented)
 
-      ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: 8) {
-          categoryButton(nil, label: String(localized: "All"))
-          ForEach(ActionPresetCategory.allCases, id: \.self) {
-            categoryButton($0, label: $0.label)
+      if mode == .scripts {
+        ScriptLibraryView(
+          model: model,
+          showsTitle: false,
+          onSelect: scriptSelection
+        )
+      } else {
+        TextField(
+          String(localized: "Search actions, commands, and folders"),
+          text: $searchText
+        )
+        .textFieldStyle(.roundedBorder)
+
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(spacing: 8) {
+            categoryButton(nil, label: String(localized: "All"))
+            ForEach(ActionPresetCategory.allCases, id: \.self) {
+              categoryButton($0, label: $0.label)
+            }
           }
         }
-      }
 
-      if filteredPresets.isEmpty {
-        ContentUnavailableView(
-          String(localized: "No Quick Actions"),
-          systemImage: "sparkles",
-          description: Text(
-            String(localized: "Try another search or category.")
+        if filteredPresets.isEmpty {
+          ContentUnavailableView(
+            String(localized: "No Quick Actions"),
+            systemImage: "sparkles",
+            description: Text(
+              String(localized: "Try another search or category.")
+            )
           )
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else {
-        List(filteredPresets) { preset in
-          ActionPresetLibraryRow(
-            preset: preset,
-            isFavorite:
-              model.favoriteActionPresetIDs.contains(preset.id),
-            onSelect: {
-              action = preset.action
-              model.recordActionPresetUse(id: preset.id)
-              dismiss()
-            },
-            onToggleFavorite: {
-              model.toggleFavoriteActionPreset(id: preset.id)
-            },
-            onDelete:
-              preset.isUserDefined
-              ? {
-                model.deleteCustomActionPreset(id: preset.id)
-              }
-              : nil
-          )
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+          List(filteredPresets) { preset in
+            ActionPresetLibraryRow(
+              preset: preset,
+              isFavorite:
+                model.favoriteActionPresetIDs.contains(preset.id),
+              onSelect: selectionHandler(for: preset),
+              onToggleFavorite: {
+                model.toggleFavoriteActionPreset(id: preset.id)
+              },
+              onDelete:
+                preset.isUserDefined
+                ? {
+                  model.deleteCustomActionPreset(id: preset.id)
+                }
+                : nil
+            )
+          }
+          .listStyle(.inset)
         }
-        .listStyle(.inset)
-      }
 
-      HStack {
-        Button {
-          isSavingPreset = true
-        } label: {
-          Label(
-            String(localized: "Save Current Action as Preset"),
-            systemImage: "plus"
+        HStack {
+          if action != nil {
+            Button {
+              isSavingPreset = true
+            } label: {
+              Label(
+                String(localized: "Save Current Action as Preset"),
+                systemImage: "plus"
+              )
+            }
+            .disabled(!(action?.wrappedValue.isValid ?? false))
+          }
+
+          Spacer()
+
+          Text(
+            String(
+              format: String(localized: "%d actions"),
+              filteredPresets.count
+            )
           )
+          .font(.caption)
+          .foregroundStyle(.secondary)
         }
-        .disabled(!action.isValid)
-
-        Spacer()
-
-        Text(
-          String(
-            format: String(localized: "%d actions"),
-            filteredPresets.count
-          )
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
       }
     }
     .padding(20)
     .frame(width: 760, height: 600)
     .sheet(isPresented: $isSavingPreset) {
-      SaveActionPresetSheet(
-        action: action,
-        model: model
-      )
+      if let action {
+        SaveActionPresetSheet(
+          action: action.wrappedValue,
+          model: model
+        )
+      }
     }
   }
 
@@ -2631,6 +2817,8 @@ private struct ActionPresetLibrarySheet: View {
       }
     case .mine:
       modePresets = model.customActionPresets
+    case .scripts:
+      modePresets = []
     }
     return modePresets.filter {
       (selectedCategory == nil || $0.category == selectedCategory)
@@ -2662,12 +2850,36 @@ private struct ActionPresetLibrarySheet: View {
     }
     .buttonStyle(.plain)
   }
+
+  private var scriptSelection: ((ScriptLibraryItem) -> Void)? {
+    guard let action else { return nil }
+    return { item in
+      action.wrappedValue = .script(item.script)
+      if let preset = ActionPresetLibrary.builtIn.first(where: {
+        $0.action == .script(item.script)
+      }) {
+        model.recordActionPresetUse(id: preset.id)
+      }
+      dismiss()
+    }
+  }
+
+  private func selectionHandler(
+    for preset: ActionPreset
+  ) -> (() -> Void)? {
+    guard let action else { return nil }
+    return {
+      action.wrappedValue = preset.action
+      model.recordActionPresetUse(id: preset.id)
+      dismiss()
+    }
+  }
 }
 
 private struct ActionPresetLibraryRow: View {
   let preset: ActionPreset
   let isFavorite: Bool
-  let onSelect: () -> Void
+  let onSelect: (() -> Void)?
   let onToggleFavorite: () -> Void
   let onDelete: (() -> Void)?
 
@@ -2678,30 +2890,14 @@ private struct ActionPresetLibraryRow: View {
         .frame(width: 28)
         .foregroundStyle(.secondary)
 
-      Button(action: onSelect) {
-        VStack(alignment: .leading, spacing: 3) {
-          Text(preset.name)
-            .foregroundStyle(.primary)
-          HStack(spacing: 8) {
-            Text(preset.category.label)
-            if let hint = preset.scopeHint.label {
-              Text("·")
-              Text(hint)
-            }
-          }
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          if !preset.summary.isEmpty {
-            Text(preset.summary)
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .lineLimit(2)
-          }
+      if let onSelect {
+        Button(action: onSelect) {
+          presetDetails
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
+      } else {
+        presetDetails
       }
-      .buttonStyle(.plain)
 
       Button(action: onToggleFavorite) {
         Image(systemName: isFavorite ? "star.fill" : "star")
@@ -2723,6 +2919,30 @@ private struct ActionPresetLibraryRow: View {
       }
     }
     .padding(.vertical, 4)
+  }
+
+  private var presetDetails: some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Text(preset.name)
+        .foregroundStyle(.primary)
+      HStack(spacing: 8) {
+        Text(preset.category.label)
+        if let hint = preset.scopeHint.label {
+          Text("·")
+          Text(hint)
+        }
+      }
+      .font(.caption)
+      .foregroundStyle(.secondary)
+      if !preset.summary.isEmpty {
+        Text(preset.summary)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .contentShape(Rectangle())
   }
 }
 

@@ -3,7 +3,16 @@ import SwiftUI
 
 @main
 struct IGesturesApp: App {
-  @StateObject private var model = AppModel()
+  @StateObject private var model: AppModel
+  @StateObject private var settingsWindowController: SettingsWindowController
+
+  init() {
+    let model = AppModel()
+    _model = StateObject(wrappedValue: model)
+    _settingsWindowController = StateObject(
+      wrappedValue: SettingsWindowController(model: model)
+    )
+  }
 
   var body: some Scene {
     #if UI_PREVIEW
@@ -15,17 +24,21 @@ struct IGesturesApp: App {
     #endif
 
     MenuBarExtra {
-      MenuBarContent(model: model)
+      MenuBarContent(
+        model: model,
+        showSettings: settingsWindowController.showSettings
+      )
     } label: {
       MenuBarIcon(isEnabled: model.isEnabled)
         .accessibilityLabel("iGestures")
     }
-
-    Settings {
-      SettingsRootView(model: model)
-    }
-    .defaultSize(width: 1_100, height: 700)
-    .windowResizability(.contentMinSize)
+    #if !UI_PREVIEW
+      .commands {
+        AppSettingsCommands(
+          showSettings: settingsWindowController.showSettings
+        )
+      }
+    #endif
 
     #if !UI_PREVIEW
       Window(
@@ -36,6 +49,68 @@ struct IGesturesApp: App {
       }
       .defaultSize(width: 660, height: 560)
     #endif
+  }
+}
+
+#if !UI_PREVIEW
+  private struct AppSettingsCommands: Commands {
+    let showSettings: () -> Void
+
+    var body: some Commands {
+      CommandGroup(replacing: .appSettings) {
+        Button(
+          String(localized: "Settings…"),
+          action: showSettings
+        )
+        .keyboardShortcut(",", modifiers: .command)
+      }
+    }
+  }
+#endif
+
+@MainActor
+private final class SettingsWindowController: ObservableObject {
+  private let model: AppModel
+  private var windowController: NSWindowController?
+
+  init(model: AppModel) {
+    self.model = model
+  }
+
+  func showSettings() {
+    let windowController =
+      windowController ?? makeWindowController()
+    self.windowController = windowController
+    NSApp.activate()
+    windowController.showWindow(nil)
+    windowController.window?.makeKeyAndOrderFront(nil)
+  }
+
+  private func makeWindowController() -> NSWindowController {
+    let hostingController = NSHostingController(
+      rootView: SettingsRootView(model: model)
+    )
+    let window = NSWindow(
+      contentRect: NSRect(
+        origin: .zero,
+        size: NSSize(width: 1_100, height: 700)
+      ),
+      styleMask: [
+        .titled,
+        .closable,
+        .miniaturizable,
+        .resizable,
+      ],
+      backing: .buffered,
+      defer: false
+    )
+    window.contentViewController = hostingController
+    window.title = "iGestures"
+    window.contentMinSize = SettingsRootView.minimumContentSize
+    window.isReleasedWhenClosed = false
+    window.center()
+    window.setFrameAutosaveName("iGestures.SettingsWindow")
+    return NSWindowController(window: window)
   }
 }
 
@@ -84,176 +159,14 @@ private enum MenuBarTemplateImage {
   static let icon = make()
 
   private static func make() -> NSImage {
-    let image = NSImage(
-      size: NSSize(width: 22, height: 18),
-      flipped: true
-    ) { _ in
-      NSColor.black.setStroke()
-      NSColor.black.setFill()
-
-      func stroke(_ path: NSBezierPath, width: CGFloat) {
-        path.lineWidth = width
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-        path.stroke()
-      }
-
-      let tail = NSBezierPath()
-      tail.move(to: NSPoint(x: 18.4, y: 15.5))
-      tail.curve(
-        to: NSPoint(x: 20.7, y: 15.1),
-        controlPoint1: NSPoint(x: 19.5, y: 14.5),
-        controlPoint2: NSPoint(x: 20.7, y: 14.6)
+    let image =
+      NSImage(named: "MenuBarHamsterTemplate")
+      ?? NSImage(
+        systemSymbolName: "pawprint.fill",
+        accessibilityDescription: nil
       )
-      tail.curve(
-        to: NSPoint(x: 18.1, y: 16.7),
-        controlPoint1: NSPoint(x: 21.3, y: 16.1),
-        controlPoint2: NSPoint(x: 19.7, y: 17.2)
-      )
-      stroke(tail, width: 1.15)
-
-      let rearEar = NSBezierPath()
-      rearEar.move(to: NSPoint(x: 4.3, y: 4.2))
-      rearEar.curve(
-        to: NSPoint(x: 4.7, y: 1.8),
-        controlPoint1: NSPoint(x: 4.2, y: 3.1),
-        controlPoint2: NSPoint(x: 4.2, y: 2.3)
-      )
-      rearEar.curve(
-        to: NSPoint(x: 7.6, y: 3.5),
-        controlPoint1: NSPoint(x: 6.2, y: 1),
-        controlPoint2: NSPoint(x: 7.4, y: 2)
-      )
-      stroke(rearEar, width: 1.15)
-
-      let outline = NSBezierPath()
-      outline.move(to: NSPoint(x: 7.6, y: 3.6))
-      outline.curve(
-        to: NSPoint(x: 1.6, y: 7.9),
-        controlPoint1: NSPoint(x: 4.7, y: 3.5),
-        controlPoint2: NSPoint(x: 2.2, y: 5.4)
-      )
-      outline.curve(
-        to: NSPoint(x: 3.2, y: 10.9),
-        controlPoint1: NSPoint(x: 1.2, y: 9.3),
-        controlPoint2: NSPoint(x: 2, y: 10.4)
-      )
-      outline.curve(
-        to: NSPoint(x: 5.3, y: 11.6),
-        controlPoint1: NSPoint(x: 3.9, y: 11.4),
-        controlPoint2: NSPoint(x: 4.7, y: 11.6)
-      )
-      outline.curve(
-        to: NSPoint(x: 7.4, y: 15.9),
-        controlPoint1: NSPoint(x: 5.1, y: 13.7),
-        controlPoint2: NSPoint(x: 6.1, y: 15.1)
-      )
-      outline.curve(
-        to: NSPoint(x: 9.1, y: 16.7),
-        controlPoint1: NSPoint(x: 6.7, y: 16.3),
-        controlPoint2: NSPoint(x: 7.4, y: 16.7)
-      )
-      outline.line(to: NSPoint(x: 17.1, y: 16.7))
-      outline.curve(
-        to: NSPoint(x: 20.2, y: 13.2),
-        controlPoint1: NSPoint(x: 19.2, y: 16.7),
-        controlPoint2: NSPoint(x: 20.2, y: 15.5)
-      )
-      outline.curve(
-        to: NSPoint(x: 17.8, y: 8),
-        controlPoint1: NSPoint(x: 20.1, y: 10.7),
-        controlPoint2: NSPoint(x: 19.2, y: 9)
-      )
-      outline.curve(
-        to: NSPoint(x: 10.9, y: 3.6),
-        controlPoint1: NSPoint(x: 15.2, y: 6.1),
-        controlPoint2: NSPoint(x: 12.8, y: 5.2)
-      )
-      stroke(outline, width: 1.2)
-
-      let frontEar = NSBezierPath()
-      frontEar.move(to: NSPoint(x: 7.5, y: 4.1))
-      frontEar.curve(
-        to: NSPoint(x: 8.1, y: 1.6),
-        controlPoint1: NSPoint(x: 7.6, y: 3),
-        controlPoint2: NSPoint(x: 7.7, y: 2.1)
-      )
-      frontEar.curve(
-        to: NSPoint(x: 10.8, y: 1.8),
-        controlPoint1: NSPoint(x: 9.2, y: 0.9),
-        controlPoint2: NSPoint(x: 10.5, y: 1.1)
-      )
-      frontEar.curve(
-        to: NSPoint(x: 9.5, y: 5.4),
-        controlPoint1: NSPoint(x: 12.1, y: 3.4),
-        controlPoint2: NSPoint(x: 10.9, y: 5)
-      )
-      stroke(frontEar, width: 1.15)
-
-      NSBezierPath(
-        ovalIn: NSRect(x: 3.8, y: 6.1, width: 1.55, height: 1.8)
-      ).fill()
-      NSBezierPath(
-        ovalIn: NSRect(x: 1.05, y: 8, width: 1.15, height: 0.85)
-      ).fill()
-
-      let faceDetails = NSBezierPath()
-      faceDetails.move(to: NSPoint(x: 2, y: 9))
-      faceDetails.curve(
-        to: NSPoint(x: 3.6, y: 9.4),
-        controlPoint1: NSPoint(x: 2.2, y: 9.8),
-        controlPoint2: NSPoint(x: 3, y: 9.8)
-      )
-      faceDetails.move(to: NSPoint(x: 3.8, y: 8.7))
-      faceDetails.curve(
-        to: NSPoint(x: 6.6, y: 8.5),
-        controlPoint1: NSPoint(x: 4.8, y: 8.4),
-        controlPoint2: NSPoint(x: 5.8, y: 8.4)
-      )
-      faceDetails.move(to: NSPoint(x: 3.8, y: 9.35))
-      faceDetails.curve(
-        to: NSPoint(x: 6.4, y: 10),
-        controlPoint1: NSPoint(x: 4.7, y: 9.4),
-        controlPoint2: NSPoint(x: 5.7, y: 9.7)
-      )
-      stroke(faceDetails, width: 0.65)
-
-      let forepaws = NSBezierPath()
-      forepaws.move(to: NSPoint(x: 8.6, y: 12.2))
-      forepaws.curve(
-        to: NSPoint(x: 7, y: 14.2),
-        controlPoint1: NSPoint(x: 7.5, y: 12.9),
-        controlPoint2: NSPoint(x: 7, y: 13.6)
-      )
-      forepaws.curve(
-        to: NSPoint(x: 7.7, y: 14.6),
-        controlPoint1: NSPoint(x: 6.9, y: 14.7),
-        controlPoint2: NSPoint(x: 7.3, y: 14.8)
-      )
-      forepaws.curve(
-        to: NSPoint(x: 8.3, y: 13.9),
-        controlPoint1: NSPoint(x: 8, y: 14.4),
-        controlPoint2: NSPoint(x: 8.1, y: 14.1)
-      )
-      forepaws.move(to: NSPoint(x: 7.7, y: 14.6))
-      forepaws.curve(
-        to: NSPoint(x: 8.9, y: 13.9),
-        controlPoint1: NSPoint(x: 8.2, y: 15),
-        controlPoint2: NSPoint(x: 8.6, y: 14.4)
-      )
-      stroke(forepaws, width: 0.8)
-
-      let hindLeg = NSBezierPath()
-      hindLeg.move(to: NSPoint(x: 15.7, y: 11.5))
-      hindLeg.curve(
-        to: NSPoint(x: 14.6, y: 16.5),
-        controlPoint1: NSPoint(x: 13.8, y: 12.8),
-        controlPoint2: NSPoint(x: 13.5, y: 15)
-      )
-      stroke(hindLeg, width: 0.85)
-
-      return true
-    }
+      ?? NSImage(size: NSSize(width: 22, height: 18))
+    image.size = NSSize(width: 22, height: 18)
     image.isTemplate = true
     return image
   }
@@ -580,7 +493,7 @@ struct GesturePracticePad: View {
 
 private struct MenuBarContent: View {
   @ObservedObject var model: AppModel
-  @Environment(\.openSettings) private var openSettings
+  let showSettings: () -> Void
 
   var body: some View {
     Button(
@@ -624,38 +537,16 @@ private struct MenuBarContent: View {
 
     Text(model.permissionStatusText)
 
-    Button(String(localized: "Settings…")) {
-      showSettings()
-    }
+    Button(
+      String(localized: "Settings…"),
+      action: showSettings
+    )
 
     Divider()
 
     Button(String(localized: "Quit")) {
       model.terminate()
     }
-  }
-
-  private func showSettings() {
-    NSApp.activate()
-    openSettings()
-    raiseSettingsWindow()
-    Task { @MainActor in
-      await Task.yield()
-      raiseSettingsWindow()
-    }
-  }
-
-  private func raiseSettingsWindow() {
-    guard
-      let window = NSApp.windows.first(where: {
-        $0.canBecomeKey && $0.styleMask.contains(.titled)
-      })
-    else {
-      return
-    }
-    NSApp.activate()
-    window.makeKeyAndOrderFront(nil)
-    window.orderFrontRegardless()
   }
 
   private func onboardingMenuTriggerLabel(

@@ -90,172 +90,176 @@ struct GestureRecorderSheet: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      HStack {
-        Text(
-          isEditing
-            ? String(localized: "Record Gesture Again")
-            : String(localized: "Record Gesture")
-        )
-        .font(.title2)
-        .fontWeight(.semibold)
-        Spacer()
-        phaseLabel
-          .foregroundStyle(.secondary)
-      }
-
-      if !originalGesture.isEmpty {
-        Label(
-          String(localized: "Original Gesture"),
-          systemImage: "scribble"
-        )
-        .font(.headline)
-      }
-
-      GestureDrawingPad(
-        points: $points,
-        guidePoints: originalGesture
-      ) {
-        handleStroke($0)
-      }
-      .frame(height: 300)
-
-      Text(feedback)
-        .foregroundStyle(feedbackColor)
-        .frame(maxWidth: .infinity, alignment: .leading)
-
-      TextField(String(localized: "Gesture Name"), text: $name)
-
-      GestureActionEditor(action: $action, model: model)
-
-      HStack {
-        Text(String(localized: "Application Scope"))
-        Spacer()
-        if let applicationGroupName {
-          Label(applicationGroupName, systemImage: "folder")
-        } else {
-          Button(scopeSummary) {
-            isEditingScope = true
-          }
-        }
-      }
-
-      HStack(spacing: 8) {
-        Picker(
-          String(localized: "Trigger Mouse Button"),
-          selection: Binding(
-            get: { triggerButton },
-            set: { selectTriggerButton($0) }
-          )
-        ) {
-          Text(String(localized: "Use Global Default"))
-            .tag(GestureTriggerButton?.none)
-          ForEach(
-            GestureTriggerButton.commonPresets.filter {
-              $0 != model.secondaryTriggerButton
-            }
-          ) { button in
-            Text(triggerButtonName(button))
-              .tag(GestureTriggerButton?.some(button))
-          }
-          Text(String(localized: "Trackpad Modifier Gesture"))
-            .tag(GestureTriggerButton?.some(.trackpad))
-          if let customButton = triggerButton,
-            customButton != .trackpad,
-            !GestureTriggerButton.commonPresets.contains(customButton)
-          {
-            Text(triggerButtonName(customButton))
-              .tag(GestureTriggerButton?.some(customButton))
-          }
-        }
-
-        TriggerButtonRecorderView(model: model) { button in
-          if deviceScope == .trackpad {
-            deviceScope = .mouse(identifier: nil)
-            training.setDeviceScope(deviceScope)
-          }
-          selectTriggerButton(button)
-        }
-      }
-
-      if let triggerConflictMessage {
-        Label(
-          triggerConflictMessage,
-          systemImage: "exclamationmark.triangle.fill"
-        )
-        .font(.caption)
-        .foregroundStyle(.orange)
-      }
-
-      Picker(
-        String(localized: "Input Device"),
-        selection: Binding(
-          get: { deviceScope },
-          set: {
-            deviceScope = $0
-            training.setDeviceScope($0)
-            if $0 == .trackpad {
-              triggerButton = .trackpad
-              training.setTriggerButton(.trackpad)
-            }
-          }
-        )
-      ) {
-        Text(String(localized: "Any Device"))
-          .tag(InputDeviceScope.any)
-        Text(String(localized: "Mouse"))
-          .tag(InputDeviceScope.mouse(identifier: nil))
-        Text(String(localized: "Trackpad"))
-          .tag(InputDeviceScope.trackpad)
-      }
-
-      if let conflict = shortcutConflict {
-        Label(
-          conflict.localizedDescription,
-          systemImage: "exclamationmark.triangle.fill"
-        )
-        .foregroundStyle(.orange)
-      }
-
-      HStack {
-        Button(String(localized: "Start Over")) {
-          training.reset()
-          points.removeAll(keepingCapacity: true)
-          feedback = String(
-            localized: "Draw the same gesture three times."
-          )
-        }
-
-        Spacer()
-
-        Button(String(localized: "Cancel")) {
-          dismiss()
-        }
-
-        Button(String(localized: "Save Gesture")) {
-          onSave(
-            GestureMappingDraft(
-              name: trimmedName,
-              templates: training.templates,
-              action: action,
-              secondaryAction: secondaryAction,
-              appScope: appScope,
-              triggerButton: triggerButton,
-              category: initialCategory,
-              applicationGroupID: applicationGroupID,
-              repeatModeEnabled: initialRepeatModeEnabled,
-              deviceScope: deviceScope,
-              isEnabled: initialIsEnabled
+    VStack(spacing: 0) {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+          HStack {
+            Text(
+              isEditing
+                ? String(localized: "Record Gesture Again")
+                : String(localized: "Record Gesture")
             )
-          )
-          dismiss()
+            .font(.title2)
+            .fontWeight(.semibold)
+            Spacer()
+            phaseLabel
+              .foregroundStyle(.secondary)
+          }
+
+          if !originalGesture.isEmpty {
+            Label(
+              String(localized: "Original Gesture"),
+              systemImage: "scribble"
+            )
+            .font(.headline)
+          }
+
+          GestureDrawingPad(
+            points: $points,
+            guidePoints: originalGesture
+          ) {
+            handleStroke($0)
+          }
+          .frame(height: 300)
+
+          Text(feedback)
+            .foregroundStyle(feedbackColor)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+          TextField(String(localized: "Gesture Name"), text: $name)
+
+          GestureActionEditor(action: $action, model: model)
+
+          Grid(
+            alignment: .leading,
+            horizontalSpacing: 12,
+            verticalSpacing: 12
+          ) {
+            GridRow {
+              Text(String(localized: "Application Scope"))
+                .foregroundStyle(.secondary)
+              Group {
+                if let applicationGroupName {
+                  Label(applicationGroupName, systemImage: "folder")
+                } else {
+                  Button(scopeSummary) {
+                    isEditingScope = true
+                  }
+                }
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            GridRow {
+              Text(String(localized: "Trigger Mouse Button"))
+                .foregroundStyle(.secondary)
+              HStack(spacing: 8) {
+                Picker(
+                  "",
+                  selection: Binding(
+                    get: { triggerButton },
+                    set: { selectTriggerButton($0) }
+                  )
+                ) {
+                  Text(String(localized: "Use Global Default"))
+                    .tag(GestureTriggerButton?.none)
+                  ForEach(
+                    GestureTriggerButton.commonPresets.filter {
+                      $0 != model.secondaryTriggerButton
+                    }
+                  ) { button in
+                    Text(triggerButtonName(button))
+                      .tag(GestureTriggerButton?.some(button))
+                  }
+                  Text(String(localized: "Trackpad Modifier Gesture"))
+                    .tag(GestureTriggerButton?.some(.trackpad))
+                  if let customButton = triggerButton,
+                    customButton != .trackpad,
+                    !GestureTriggerButton.commonPresets.contains(customButton)
+                  {
+                    Text(triggerButtonName(customButton))
+                      .tag(GestureTriggerButton?.some(customButton))
+                  }
+                }
+                .labelsHidden()
+                .frame(width: 190, alignment: .leading)
+
+                TriggerButtonRecorderView(model: model) { button in
+                  if deviceScope == .trackpad {
+                    deviceScope = .mouse(identifier: nil)
+                    training.setDeviceScope(deviceScope)
+                  }
+                  selectTriggerButton(button)
+                }
+                .frame(width: 170, alignment: .leading)
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            GridRow {
+              Text(String(localized: "Input Device"))
+                .foregroundStyle(.secondary)
+              Picker(
+                "",
+                selection: Binding(
+                  get: { deviceScope },
+                  set: {
+                    deviceScope = $0
+                    training.setDeviceScope($0)
+                    if $0 == .trackpad {
+                      triggerButton = .trackpad
+                      training.setTriggerButton(.trackpad)
+                    }
+                  }
+                )
+              ) {
+                Text(String(localized: "Any Device"))
+                  .tag(InputDeviceScope.any)
+                Text(String(localized: "Mouse"))
+                  .tag(InputDeviceScope.mouse(identifier: nil))
+                Text(String(localized: "Trackpad"))
+                  .tag(InputDeviceScope.trackpad)
+              }
+              .labelsHidden()
+              .frame(width: 190, alignment: .leading)
+              .frame(maxWidth: .infinity, alignment: .leading)
+            }
+          }
+
+          if let triggerConflictMessage {
+            Label(
+              triggerConflictMessage,
+              systemImage: "exclamationmark.triangle.fill"
+            )
+            .font(.caption)
+            .foregroundStyle(.orange)
+          }
+
+          if let conflict = shortcutConflict {
+            Label(
+              conflict.localizedDescription,
+              systemImage: "exclamationmark.triangle.fill"
+            )
+            .foregroundStyle(.orange)
+          }
+
         }
-        .keyboardShortcut(.defaultAction)
-        .disabled(!canSave)
+        .padding(24)
       }
+
+      Divider()
+      footer
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
     }
-    .padding(24)
-    .frame(width: 640)
+    .frame(
+      minWidth: 640,
+      idealWidth: 640,
+      maxWidth: 640,
+      minHeight: 480,
+      idealHeight: 700,
+      maxHeight: 760
+    )
     .sheet(isPresented: $isEditingScope) {
       AppScopeEditor(scope: appScope) { scope in
         appScope = scope
@@ -265,6 +269,45 @@ struct GestureRecorderSheet: View {
           localized: "Draw the same gesture three times."
         )
       }
+    }
+  }
+
+  private var footer: some View {
+    HStack {
+      Button(String(localized: "Start Over")) {
+        training.reset()
+        points.removeAll(keepingCapacity: true)
+        feedback = String(
+          localized: "Draw the same gesture three times."
+        )
+      }
+
+      Spacer()
+
+      Button(String(localized: "Cancel")) {
+        dismiss()
+      }
+
+      Button(String(localized: "Save Gesture")) {
+        onSave(
+          GestureMappingDraft(
+            name: trimmedName,
+            templates: training.templates,
+            action: action,
+            secondaryAction: secondaryAction,
+            appScope: appScope,
+            triggerButton: triggerButton,
+            category: initialCategory,
+            applicationGroupID: applicationGroupID,
+            repeatModeEnabled: initialRepeatModeEnabled,
+            deviceScope: deviceScope,
+            isEnabled: initialIsEnabled
+          )
+        )
+        dismiss()
+      }
+      .keyboardShortcut(.defaultAction)
+      .disabled(!canSave)
     }
   }
 

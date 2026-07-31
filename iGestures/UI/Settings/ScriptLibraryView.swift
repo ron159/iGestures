@@ -2,9 +2,21 @@ import SwiftUI
 
 struct ScriptLibraryView: View {
   @ObservedObject var model: AppModel
+  let showsTitle: Bool
+  let onSelect: ((ScriptLibraryItem) -> Void)?
   @State private var searchText = ""
   @State private var editingItem: ScriptLibraryItem?
   @State private var deletingItem: ScriptLibraryItem?
+
+  init(
+    model: AppModel,
+    showsTitle: Bool = true,
+    onSelect: ((ScriptLibraryItem) -> Void)? = nil
+  ) {
+    self.model = model
+    self.showsTitle = showsTitle
+    self.onSelect = onSelect
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -22,7 +34,7 @@ struct ScriptLibraryView: View {
         scriptList
       }
     }
-    .padding(20)
+    .padding(showsTitle ? 20 : 0)
     .sheet(item: $editingItem) { item in
       ScriptLibraryItemEditor(
         item: item,
@@ -55,14 +67,21 @@ struct ScriptLibraryView: View {
 
   private var header: some View {
     VStack(alignment: .leading, spacing: 10) {
-      ViewThatFits(in: .horizontal) {
-        HStack {
-          title
-          Spacer()
-          addButton
+      if showsTitle {
+        ViewThatFits(in: .horizontal) {
+          HStack {
+            title
+            Spacer()
+            addButton
+          }
+          VStack(alignment: .leading, spacing: 10) {
+            title
+            addButton
+          }
         }
-        VStack(alignment: .leading, spacing: 10) {
-          title
+      } else {
+        HStack {
+          Spacer()
           addButton
         }
       }
@@ -210,6 +229,17 @@ struct ScriptLibraryView: View {
       }
 
       Spacer()
+
+      if let onSelect {
+        Button {
+          onSelect(item)
+        } label: {
+          Label(
+            String(localized: "Choose"),
+            systemImage: "checkmark"
+          )
+        }
+      }
 
       if isBuiltIn {
         Button {
