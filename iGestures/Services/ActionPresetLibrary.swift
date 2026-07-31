@@ -98,7 +98,7 @@ public enum ActionPresetLibrary {
   public static let builtIn: [ActionPreset] =
     windowPresets
     + browserPresets
-    + websitePresets
+    + builtInWebsitePresets
     + finderPresets
     + appDesktopPresets
     + editingPresets
@@ -110,6 +110,26 @@ public enum ActionPresetLibrary {
     in presets: [ActionPreset] = builtIn
   ) -> [ActionPreset] {
     presets.filter { $0.matches(query) }
+  }
+
+  public static func websitePresets(
+    matching query: String = "",
+    in presets: [ActionPreset] = builtIn
+  ) -> [ActionPreset] {
+    let normalized = query.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+    return presets.filter { preset in
+      guard preset.category == .website,
+        case .openURL(let value) = preset.action
+      else {
+        return false
+      }
+      guard !normalized.isEmpty else { return true }
+      let host = URLComponents(string: value)?.host ?? value
+      return preset.matches(normalized)
+        || host.localizedCaseInsensitiveContains(normalized)
+    }
   }
 
   private static let windowPresets: [ActionPreset] = [
@@ -287,7 +307,7 @@ public enum ActionPresetLibrary {
     ),
   ]
 
-  private static let websitePresets: [ActionPreset] = [
+  private static let builtInWebsitePresets: [ActionPreset] = [
     website(
       "website.google",
       "Google",

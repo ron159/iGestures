@@ -3,132 +3,92 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum SettingsSidebarMetrics {
-  static let minimumWidth: CGFloat = 145
-  static let idealWidth: CGFloat = 185
-  static let maximumWidth: CGFloat = 280
-}
-
-private enum SettingsRootDestination {
-  case gestures
-  case settings
-}
-
-private enum SettingsCategory: CaseIterable, Hashable, Identifiable {
-  case general
-  case permissions
-
-  var id: Self { self }
-
-  var title: String {
-    switch self {
-    case .general:
-      String(localized: "General")
-    case .permissions:
-      String(localized: "Permissions")
-    }
-  }
-
-  var systemImage: String {
-    switch self {
-    case .general:
-      "gearshape"
-    case .permissions:
-      "hand.raised"
-    }
-  }
+  static let width: CGFloat = 232
+  static let minimumWorkspaceWidth: CGFloat = 664
 }
 
 struct SettingsRootView: View {
-  static let minimumContentSize = NSSize(width: 640, height: 480)
+  static let minimumContentSize = NSSize(width: 900, height: 600)
 
   let model: AppModel
-  @State private var destination: SettingsRootDestination = .gestures
-  @State private var selectedCategory: SettingsCategory? = .general
 
   var body: some View {
-    Group {
-      switch destination {
-      case .gestures:
-        GesturesSettingsView(
-          model: model,
-          onOpenSettings: {
-            destination = .settings
-          }
+    GesturesSettingsView(model: model)
+      .frame(
+        minWidth: Self.minimumContentSize.width,
+        idealWidth: 1_100,
+        maxWidth: .infinity,
+        minHeight: Self.minimumContentSize.height,
+        idealHeight: 700,
+        maxHeight: .infinity
+      )
+      .background(
+        WindowMinimumSizeConfigurator(
+          minimumSize: Self.minimumContentSize
         )
-      case .settings:
-        SettingsCategoriesView(
-          model: model,
-          selection: $selectedCategory,
-          onOpenGestures: {
-            destination = .gestures
-          }
-        )
-      }
+      )
+  }
+}
+
+private struct WindowMinimumSizeConfigurator: NSViewRepresentable {
+  let minimumSize: NSSize
+
+  func makeNSView(context: Context) -> WindowMinimumSizeView {
+    WindowMinimumSizeView(minimumSize: minimumSize)
+  }
+
+  func updateNSView(
+    _ nsView: WindowMinimumSizeView,
+    context: Context
+  ) {
+    nsView.minimumSize = minimumSize
+  }
+}
+
+private final class WindowMinimumSizeView: NSView {
+  var minimumSize: NSSize {
+    didSet {
+      configureWindow()
     }
-    .frame(
-      minWidth: Self.minimumContentSize.width,
-      idealWidth: 1_100,
-      maxWidth: .infinity,
-      minHeight: Self.minimumContentSize.height,
-      idealHeight: 700,
-      maxHeight: .infinity
+  }
+
+  init(minimumSize: NSSize) {
+    self.minimumSize = minimumSize
+    super.init(frame: .zero)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    configureWindow()
+  }
+
+  private func configureWindow() {
+    guard let window else { return }
+    window.contentMinSize = minimumSize
+
+    let contentSize = window.contentLayoutRect.size
+    guard
+      contentSize.width < minimumSize.width
+        || contentSize.height < minimumSize.height
+    else {
+      return
+    }
+
+    window.setContentSize(
+      NSSize(
+        width: max(contentSize.width, minimumSize.width),
+        height: max(contentSize.height, minimumSize.height)
+      )
     )
   }
 }
 
-private struct SettingsCategoriesView: View {
-  let model: AppModel
-  @Binding var selection: SettingsCategory?
-  let onOpenGestures: () -> Void
-
-  var body: some View {
-    NavigationSplitView {
-      VStack(spacing: 0) {
-        List(selection: $selection) {
-          ForEach(SettingsCategory.allCases) { category in
-            Label(category.title, systemImage: category.systemImage)
-              .tag(category)
-          }
-        }
-        .listStyle(.sidebar)
-
-        Divider()
-
-        Button(action: onOpenGestures) {
-          Label(
-            String(localized: "Gestures"),
-            systemImage: "scribble.variable"
-          )
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(12)
-      }
-      .navigationSplitViewColumnWidth(
-        min: SettingsSidebarMetrics.minimumWidth,
-        ideal: SettingsSidebarMetrics.idealWidth,
-        max: SettingsSidebarMetrics.maximumWidth
-      )
-    } detail: {
-      Group {
-        switch selection ?? .general {
-        case .general:
-          GeneralSettingsView(model: model)
-        case .permissions:
-          PermissionsSettingsView(model: model)
-        }
-      }
-      .frame(
-        minWidth: 0,
-        maxWidth: .infinity,
-        maxHeight: .infinity
-      )
-    }
-  }
-}
-
-private struct GeneralSettingsView: View {
+struct GeneralSettingsView: View {
   @Environment(\.openWindow) private var openWindow
   @ObservedObject var model: AppModel
   @State private var isPracticePresented = false
@@ -200,6 +160,52 @@ private struct GeneralSettingsView: View {
           for: model.globalToggleShortcut
         ) {
           Text(conflict.localizedDescription)
+            .foregroundStyle(.orange)
+        }
+      }
+
+      Section(String(localized: "Gesture Trigger")) {
+        Text(
+          String(
+            localized:
+              "Hold the primary trigger to draw. Add a secondary trigger for higher-priority actions."
+          )
+        )
+        .foregroundStyle(.secondary)
+
+        LabeledContent(String(localized: "Primary Trigger")) {
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+              primaryTriggerPicker
+              primaryTriggerRecorder
+            }
+            VStack(alignment: .trailing, spacing: 8) {
+              primaryTriggerPicker
+              primaryTriggerRecorder
+            }
+          }
+        }
+
+        LabeledContent(String(localized: "Secondary Trigger")) {
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+              secondaryTriggerPicker
+              secondaryTriggerRecorder
+            }
+            VStack(alignment: .trailing, spacing: 8) {
+              secondaryTriggerPicker
+              secondaryTriggerRecorder
+            }
+          }
+        }
+
+        LabeledContent(String(localized: "Trigger Hold Duration")) {
+          triggerDurationStepper
+        }
+
+        if let error = model.triggerConfigurationError {
+          Label(error, systemImage: "exclamationmark.triangle.fill")
+            .font(.caption)
             .foregroundStyle(.orange)
         }
       }
@@ -276,43 +282,6 @@ private struct GeneralSettingsView: View {
         }
       }
 
-      Section(String(localized: "Software Update")) {
-        adaptiveControlGroup {
-          Button(String(localized: "Check for Updates")) {
-            model.checkForUpdates(manual: true)
-          }
-          .disabled(
-            model.updateState == .checking
-              || isUpdateOperationInProgress
-          )
-          if case .available = model.updateState {
-            Button(String(localized: "Skip This Version")) {
-              model.skipAvailableUpdate()
-            }
-            if model.canInstallAvailableUpdate {
-              Button(String(localized: "Install and Restart")) {
-                model.installAvailableUpdate()
-              }
-              .buttonStyle(.borderedProminent)
-            } else if model.canOpenAvailableGitHubRelease {
-              Button(String(localized: "View Release")) {
-                model.openAvailableGitHubRelease()
-              }
-              .buttonStyle(.borderedProminent)
-            }
-          }
-        }
-
-        if let updateMessage = model.updateMessage {
-          Text(updateMessage)
-            .foregroundStyle(
-              model.updateState == .failed
-                ? Color.red
-                : Color.secondary
-            )
-        }
-      }
-
       Section(String(localized: "Getting Started")) {
         adaptiveControlGroup {
           Button(String(localized: "Practice Gestures")) {
@@ -325,6 +294,310 @@ private struct GeneralSettingsView: View {
         }
       }
 
+    }
+    .formStyle(.grouped)
+    .padding()
+    .onAppear {
+      model.refreshLoginItemStatus()
+    }
+    .sheet(isPresented: $isPracticePresented) {
+      GesturePracticeSettingsSheet()
+    }
+  }
+
+  private var primaryTriggerPicker: some View {
+    Picker(
+      String(localized: "Primary Trigger"),
+      selection: Binding(
+        get: { model.triggerButton },
+        set: { model.setTriggerButton($0) }
+      )
+    ) {
+      ForEach(GestureTriggerButton.commonPresets) { button in
+        Text(button.localizedName).tag(button)
+      }
+      if !GestureTriggerButton.commonPresets.contains(
+        model.triggerButton
+      ) {
+        Text(model.triggerButton.localizedName)
+          .tag(model.triggerButton)
+      }
+    }
+    .labelsHidden()
+    .frame(width: 165)
+  }
+
+  private var primaryTriggerRecorder: some View {
+    TriggerButtonRecorderView(model: model) {
+      model.setTriggerButton($0)
+    }
+    .frame(width: 170, alignment: .trailing)
+  }
+
+  private var secondaryTriggerPicker: some View {
+    Picker(
+      String(localized: "Secondary Trigger"),
+      selection: Binding(
+        get: { model.secondaryTriggerButton },
+        set: { model.setSecondaryTriggerButton($0) }
+      )
+    ) {
+      Text(String(localized: "Disabled"))
+        .tag(GestureTriggerButton?.none)
+      ForEach(availableSecondaryTriggerButtons) { button in
+        Text(button.localizedName)
+          .tag(GestureTriggerButton?.some(button))
+      }
+    }
+    .labelsHidden()
+    .frame(width: 165)
+  }
+
+  private var secondaryTriggerRecorder: some View {
+    TriggerButtonRecorderView(model: model) {
+      model.setSecondaryTriggerButton($0)
+    }
+    .frame(width: 170, alignment: .trailing)
+  }
+
+  private var triggerDurationStepper: some View {
+    Stepper(
+      value: Binding(
+        get: { model.triggerDuration },
+        set: { model.setTriggerDuration($0) }
+      ),
+      in: triggerDurationRange,
+      step: 0.05
+    ) {
+      Text(triggerDurationLabel(model.triggerDuration))
+        .monospacedDigit()
+    }
+  }
+
+  private var triggerDurationRange: ClosedRange<TimeInterval> {
+    let minimum = GestureInputConfiguration.minimumTriggerDuration
+    let maximum = GestureInputConfiguration.maximumTriggerDuration
+    return minimum...maximum
+  }
+
+  private var availableSecondaryTriggerButtons: [GestureTriggerButton] {
+    var buttons = GestureTriggerButton.commonPresets.filter { button in
+      button != model.triggerButton
+        && !model.mappings.contains {
+          $0.triggerButton == button
+        }
+    }
+    if let current = model.secondaryTriggerButton,
+      !buttons.contains(current)
+    {
+      buttons.append(current)
+    }
+    return buttons
+  }
+
+  private func triggerDurationLabel(_ duration: TimeInterval) -> String {
+    guard duration > 0 else {
+      return String(localized: "No Delay")
+    }
+    return String(
+      format: String(localized: "%.2f seconds"),
+      duration
+    )
+  }
+
+  private func adaptiveControlGroup<Content: View>(
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 8) {
+        content()
+      }
+      VStack(alignment: .trailing, spacing: 8) {
+        content()
+      }
+    }
+  }
+}
+
+struct AboutSettingsView: View {
+  @ObservedObject var model: AppModel
+
+  var body: some View {
+    Form {
+      Section {
+        HStack(alignment: .top, spacing: 18) {
+          Image(nsImage: NSApplication.shared.applicationIconImage)
+            .resizable()
+            .frame(width: 72, height: 72)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .accessibilityHidden(true)
+
+          VStack(alignment: .leading, spacing: 6) {
+            Text("iGestures")
+              .font(.title.bold())
+            Text(versionText)
+              .font(.callout)
+              .foregroundStyle(.secondary)
+            Text(
+              String(
+                localized:
+                  "iGestures is a native macOS mouse gesture app for turning simple gestures into shortcuts, window actions, app launches, and automations."
+              )
+            )
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .padding(.vertical, 8)
+      }
+
+      Section(String(localized: "Links")) {
+        aboutLink(
+          title: String(localized: "Official Website"),
+          detail: "igestures.techkoala.net",
+          systemImage: "globe",
+          destination: websiteURL
+        )
+        aboutLink(
+          title: String(localized: "GitHub"),
+          detail: "github.com/ron159/iGestures",
+          systemImage: "chevron.left.forwardslash.chevron.right",
+          destination: githubURL
+        )
+      }
+
+      Section(String(localized: "Software Update")) {
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: 8) {
+            updateButtons
+          }
+          VStack(alignment: .leading, spacing: 8) {
+            updateButtons
+          }
+        }
+
+        if let updateMessage = model.updateMessage {
+          Text(updateMessage)
+            .foregroundStyle(
+              model.updateState == .failed
+                ? Color.red
+                : Color.secondary
+            )
+        }
+      }
+    }
+    .formStyle(.grouped)
+    .padding()
+  }
+
+  @ViewBuilder
+  private var updateButtons: some View {
+    Button(String(localized: "Check for Updates")) {
+      model.checkForUpdates(manual: true)
+    }
+    .disabled(
+      model.updateState == .checking
+        || isUpdateOperationInProgress
+    )
+
+    if case .available = model.updateState {
+      Button(String(localized: "Skip This Version")) {
+        model.skipAvailableUpdate()
+      }
+      if model.canInstallAvailableUpdate {
+        Button(String(localized: "Install and Restart")) {
+          model.installAvailableUpdate()
+        }
+        .buttonStyle(.borderedProminent)
+      } else if model.canOpenAvailableGitHubRelease {
+        Button(String(localized: "View Release")) {
+          model.openAvailableGitHubRelease()
+        }
+        .buttonStyle(.borderedProminent)
+      }
+    }
+  }
+
+  private func aboutLink(
+    title: String,
+    detail: String,
+    systemImage: String,
+    destination: URL
+  ) -> some View {
+    Link(destination: destination) {
+      HStack(spacing: 12) {
+        Image(systemName: systemImage)
+          .font(.title3)
+          .frame(width: 26)
+          .foregroundStyle(.tint)
+          .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+            .foregroundStyle(.primary)
+          Text(detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Image(systemName: "arrow.up.right")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .accessibilityHidden(true)
+      }
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+  }
+
+  private var versionText: String {
+    let version =
+      Bundle.main.object(
+        forInfoDictionaryKey: "CFBundleShortVersionString"
+      ) as? String ?? "—"
+    let build =
+      Bundle.main.object(
+        forInfoDictionaryKey: "CFBundleVersion"
+      ) as? String ?? "—"
+    return String(
+      format: String(localized: "Version %@ (%@)"),
+      version,
+      build
+    )
+  }
+
+  private var isUpdateOperationInProgress: Bool {
+    switch model.updateState {
+    case .downloading, .installing:
+      true
+    default:
+      false
+    }
+  }
+
+  private var websiteURL: URL {
+    URL(string: "https://igestures.techkoala.net/")!
+  }
+
+  private var githubURL: URL {
+    URL(string: "https://github.com/ron159/iGestures")!
+  }
+}
+
+struct AdvancedSettingsView: View {
+  @ObservedObject var model: AppModel
+  @ObservedObject private var diagnosticsState: GestureDiagnosticsState
+  @State private var isDiagnosticsExpanded = false
+  @State private var isScriptLibraryPresented = false
+
+  init(model: AppModel) {
+    _model = ObservedObject(wrappedValue: model)
+    _diagnosticsState = ObservedObject(
+      wrappedValue: model.diagnosticsState
+    )
+  }
+
+  var body: some View {
+    Form {
       Section(String(localized: "Configuration")) {
         LabeledContent(String(localized: "Stored Gestures")) {
           Text(
@@ -339,9 +612,7 @@ private struct GeneralSettingsView: View {
           LabeledContent(String(localized: "Excluded Applications")) {
             VStack(alignment: .trailing, spacing: 6) {
               ForEach(
-                model.applicationExclusions.sorted {
-                  $0.id < $1.id
-                }
+                model.applicationExclusions.sorted { $0.id < $1.id }
               ) { rule in
                 HStack {
                   Text(exclusionSummary(rule))
@@ -352,6 +623,13 @@ private struct GeneralSettingsView: View {
                     Image(systemName: "xmark.circle.fill")
                   }
                   .buttonStyle(.borderless)
+                  .help(String(localized: "Remove Application"))
+                  .accessibilityLabel(
+                    String(
+                      format: String(localized: "Remove %@"),
+                      exclusionSummary(rule)
+                    )
+                  )
                 }
               }
             }
@@ -381,15 +659,94 @@ private struct GeneralSettingsView: View {
         }
 
         if let error = model.mappingStoreError {
-          Text(error)
+          Label(error, systemImage: "exclamationmark.triangle.fill")
             .foregroundStyle(.red)
+        }
+      }
+
+      Section(String(localized: "Automation")) {
+        Text(
+          String(
+            localized:
+              "Manage reusable scripts for gesture actions in one place."
+          )
+        )
+        .foregroundStyle(.secondary)
+
+        Button {
+          isScriptLibraryPresented = true
+        } label: {
+          Label(
+            String(localized: "Manage Scripts…"),
+            systemImage: "books.vertical"
+          )
+        }
+      }
+
+      Section {
+        DisclosureGroup(
+          isExpanded: $isDiagnosticsExpanded
+        ) {
+          VStack(alignment: .leading, spacing: 12) {
+            LabeledContent(String(localized: "Gesture Engine")) {
+              Text(eventTapStatus)
+            }
+
+            Toggle(
+              String(localized: "Keep diagnostics after quitting"),
+              isOn: Binding(
+                get: { model.isDiagnosticPersistenceEnabled },
+                set: { model.setDiagnosticPersistenceEnabled($0) }
+              )
+            )
+
+            if diagnosticsState.records.isEmpty {
+              Text(String(localized: "No recent gesture diagnostics."))
+                .foregroundStyle(.secondary)
+            } else {
+              GroupBox(String(localized: "Recent Gesture Diagnostics")) {
+                VStack(alignment: .leading, spacing: 6) {
+                  ForEach(diagnosticsState.records.suffix(8).reversed()) {
+                    record in
+                    HStack {
+                      Text(record.timestamp, style: .time)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                      Text(diagnosticSummary(record))
+                      Spacer()
+                    }
+                    .accessibilityElement(children: .combine)
+                  }
+                  HStack {
+                    Spacer()
+                    Button(String(localized: "Clear Diagnostics")) {
+                      model.clearDiagnostics()
+                    }
+                  }
+                }
+              }
+            }
+          }
+          .padding(.top, 8)
+        } label: {
+          Label(
+            String(localized: "Advanced Diagnostics"),
+            systemImage: "stethoscope"
+          )
         }
       }
     }
     .formStyle(.grouped)
     .padding()
     .onAppear {
-      model.refreshLoginItemStatus()
+      if model.eventTapState == .failedToCreateTap {
+        isDiagnosticsExpanded = true
+      }
+    }
+    .onChange(of: model.eventTapState) {
+      if model.eventTapState == .failedToCreateTap {
+        isDiagnosticsExpanded = true
+      }
     }
     .sheet(
       isPresented: Binding(
@@ -414,8 +771,29 @@ private struct GeneralSettingsView: View {
         )
       }
     }
-    .sheet(isPresented: $isPracticePresented) {
-      GesturePracticeSettingsSheet()
+    .sheet(isPresented: $isScriptLibraryPresented) {
+      ScriptLibraryView(model: model)
+        .frame(
+          minWidth: 620,
+          idealWidth: 760,
+          maxWidth: 900,
+          minHeight: 480,
+          idealHeight: 620,
+          maxHeight: 760
+        )
+    }
+  }
+
+  private var eventTapStatus: String {
+    switch model.eventTapState {
+    case .stopped:
+      String(localized: "Stopped")
+    case .starting:
+      String(localized: "Starting")
+    case .running:
+      String(localized: "Running")
+    case .failedToCreateTap:
+      String(localized: "Unavailable")
     }
   }
 
@@ -446,12 +824,6 @@ private struct GeneralSettingsView: View {
     model.exportMappings(to: url)
   }
 
-  private func triggerButtonLabel(
-    _ button: GestureTriggerButton
-  ) -> String {
-    button.localizedName
-  }
-
   private func exclusionSummary(
     _ rule: ApplicationExclusionRule
   ) -> String {
@@ -463,15 +835,29 @@ private struct GeneralSettingsView: View {
     guard let triggerButton = rule.triggerButton else {
       return applicationName
     }
-    return "\(applicationName) · \(triggerButtonLabel(triggerButton))"
+    return "\(applicationName) · \(triggerButton.localizedName)"
   }
 
-  private var isUpdateOperationInProgress: Bool {
-    switch model.updateState {
-    case .downloading, .installing:
-      true
-    default:
-      false
+  private func diagnosticSummary(
+    _ record: GestureDiagnosticRecord
+  ) -> String {
+    switch record.outcome {
+    case .executed:
+      return String(
+        format: String(localized: "Executed: %@"),
+        record.mappingName ?? String(localized: "Unnamed Gesture")
+      )
+    case .noMatch:
+      return String(localized: "Gesture was not recognized")
+    case .ambiguous:
+      return String(localized: "Gesture result was ambiguous")
+    case .actionFailed:
+      return String(
+        format: String(localized: "Action failed: %@"),
+        record.mappingName ?? String(localized: "Unnamed Gesture")
+      )
+    case .cancelled:
+      return String(localized: "Gesture was cancelled")
     }
   }
 
@@ -514,6 +900,7 @@ private struct GesturePracticeSettingsSheet: View {
       HStack(spacing: 18) {
         GestureTemplatePreview(template: preset.template)
           .frame(width: 120, height: 120)
+          .accessibilityHidden(true)
         GesturePracticePad(
           template: preset.template,
           succeeded: $succeeded
@@ -705,99 +1092,118 @@ struct TriggerButtonRecorderView: View {
   }
 }
 
-private struct PermissionsSettingsView: View {
+struct PermissionsSettingsView: View {
   @ObservedObject var model: AppModel
-  @ObservedObject private var diagnosticsState: GestureDiagnosticsState
-
-  init(model: AppModel) {
-    _model = ObservedObject(wrappedValue: model)
-    _diagnosticsState = ObservedObject(
-      wrappedValue: model.diagnosticsState
-    )
-  }
 
   var body: some View {
     Form {
-      LabeledContent(String(localized: "Permission Status")) {
-        Text(model.permissionStatusText)
-      }
-
-      permissionRow(
-        String(localized: "Accessibility"),
-        isGranted:
-          model.permissionDiagnostics.accessibilityTrusted,
-        action: model.requestAccessibilityAccess
-      )
-
-      permissionRow(
-        String(localized: "Listen Event Access"),
-        isGranted:
-          model.permissionDiagnostics.listenEventAccess,
-        action: model.requestListenEventAccess
-      )
-
-      permissionRow(
-        String(localized: "Post Event Access"),
-        isGranted:
-          model.permissionDiagnostics.postEventAccess,
-        action: model.requestPostEventAccess
-      )
-
-      LabeledContent(String(localized: "Event Tap")) {
-        Text(eventTapStatus)
-      }
-
-      Toggle(
-        String(localized: "Keep diagnostics after quitting"),
-        isOn: Binding(
-          get: { model.isDiagnosticPersistenceEnabled },
-          set: { model.setDiagnosticPersistenceEnabled($0) }
+      Section {
+        Label(
+          permissionOverview,
+          systemImage:
+            missingPermissionCount == 0
+            ? "checkmark.shield.fill"
+            : "exclamationmark.shield.fill"
         )
-      )
+        .font(.headline)
+        .foregroundStyle(
+          missingPermissionCount == 0 ? Color.green : Color.orange
+        )
+      }
 
-      if diagnosticsState.records.isEmpty {
-        Text(String(localized: "No recent gesture diagnostics."))
-          .foregroundStyle(.secondary)
-      } else {
-        GroupBox(String(localized: "Recent Gesture Diagnostics")) {
-          VStack(alignment: .leading, spacing: 6) {
-            ForEach(diagnosticsState.records.suffix(8).reversed()) {
-              record in
-              HStack {
-                Text(record.timestamp, style: .time)
-                  .monospacedDigit()
-                  .foregroundStyle(.secondary)
-                Text(diagnosticSummary(record))
-                Spacer()
-              }
-            }
-            HStack {
-              Spacer()
-              Button(String(localized: "Clear Diagnostics")) {
-                model.clearDiagnostics()
-              }
-            }
-          }
+      Section(String(localized: "Required Permissions")) {
+        permissionRow(
+          title: String(localized: "Read Mouse Input"),
+          description: String(
+            localized: "Detects the trigger button and gesture path."
+          ),
+          systemImage: "computermouse",
+          isGranted: model.permissionDiagnostics.listenEventAccess,
+          action: model.requestListenEventAccess
+        )
+
+        permissionRow(
+          title: String(localized: "Send Shortcuts and Clicks"),
+          description: String(
+            localized:
+              "Replays normal clicks and sends configured shortcuts."
+          ),
+          systemImage: "keyboard",
+          isGranted: model.permissionDiagnostics.postEventAccess,
+          action: model.requestPostEventAccess
+        )
+
+        permissionRow(
+          title: String(localized: "Accessibility Control"),
+          description: String(
+            localized:
+              "Allows iGestures to run supported app and system actions."
+          ),
+          systemImage: "hand.raised",
+          isGranted: model.permissionDiagnostics.accessibilityTrusted,
+          action: model.requestAccessibilityAccess
+        )
+      }
+
+      Section {
+        LabeledContent(String(localized: "Gesture Engine")) {
+          Text(eventTapStatus)
         }
-      }
 
-      Button(String(localized: "Check Again")) {
-        model.refreshPermissions()
-      }
+        if model.eventTapState == .failedToCreateTap {
+          Label(
+            String(localized: "Gesture recognition is unavailable."),
+            systemImage: "exclamationmark.triangle.fill"
+          )
+          .foregroundStyle(.orange)
+        }
 
-      Text(
-        String(
-          localized:
-            "iGestures needs permission to observe mouse gestures and post the configured shortcut."
+        Button(String(localized: "Check Again")) {
+          model.refreshPermissions()
+        }
+
+        Text(
+          String(
+            localized:
+              "Permissions are checked again when you return from System Settings."
+          )
         )
-      )
-      .foregroundStyle(.secondary)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+        Text(
+          String(
+            localized:
+              "iGestures needs permission to observe mouse gestures and post the configured shortcut."
+          )
+        )
+        .foregroundStyle(.secondary)
+      }
     }
     .formStyle(.grouped)
     .padding()
     .onAppear {
       model.refreshPermissions()
     }
+  }
+
+  private var missingPermissionCount: Int {
+    let diagnostics = model.permissionDiagnostics
+    return [
+      diagnostics.accessibilityTrusted,
+      diagnostics.listenEventAccess,
+      diagnostics.postEventAccess,
+    ].filter { !$0 }.count
+  }
+
+  private var permissionOverview: String {
+    guard missingPermissionCount > 0 else {
+      return String(localized: "All required permissions are granted.")
+    }
+    return String(
+      format: String(localized: "Permissions needing attention: %d"),
+      missingPermissionCount
+    )
   }
 
   private var eventTapStatus: String {
@@ -826,40 +1232,78 @@ private struct PermissionsSettingsView: View {
   }
 
   private func permissionRow(
-    _ title: String,
+    title: String,
+    description: String,
+    systemImage: String,
     isGranted: Bool,
     action: @escaping () -> Void
   ) -> some View {
-    LabeledContent(title) {
-      HStack(spacing: 10) {
-        diagnosticLabel(isGranted: isGranted)
-        if !isGranted {
-          Button(String(localized: "Grant Access"), action: action)
+    HStack(alignment: .center, spacing: 12) {
+      Image(systemName: systemImage)
+        .font(.title3)
+        .frame(width: 28)
+        .foregroundStyle(.secondary)
+        .accessibilityHidden(true)
+
+      VStack(alignment: .leading, spacing: 3) {
+        Text(title)
+          .fontWeight(.medium)
+        Text(description)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      Spacer(minLength: 16)
+
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 10) {
+          diagnosticLabel(isGranted: isGranted)
+          if !isGranted {
+            permissionButton(title: title, action: action)
+          }
+        }
+        VStack(alignment: .trailing, spacing: 6) {
+          diagnosticLabel(isGranted: isGranted)
+          if !isGranted {
+            permissionButton(title: title, action: action)
+          }
         }
       }
     }
   }
 
-  private func diagnosticSummary(
-    _ record: GestureDiagnosticRecord
-  ) -> String {
-    switch record.outcome {
-    case .executed:
-      return String(
-        format: String(localized: "Executed: %@"),
-        record.mappingName ?? String(localized: "Unnamed Gesture")
+  private func permissionButton(
+    title: String,
+    action: @escaping () -> Void
+  ) -> some View {
+    Button(permissionActionTitle, action: action)
+      .accessibilityLabel(
+        String(
+          format: permissionActionAccessibilityFormat,
+          title
+        )
       )
-    case .noMatch:
-      return String(localized: "Gesture was not recognized")
-    case .ambiguous:
-      return String(localized: "Gesture result was ambiguous")
-    case .actionFailed:
-      return String(
-        format: String(localized: "Action failed: %@"),
-        record.mappingName ?? String(localized: "Unnamed Gesture")
-      )
-    case .cancelled:
-      return String(localized: "Gesture was cancelled")
+  }
+
+  private var permissionActionTitle: String {
+    shouldOpenSettingsForPermission
+      ? String(localized: "Open System Settings")
+      : String(localized: "Grant Access")
+  }
+
+  private var permissionActionAccessibilityFormat: String {
+    shouldOpenSettingsForPermission
+      ? String(localized: "Open settings for %@")
+      : String(localized: "Grant access for %@")
+  }
+
+  private var shouldOpenSettingsForPermission: Bool {
+    switch model.permissionState {
+    case .checking, .denied, .tapCreationFailed:
+      true
+    case .unknown, .needsUserAction, .granted:
+      false
     }
   }
+
 }

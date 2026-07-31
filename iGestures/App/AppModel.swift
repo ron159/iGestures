@@ -13,6 +13,10 @@ enum AppUpdateState: Equatable {
   case failed
 }
 
+enum SettingsNavigationRequest: Equatable {
+  case permissions
+}
+
 @MainActor
 private final class ScriptExecutionNoticeAuthorizer {
   private let preferencesStore: AppPreferencesStore
@@ -108,6 +112,7 @@ final class AppModel: ObservableObject {
   @Published private(set) var currentApplicationBundleIdentifier: String?
   @Published private(set) var updateState: AppUpdateState = .unavailable
   @Published private(set) var updateMessage: String?
+  @Published private(set) var settingsNavigationRequest: SettingsNavigationRequest?
   @Published var isOnboardingPresented: Bool
 
   private let permissionCoordinator: PermissionCoordinator
@@ -399,6 +404,14 @@ final class AppModel: ObservableObject {
   func requestPostEventAccess() {
     permissionState =
       permissionCoordinator.requestPostEventAccess()
+  }
+
+  func requestPermissionsSettings() {
+    settingsNavigationRequest = .permissions
+  }
+
+  func consumeSettingsNavigationRequest() {
+    settingsNavigationRequest = nil
   }
 
   func refreshLoginItemStatus() {

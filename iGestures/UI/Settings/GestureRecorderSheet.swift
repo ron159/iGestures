@@ -11,6 +11,8 @@ struct GestureRecorderSheet: View {
   @State private var triggerButton: GestureTriggerButton?
   @State private var deviceScope: InputDeviceScope
   @State private var isEditingScope = false
+  @State private var isEditingAction = false
+  @State private var isAdvancedOptionsExpanded = false
   @State private var training: GestureTrainingSession
   @State private var points: [GesturePoint] = []
   @State private var feedback: String
@@ -128,102 +130,27 @@ struct GestureRecorderSheet: View {
 
           TextField(String(localized: "Gesture Name"), text: $name)
 
-          GestureActionEditor(action: $action, model: model)
+          GroupBox(String(localized: "Action")) {
+            HStack(spacing: 12) {
+              Image(systemName: "bolt.circle")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+              Text(GestureActionSummary.text(for: action))
+                .frame(maxWidth: .infinity, alignment: .leading)
+              Button(String(localized: "Edit")) {
+                isEditingAction = true
+              }
+            }
+            .padding(.vertical, 6)
+          }
 
-          Grid(
-            alignment: .leading,
-            horizontalSpacing: 12,
-            verticalSpacing: 12
+          DisclosureGroup(
+            String(localized: "Advanced Options"),
+            isExpanded: $isAdvancedOptionsExpanded
           ) {
-            GridRow {
-              Text(String(localized: "Application Scope"))
-                .foregroundStyle(.secondary)
-              Group {
-                if let applicationGroupName {
-                  Label(applicationGroupName, systemImage: "folder")
-                } else {
-                  Button(scopeSummary) {
-                    isEditingScope = true
-                  }
-                }
-              }
-              .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            GridRow {
-              Text(String(localized: "Gesture Trigger"))
-                .foregroundStyle(.secondary)
-              HStack(spacing: 8) {
-                Picker(
-                  "",
-                  selection: Binding(
-                    get: { triggerButton },
-                    set: { selectTriggerButton($0) }
-                  )
-                ) {
-                  Text(String(localized: "Use Global Default"))
-                    .tag(GestureTriggerButton?.none)
-                  ForEach(
-                    GestureTriggerButton.commonPresets.filter {
-                      $0 != model.secondaryTriggerButton
-                    }
-                  ) { button in
-                    Text(triggerButtonName(button))
-                      .tag(GestureTriggerButton?.some(button))
-                  }
-                  Text(String(localized: "Trackpad Modifier Gesture"))
-                    .tag(GestureTriggerButton?.some(.trackpad))
-                  if let customButton = triggerButton,
-                    customButton != .trackpad,
-                    !GestureTriggerButton.commonPresets.contains(customButton)
-                  {
-                    Text(triggerButtonName(customButton))
-                      .tag(GestureTriggerButton?.some(customButton))
-                  }
-                }
-                .labelsHidden()
-                .frame(width: 190, alignment: .leading)
-
-                TriggerButtonRecorderView(model: model) { button in
-                  if deviceScope == .trackpad {
-                    deviceScope = .mouse(identifier: nil)
-                    training.setDeviceScope(deviceScope)
-                  }
-                  selectTriggerButton(button)
-                }
-                .frame(width: 170, alignment: .leading)
-              }
-              .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            GridRow {
-              Text(String(localized: "Input Device"))
-                .foregroundStyle(.secondary)
-              Picker(
-                "",
-                selection: Binding(
-                  get: { deviceScope },
-                  set: {
-                    deviceScope = $0
-                    training.setDeviceScope($0)
-                    if $0 == .trackpad {
-                      triggerButton = .trackpad
-                      training.setTriggerButton(.trackpad)
-                    }
-                  }
-                )
-              ) {
-                Text(String(localized: "Any Device"))
-                  .tag(InputDeviceScope.any)
-                Text(String(localized: "Mouse"))
-                  .tag(InputDeviceScope.mouse(identifier: nil))
-                Text(String(localized: "Trackpad"))
-                  .tag(InputDeviceScope.trackpad)
-              }
-              .labelsHidden()
-              .frame(width: 190, alignment: .leading)
-              .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            advancedOptions
+              .padding(.top, 12)
           }
 
           if let triggerConflictMessage {
@@ -253,12 +180,12 @@ struct GestureRecorderSheet: View {
         .padding(.vertical, 16)
     }
     .frame(
-      minWidth: 640,
+      minWidth: 560,
       idealWidth: 640,
-      maxWidth: 640,
+      maxWidth: 760,
       minHeight: 480,
       idealHeight: 700,
-      maxHeight: 760
+      maxHeight: 820
     )
     .sheet(isPresented: $isEditingScope) {
       AppScopeEditor(scope: appScope) { scope in
@@ -268,6 +195,112 @@ struct GestureRecorderSheet: View {
         feedback = String(
           localized: "Draw the same gesture three times."
         )
+      }
+    }
+    .sheet(isPresented: $isEditingAction) {
+      GestureActionEditorSheet(
+        action: action,
+        model: model
+      ) {
+        action = $0
+      }
+    }
+  }
+
+  private var advancedOptions: some View {
+    Grid(
+      alignment: .leading,
+      horizontalSpacing: 12,
+      verticalSpacing: 12
+    ) {
+      GridRow {
+        Text(String(localized: "Application Scope"))
+          .foregroundStyle(.secondary)
+        Group {
+          if let applicationGroupName {
+            Label(applicationGroupName, systemImage: "folder")
+          } else {
+            Button(scopeSummary) {
+              isEditingScope = true
+            }
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+
+      GridRow {
+        Text(String(localized: "Gesture Trigger"))
+          .foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+          Picker(
+            String(localized: "Gesture Trigger"),
+            selection: Binding(
+              get: { triggerButton },
+              set: { selectTriggerButton($0) }
+            )
+          ) {
+            Text(String(localized: "Use Global Default"))
+              .tag(GestureTriggerButton?.none)
+            ForEach(
+              GestureTriggerButton.commonPresets.filter {
+                $0 != model.secondaryTriggerButton
+              }
+            ) { button in
+              Text(triggerButtonName(button))
+                .tag(GestureTriggerButton?.some(button))
+            }
+            Text(String(localized: "Trackpad Modifier Gesture"))
+              .tag(GestureTriggerButton?.some(.trackpad))
+            if let customButton = triggerButton,
+              customButton != .trackpad,
+              !GestureTriggerButton.commonPresets.contains(customButton)
+            {
+              Text(triggerButtonName(customButton))
+                .tag(GestureTriggerButton?.some(customButton))
+            }
+          }
+          .labelsHidden()
+          .frame(width: 190, alignment: .leading)
+
+          TriggerButtonRecorderView(model: model) { button in
+            if deviceScope == .trackpad {
+              deviceScope = .mouse(identifier: nil)
+              training.setDeviceScope(deviceScope)
+            }
+            selectTriggerButton(button)
+          }
+          .frame(width: 170, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+
+      GridRow {
+        Text(String(localized: "Input Device"))
+          .foregroundStyle(.secondary)
+        Picker(
+          String(localized: "Input Device"),
+          selection: Binding(
+            get: { deviceScope },
+            set: {
+              deviceScope = $0
+              training.setDeviceScope($0)
+              if $0 == .trackpad {
+                triggerButton = .trackpad
+                training.setTriggerButton(.trackpad)
+              }
+            }
+          )
+        ) {
+          Text(String(localized: "Any Device"))
+            .tag(InputDeviceScope.any)
+          Text(String(localized: "Mouse"))
+            .tag(InputDeviceScope.mouse(identifier: nil))
+          Text(String(localized: "Trackpad"))
+            .tag(InputDeviceScope.trackpad)
+        }
+        .labelsHidden()
+        .frame(width: 190, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
   }
@@ -529,6 +562,11 @@ private struct GestureDrawingPad: View {
       )
     }
     .contentShape(Rectangle())
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(String(localized: "Gesture drawing area"))
+    .accessibilityHint(
+      String(localized: "Draw a gesture in this area.")
+    )
     .overlay {
       if points.isEmpty && guidePoints.isEmpty {
         Label(

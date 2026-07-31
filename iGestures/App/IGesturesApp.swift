@@ -29,8 +29,12 @@ struct IGesturesApp: App {
         showSettings: settingsWindowController.showSettings
       )
     } label: {
-      MenuBarIcon(isEnabled: model.isEnabled)
-        .accessibilityLabel("iGestures")
+      MenuBarIcon(
+        isActive: isGestureRecognitionActive(model)
+      )
+      .accessibilityLabel("iGestures")
+      .accessibilityValue(gestureRecognitionStatus(model))
+      .help(gestureRecognitionStatus(model))
     }
     #if !UI_PREVIEW
       .commands {
@@ -145,13 +149,41 @@ private final class SettingsWindowController: ObservableObject {
 #endif
 
 private struct MenuBarIcon: View {
-  let isEnabled: Bool
+  let isActive: Bool
 
   var body: some View {
     Image(nsImage: MenuBarTemplateImage.icon)
       .renderingMode(.template)
       .frame(width: 22, height: 18)
-      .opacity(isEnabled ? 1 : 0.82)
+      .opacity(isActive ? 1 : 0.52)
+  }
+}
+
+@MainActor
+private func isGestureRecognitionActive(_ model: AppModel) -> Bool {
+  model.isEnabled
+    && model.permissionState == .granted
+    && model.eventTapState == .running
+}
+
+@MainActor
+private func gestureRecognitionStatus(_ model: AppModel) -> String {
+  guard model.isEnabled else {
+    return String(localized: "Gesture recognition is disabled.")
+  }
+  if model.permissionState == .tapCreationFailed {
+    return String(localized: "Gesture recognition is unavailable.")
+  }
+  guard model.permissionState == .granted else {
+    return String(localized: "Gesture recognition needs permission.")
+  }
+  switch model.eventTapState {
+  case .running:
+    return String(localized: "Gesture recognition is enabled.")
+  case .starting:
+    return String(localized: "Gesture recognition is starting.")
+  case .stopped, .failedToCreateTap:
+    return String(localized: "Gesture recognition is unavailable.")
   }
 }
 
@@ -177,7 +209,9 @@ private struct OnboardingView: View {
   @ObservedObject var model: AppModel
 
   @State private var step = 0
-  @State private var selectedPresetIDs: Set<UUID> = []
+  @State private var selectedPresetIDs = Set(
+    GesturePresetLibrary.builtIn.prefix(3).map(\.id)
+  )
   @State private var practiceSucceeded = false
 
   var body: some View {
@@ -187,8 +221,14 @@ private struct OnboardingView: View {
           .font(.largeTitle)
           .fontWeight(.bold)
         Spacer()
-        Text("\(step + 1) / 4")
-          .foregroundStyle(.secondary)
+        Text(
+          String(
+            format: String(localized: "Step %d of %d"),
+            step + 1,
+            4
+          )
+        )
+        .foregroundStyle(.secondary)
       }
 
       Group {
@@ -222,13 +262,13 @@ private struct OnboardingView: View {
             step += 1
           }
           .keyboardShortcut(.defaultAction)
+          .disabled(step == 2 && selectedPresetIDs.isEmpty)
         } else {
           Button(String(localized: "Finish")) {
             model.installPresets(selectedPresets)
             complete()
           }
           .keyboardShortcut(.defaultAction)
-          .disabled(!practiceSucceeded)
         }
       }
     }
@@ -237,6 +277,9 @@ private struct OnboardingView: View {
       if !model.isOnboardingPresented {
         dismissWindow(id: "onboarding")
       }
+    }
+    .onChange(of: selectedPresetIDs) {
+      practiceSucceeded = false
     }
   }
 
@@ -247,6 +290,7 @@ private struct OnboardingView: View {
         systemImage: "hand.raised.fill"
       )
       .font(.title2)
+      .accessibilityAddTraits(.isHeader)
 
       Text(
         String(
@@ -271,6 +315,21 @@ private struct OnboardingView: View {
         Text(model.permissionStatusText)
           .foregroundStyle(.secondary)
       }
+
+      VStack(alignment: .leading, spacing: 8) {
+        onboardingPermissionRow(
+          String(localized: "Read Mouse Input"),
+          isGranted: model.permissionDiagnostics.listenEventAccess
+        )
+        onboardingPermissionRow(
+          String(localized: "Send Shortcuts and Clicks"),
+          isGranted: model.permissionDiagnostics.postEventAccess
+        )
+        onboardingPermissionRow(
+          String(localized: "Accessibility Control"),
+          isGranted: model.permissionDiagnostics.accessibilityTrusted
+        )
+      }
     }
   }
 
@@ -281,6 +340,7 @@ private struct OnboardingView: View {
         systemImage: "computermouse"
       )
       .font(.title2)
+      .accessibilityAddTraits(.isHeader)
 
       Text(
         String(
@@ -307,6 +367,10 @@ private struct OnboardingView: View {
         }
       }
       .pickerStyle(.radioGroup)
+
+      TriggerButtonRecorderView(model: model) {
+        model.setTriggerButton($0)
+      }
     }
   }
 
@@ -317,6 +381,7 @@ private struct OnboardingView: View {
         systemImage: "square.grid.2x2"
       )
       .font(.title2)
+      .accessibilityAddTraits(.isHeader)
 
       Text(
         String(
@@ -342,6 +407,7 @@ private struct OnboardingView: View {
           HStack {
             GestureTemplatePreview(template: preset.template)
               .frame(width: 48, height: 36)
+              .accessibilityHidden(true)
             VStack(alignment: .leading) {
               Text(preset.name)
               Text(GestureActionSummary.text(for: preset.action))
@@ -352,6 +418,18 @@ private struct OnboardingView: View {
         }
       }
       .listStyle(.inset)
+
+      if selectedPresetIDs.isEmpty {
+        Label(
+          String(
+            localized:
+              "Select at least one starter gesture to continue."
+          ),
+          systemImage: "exclamationmark.triangle.fill"
+        )
+        .font(.caption)
+        .foregroundStyle(.orange)
+      }
     }
   }
 
@@ -362,6 +440,15 @@ private struct OnboardingView: View {
         systemImage: "checkmark.circle"
       )
       .font(.title2)
+      .accessibilityAddTraits(.isHeader)
+
+      Text(
+        String(
+          localized:
+            "Practice is optional. You can finish setup now or try the gesture first."
+        )
+      )
+      .foregroundStyle(.secondary)
 
       Text(
         String(
@@ -375,6 +462,7 @@ private struct OnboardingView: View {
       HStack(spacing: 18) {
         GestureTemplatePreview(template: practicePreset.template)
           .frame(width: 110, height: 110)
+          .accessibilityHidden(true)
         GesturePracticePad(
           template: practicePreset.template,
           succeeded: $practiceSucceeded
@@ -404,6 +492,20 @@ private struct OnboardingView: View {
     _ button: GestureTriggerButton
   ) -> String {
     button.localizedName
+  }
+
+  private func onboardingPermissionRow(
+    _ title: String,
+    isGranted: Bool
+  ) -> some View {
+    Label(
+      title,
+      systemImage:
+        isGranted
+        ? "checkmark.circle.fill"
+        : "exclamationmark.circle.fill"
+    )
+    .foregroundStyle(isGranted ? .green : .orange)
   }
 }
 
@@ -441,6 +543,12 @@ struct GesturePracticePad: View {
       )
     }
     .contentShape(Rectangle())
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(String(localized: "Gesture practice area"))
+    .accessibilityHint(
+      String(localized: "Draw the previewed gesture in this area.")
+    )
+    .accessibilityValue(message)
     .gesture(
       DragGesture(minimumDistance: 0)
         .onChanged {
@@ -492,6 +600,10 @@ private struct MenuBarContent: View {
   let showSettings: () -> Void
 
   var body: some View {
+    Text(gestureRecognitionStatus(model))
+
+    Divider()
+
     Button(
       model.isEnabled
         ? String(localized: "Disable")
@@ -532,6 +644,15 @@ private struct MenuBarContent: View {
     Divider()
 
     Text(model.permissionStatusText)
+
+    if model.permissionState != .granted
+      || model.eventTapState == .failedToCreateTap
+    {
+      Button(String(localized: "Review Permissions…")) {
+        model.requestPermissionsSettings()
+        showSettings()
+      }
+    }
 
     Button(
       String(localized: "Settings…"),

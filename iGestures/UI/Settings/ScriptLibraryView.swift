@@ -261,6 +261,7 @@ struct ScriptLibraryView: View {
         }
         .buttonStyle(.borderless)
         .help(String(localized: "Delete"))
+        .accessibilityLabel(String(localized: "Delete"))
       }
     }
     .padding(.vertical, 5)
@@ -335,7 +336,14 @@ private struct ScriptLibraryItemEditor: View {
       }
     }
     .padding(24)
-    .frame(width: 620, height: 600)
+    .frame(
+      minWidth: 540,
+      idealWidth: 640,
+      maxWidth: 780,
+      minHeight: 480,
+      idealHeight: 620,
+      maxHeight: 780
+    )
   }
 
   private var isValid: Bool {

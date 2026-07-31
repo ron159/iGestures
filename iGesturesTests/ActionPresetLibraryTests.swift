@@ -27,9 +27,7 @@ final class ActionPresetLibraryTests: XCTestCase {
   }
 
   func testWebsitePresetsUseHTTPSAndMatchCuratedSet() {
-    let presets = ActionPresetLibrary.builtIn.filter {
-      $0.category == .website
-    }
+    let presets = ActionPresetLibrary.websitePresets()
 
     XCTAssertEqual(
       Set(presets.map(\.id)),
@@ -57,6 +55,51 @@ final class ActionPresetLibraryTests: XCTestCase {
       }
       XCTAssertEqual(URL(string: value)?.scheme, "https")
     }
+  }
+
+  func testWebsitePresetSearchMatchesNameKeywordAndDomain() {
+    XCTAssertEqual(
+      ActionPresetLibrary.websitePresets(matching: "ChatGPT").map(\.id),
+      ["website.chatgpt"]
+    )
+    XCTAssertEqual(
+      ActionPresetLibrary.websitePresets(matching: "哔哩哔哩").map(\.id),
+      ["website.bilibili"]
+    )
+    XCTAssertEqual(
+      ActionPresetLibrary.websitePresets(matching: "stackoverflow.com")
+        .map(\.id),
+      ["website.stack-overflow"]
+    )
+  }
+
+  func testWebsitePresetSearchRejectsMismatchedPresetShapes() {
+    let matchingWebsite = ActionPreset(
+      id: "website.example",
+      name: "Example",
+      category: .website,
+      action: .openURL("https://custom.example/")
+    )
+    let wrongCategory = ActionPreset(
+      id: "browser.example",
+      name: "Example Browser Action",
+      category: .browser,
+      action: .openURL("https://custom.example/")
+    )
+    let wrongAction = ActionPreset(
+      id: "website.not-a-url",
+      name: "Example System Action",
+      category: .website,
+      action: .system(.missionControl)
+    )
+
+    XCTAssertEqual(
+      ActionPresetLibrary.websitePresets(
+        matching: "custom.example",
+        in: [wrongCategory, wrongAction, matchingWebsite]
+      ).map(\.id),
+      [matchingWebsite.id]
+    )
   }
 
   func testNewActionTypesRoundTripThroughCodable() throws {
