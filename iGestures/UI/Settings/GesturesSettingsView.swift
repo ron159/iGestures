@@ -10,6 +10,7 @@ private enum GestureTarget: Hashable {
 
 struct GesturesSettingsView: View {
   @ObservedObject var model: AppModel
+  let onOpenSettings: () -> Void
   @State private var selectedTarget: GestureTarget? = .global
   @State private var selectedMappingID: UUID?
   @State private var isPresentingRecorder = false
@@ -258,6 +259,19 @@ struct GesturesSettingsView: View {
       }
       .menuStyle(.borderlessButton)
       .padding(12)
+
+      Divider()
+
+      Button(action: onOpenSettings) {
+        Label(
+          String(localized: "Settings"),
+          systemImage: "gearshape"
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .padding(12)
     }
   }
 
@@ -335,7 +349,7 @@ struct GesturesSettingsView: View {
     VStack(alignment: .leading, spacing: 3) {
       Label(
         String(localized: "Gesture Trigger"),
-        systemImage: "computermouse"
+        systemImage: "button.horizontal"
       )
       .font(.headline)
       Text(
@@ -553,7 +567,8 @@ struct GesturesSettingsView: View {
   }
 
   private var gestureList: some View {
-    VStack(spacing: 0) {
+    let displayedMappings = filteredMappings
+    return VStack(spacing: 0) {
       HStack {
         TextField(
           String(localized: "Search gestures"),
@@ -561,19 +576,19 @@ struct GesturesSettingsView: View {
         )
         .textFieldStyle(.roundedBorder)
 
-        Text("\(filteredMappings.count)")
+        Text("\(displayedMappings.count)")
           .foregroundStyle(.secondary)
 
         Menu {
           Button(String(localized: "Enable Results")) {
             model.setMappingsEnabled(
-              ids: Set(filteredMappings.map(\.mapping.id)),
+              ids: Set(displayedMappings.map(\.mapping.id)),
               isEnabled: true
             )
           }
           Button(String(localized: "Disable Results")) {
             model.setMappingsEnabled(
-              ids: Set(filteredMappings.map(\.mapping.id)),
+              ids: Set(displayedMappings.map(\.mapping.id)),
               isEnabled: false
             )
           }
@@ -581,12 +596,12 @@ struct GesturesSettingsView: View {
           Image(systemName: "ellipsis.circle")
         }
         .menuStyle(.borderlessButton)
-        .disabled(filteredMappings.isEmpty)
+        .disabled(displayedMappings.isEmpty)
       }
       .padding(.horizontal, 16)
       .padding(.vertical, 10)
 
-      if filteredMappings.isEmpty {
+      if displayedMappings.isEmpty {
         ContentUnavailableView {
           Label(
             String(localized: "No Gestures for This Target"),
@@ -607,7 +622,7 @@ struct GesturesSettingsView: View {
         .frame(maxWidth: .infinity, minHeight: 150)
       } else {
         List(selection: $selectedMappingID) {
-          ForEach(filteredMappings, id: \.mapping.id) { item in
+          ForEach(displayedMappings, id: \.mapping.id) { item in
             GestureLibraryRow(model: model, mapping: item.mapping)
               .tag(item.mapping.id)
           }
@@ -635,7 +650,6 @@ struct GesturesSettingsView: View {
         ) {
           selectedMappingID = nil
         }
-        .id(mapping.id)
       }
     } else {
       ContentUnavailableView {
@@ -816,10 +830,10 @@ struct GesturesSettingsView: View {
   private func applicationIcon(
     bundleIdentifier: String
   ) -> some View {
-    if let url = NSWorkspace.shared.urlForApplication(
-      withBundleIdentifier: bundleIdentifier
+    if let metadata = ApplicationMetadataCache.shared.metadata(
+      for: bundleIdentifier
     ) {
-      Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+      Image(nsImage: metadata.icon)
         .resizable()
         .frame(width: 22, height: 22)
     } else {
@@ -889,9 +903,9 @@ struct GesturesSettingsView: View {
   }
 
   private func applicationName(bundleIdentifier: String) -> String {
-    NSWorkspace.shared.urlForApplication(
-      withBundleIdentifier: bundleIdentifier
-    )?.deletingPathExtension().lastPathComponent
+    ApplicationMetadataCache.shared.metadata(
+      for: bundleIdentifier
+    )?.displayName
       ?? bundleIdentifier
   }
 
@@ -977,7 +991,7 @@ struct GesturesSettingsView: View {
 }
 
 private struct GestureLibraryRow: View {
-  @ObservedObject var model: AppModel
+  let model: AppModel
   let mapping: GestureMapping
 
   var body: some View {
@@ -1116,6 +1130,9 @@ private struct GestureMappingInspector: View {
     .onChange(of: mapping.secondaryAction) {
       secondaryActionDraft = mapping.secondaryAction
     }
+    .onChange(of: mapping.id) {
+      synchronizeDraftsWithMapping()
+    }
     .sheet(isPresented: $isEditingScope) {
       AppScopeEditor(scope: mapping.appScope) {
         model.setMappingAppScope(id: mapping.id, appScope: $0)
@@ -1141,6 +1158,15 @@ private struct GestureMappingInspector: View {
       }
       Button(String(localized: "Cancel"), role: .cancel) {}
     }
+  }
+
+  private func synchronizeDraftsWithMapping() {
+    name = mapping.name
+    actionDraft = mapping.action
+    secondaryActionDraft = mapping.secondaryAction
+    isEditingScope = false
+    isRetraining = false
+    isConfirmingDeletion = false
   }
 
   private var gesturePreview: some View {
@@ -1349,7 +1375,7 @@ private struct GestureMappingInspector: View {
     .help(
       String(
         localized:
-          "Repeat the last successful action with another trigger click."
+          "Repeat the last successful action with another trigger press."
       )
     )
   }
@@ -1571,22 +1597,7 @@ private func scopeSummary(_ scope: AppScope) -> String {
 private func triggerButtonName(
   _ button: GestureTriggerButton
 ) -> String {
-  if button == .trackpad {
-    return String(localized: "Trackpad")
-  }
-  return switch button.buttonNumber {
-  case 0:
-    String(localized: "Left Mouse Button")
-  case 1:
-    String(localized: "Right Mouse Button")
-  case 2:
-    String(localized: "Middle Mouse Button")
-  default:
-    String(
-      format: String(localized: "Mouse Button %d"),
-      Int(button.buttonNumber) + 1
-    )
-  }
+  button.localizedName
 }
 
 private struct GesturePresetLibraryView: View {
@@ -1907,30 +1918,20 @@ struct AppScopeEditor: View {
 
   @ViewBuilder
   private func applicationRow(bundleID: String) -> some View {
-    let applicationURL =
-      NSWorkspace.shared.urlForApplication(
-        withBundleIdentifier: bundleID
-      )
-    let name =
-      applicationURL?.deletingPathExtension().lastPathComponent
-      ?? bundleID
+    let metadata = ApplicationMetadataCache.shared.metadata(for: bundleID)
 
     HStack(spacing: 10) {
-      if let applicationURL {
-        Image(
-          nsImage: NSWorkspace.shared.icon(
-            forFile: applicationURL.path
-          )
-        )
-        .resizable()
-        .frame(width: 28, height: 28)
+      if let metadata {
+        Image(nsImage: metadata.icon)
+          .resizable()
+          .frame(width: 28, height: 28)
       } else {
         Image(systemName: "app.dashed")
           .frame(width: 28, height: 28)
       }
 
       VStack(alignment: .leading, spacing: 2) {
-        Text(name)
+        Text(metadata?.displayName ?? bundleID)
         Text(bundleID)
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -1973,6 +1974,7 @@ struct AppScopeEditor: View {
   }
 }
 
+@MainActor
 enum GestureActionSummary {
   static func text(for action: GestureAction) -> String {
     switch action {
@@ -1987,9 +1989,9 @@ enum GestureActionSummary {
         ? String(localized: "Open File or Folder")
         : name
     case .launchApplication(let bundleIdentifier):
-      return NSWorkspace.shared.urlForApplication(
-        withBundleIdentifier: bundleIdentifier
-      )?.deletingPathExtension().lastPathComponent
+      return ApplicationMetadataCache.shared.metadata(
+        for: bundleIdentifier
+      )?.displayName
         ?? String(localized: "Open Application")
     case .system(let action):
       return systemActionName(action)

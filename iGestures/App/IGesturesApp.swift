@@ -290,7 +290,7 @@ private struct OnboardingView: View {
       )
 
       Picker(
-        String(localized: "Trigger Mouse Button"),
+        String(localized: "Gesture Trigger"),
         selection: Binding(
           get: { model.triggerButton },
           set: { model.setTriggerButton($0) }
@@ -298,6 +298,12 @@ private struct OnboardingView: View {
       ) {
         ForEach(GestureTriggerButton.commonPresets) { button in
           Text(onboardingTriggerLabel(button)).tag(button)
+        }
+        if !GestureTriggerButton.commonPresets.contains(
+          model.triggerButton
+        ) {
+          Text(onboardingTriggerLabel(model.triggerButton))
+            .tag(model.triggerButton)
         }
       }
       .pickerStyle(.radioGroup)
@@ -397,17 +403,7 @@ private struct OnboardingView: View {
   private func onboardingTriggerLabel(
     _ button: GestureTriggerButton
   ) -> String {
-    switch button.buttonNumber {
-    case 1:
-      String(localized: "Right Mouse Button")
-    case 2:
-      String(localized: "Middle Mouse Button")
-    default:
-      String(
-        format: String(localized: "Mouse Button %d"),
-        Int(button.buttonNumber) + 1
-      )
-    }
+    button.localizedName
   }
 }
 
@@ -552,16 +548,6 @@ private struct MenuBarContent: View {
   private func onboardingMenuTriggerLabel(
     _ button: GestureTriggerButton
   ) -> String {
-    switch button.buttonNumber {
-    case 1:
-      String(localized: "Right Mouse Button")
-    case 2:
-      String(localized: "Middle Mouse Button")
-    default:
-      String(
-        format: String(localized: "Mouse Button %d"),
-        Int(button.buttonNumber) + 1
-      )
-    }
+    button.localizedName
   }
 }

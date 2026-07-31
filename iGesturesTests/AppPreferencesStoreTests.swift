@@ -136,6 +136,26 @@ final class AppPreferencesStoreTests: XCTestCase {
   }
 
   @MainActor
+  func testKeyboardTriggersPersistAcrossStoreInstances() {
+    let (suiteName, userDefaults) = makeUserDefaults()
+    defer {
+      userDefaults.removePersistentDomain(forName: suiteName)
+    }
+    let store = AppPreferencesStore(userDefaults: userDefaults)
+    let primary = GestureTriggerButton.keyboard(keyCode: 49)
+    let secondary = GestureTriggerButton.keyboard(keyCode: 36)
+
+    store.setTriggerButton(primary)
+    store.setSecondaryTriggerButton(secondary)
+
+    let reloaded = AppPreferencesStore(userDefaults: userDefaults)
+    XCTAssertEqual(reloaded.triggerButton, primary)
+    XCTAssertEqual(reloaded.triggerButton.keyboardKeyCode, 49)
+    XCTAssertEqual(reloaded.secondaryTriggerButton, secondary)
+    XCTAssertEqual(reloaded.secondaryTriggerButton?.keyboardKeyCode, 36)
+  }
+
+  @MainActor
   func testDiagnosticsPersistOnlyAfterExplicitOptIn() {
     let (suiteName, userDefaults) = makeUserDefaults()
     defer {

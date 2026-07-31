@@ -58,6 +58,7 @@
 		A20000000000000000000032 /* ScriptLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000035 /* ScriptLibraryTests.swift */; };
 		A20000000000000000000033 /* ActionPresetLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000037 /* ActionPresetLibrary.swift */; };
 		A20000000000000000000034 /* ActionPresetLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000038 /* ActionPresetLibraryTests.swift */; };
+		A20000000000000000000035 /* ApplicationMetadataCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000039 /* ApplicationMetadataCache.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -126,6 +127,7 @@
 		A21000000000000000000036 /* iGestures.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = iGestures.entitlements; sourceTree = "<group>"; };
 		A21000000000000000000037 /* ActionPresetLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionPresetLibrary.swift; sourceTree = "<group>"; };
 		A21000000000000000000038 /* ActionPresetLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionPresetLibraryTests.swift; sourceTree = "<group>"; };
+		A21000000000000000000039 /* ApplicationMetadataCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMetadataCache.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -317,6 +319,7 @@
 		A2300000000000000000000E /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				A21000000000000000000039 /* ApplicationMetadataCache.swift */,
 				A21000000000000000000026 /* GestureRecorderSheet.swift */,
 				A21000000000000000000025 /* GesturesSettingsView.swift */,
 				A21000000000000000000022 /* KeyboardShortcutFormatter.swift */,
@@ -463,6 +466,7 @@
 				A20000000000000000000033 /* ActionPresetLibrary.swift in Sources */,
 				A20000000000000000000030 /* ScriptLibrary.swift in Sources */,
 				A20000000000000000000031 /* ScriptLibraryView.swift in Sources */,
+				A20000000000000000000035 /* ApplicationMetadataCache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

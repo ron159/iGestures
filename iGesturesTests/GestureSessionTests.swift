@@ -68,6 +68,25 @@ final class GestureSessionTests: XCTestCase {
     )
   }
 
+  func testKeyboardTriggerUsesStableEncodedIdentifier() {
+    let trigger = GestureTriggerButton.keyboard(keyCode: 49)
+
+    XCTAssertEqual(trigger.keyboardKeyCode, 49)
+    XCTAssertNil(GestureTriggerButton.right.keyboardKeyCode)
+    XCTAssertNil(GestureTriggerButton.trackpad.keyboardKeyCode)
+    XCTAssertNil(
+      GestureTriggerButton(
+        buttonNumber: 0xFFFF_0001
+      ).keyboardKeyCode
+    )
+    XCTAssertNil(
+      trigger.eventPhase(
+        for: .otherMouseDown,
+        buttonNumber: Int64(trigger.buttonNumber)
+      )
+    )
+  }
+
   func testTriggerButtonCaptureAcceptsAnyPhysicalButton() {
     var capture = TriggerButtonCaptureState()
     capture.begin()
@@ -86,6 +105,28 @@ final class GestureSessionTests: XCTestCase {
       capture.handleMouseUp(buttonNumber: 7),
       .passThrough
     )
+  }
+
+  func testTriggerButtonCaptureAcceptsKeyboardKeyAndSuppressesKeyUp() {
+    var capture = TriggerButtonCaptureState()
+    capture.begin()
+
+    XCTAssertEqual(
+      capture.handleKeyDown(keyCode: 49),
+      .captured(.keyboard(keyCode: 49))
+    )
+    XCTAssertFalse(capture.isRecording)
+    XCTAssertEqual(capture.handleKeyDown(keyCode: 49), .suppress)
+    XCTAssertEqual(capture.handleKeyUp(keyCode: 49), .suppress)
+    XCTAssertEqual(capture.handleKeyUp(keyCode: 49), .passThrough)
+  }
+
+  func testTriggerButtonCaptureKeepsEscapeAvailableForCancellation() {
+    var capture = TriggerButtonCaptureState()
+    capture.begin()
+
+    XCTAssertEqual(capture.handleKeyDown(keyCode: 53), .passThrough)
+    XCTAssertTrue(capture.isRecording)
   }
 
   func testDisabledSessionPassesEveryEventThrough() {

@@ -151,7 +151,7 @@ struct GestureRecorderSheet: View {
             }
 
             GridRow {
-              Text(String(localized: "Trigger Mouse Button"))
+              Text(String(localized: "Gesture Trigger"))
                 .foregroundStyle(.secondary)
               HStack(spacing: 8) {
                 Picker(
@@ -378,17 +378,7 @@ struct GestureRecorderSheet: View {
     if button == .trackpad {
       return String(localized: "Trackpad Modifier Gesture")
     }
-    return switch button.buttonNumber {
-    case 1:
-      String(localized: "Right Mouse Button")
-    case 2:
-      String(localized: "Middle Mouse Button")
-    default:
-      String(
-        format: String(localized: "Mouse Button %d"),
-        Int(button.buttonNumber) + 1
-      )
-    }
+    return button.localizedName
   }
 
   private var feedbackColor: Color {
@@ -401,7 +391,7 @@ struct GestureRecorderSheet: View {
     guard button != model.secondaryTriggerButton else {
       triggerConflictMessage = String(
         localized:
-          "This button is reserved as the secondary trigger."
+          "This input is reserved as the secondary trigger."
       )
       return
     }

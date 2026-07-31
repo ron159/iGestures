@@ -48,6 +48,20 @@ private final class ScriptExecutionNoticeAuthorizer {
 }
 
 @MainActor
+final class GestureDiagnosticsState: ObservableObject {
+  @Published private(set) var records: [GestureDiagnosticRecord]
+
+  init(records: [GestureDiagnosticRecord]) {
+    self.records = records
+  }
+
+  func replaceRecords(with records: [GestureDiagnosticRecord]) {
+    guard self.records != records else { return }
+    self.records = records
+  }
+}
+
+@MainActor
 final class AppModel: ObservableObject {
   @Published private(set) var isEnabled = false
   @Published private(set) var isOverlayEnabled = true
@@ -69,7 +83,6 @@ final class AppModel: ObservableObject {
     0x8_0000 | 0x4_0000
   @Published private(set) var isHapticFeedbackEnabled = false
   @Published private(set) var isDiagnosticPersistenceEnabled = false
-  @Published private(set) var recentDiagnostics: [GestureDiagnosticRecord] = []
   @Published private(set) var permissionState: PermissionState = .unknown
   @Published private(set) var eventTapState: EventTapManagerState = .stopped
   @Published private(set) var mappingCount = 0
@@ -105,6 +118,7 @@ final class AppModel: ObservableObject {
   private let scriptLibraryStore: ScriptLibraryStore?
   private let overlayController: OverlayController
   private let diagnosticsBuffer: GestureDiagnosticsBuffer
+  let diagnosticsState: GestureDiagnosticsState
   private let updateService: UpdateService?
   private let githubReleaseService: GitHubReleaseService?
   private let updateInstaller: UpdatePackageInstaller
@@ -159,11 +173,14 @@ final class AppModel: ObservableObject {
       preferencesStore.hapticFeedbackEnabled
     self.isDiagnosticPersistenceEnabled =
       preferencesStore.diagnosticPersistenceEnabled
+    let diagnosticRecords = preferencesStore.diagnosticRecords
     let diagnosticsBuffer = GestureDiagnosticsBuffer(
-      initialRecords: preferencesStore.diagnosticRecords
+      initialRecords: diagnosticRecords
     )
     self.diagnosticsBuffer = diagnosticsBuffer
-    self.recentDiagnostics = preferencesStore.diagnosticRecords
+    self.diagnosticsState = GestureDiagnosticsState(
+      records: diagnosticRecords
+    )
     self.customActionPresets = preferencesStore.customActionPresets
     self.favoriteActionPresetIDs =
       preferencesStore.favoriteActionPresetIDs
@@ -273,7 +290,7 @@ final class AppModel: ObservableObject {
     diagnosticsBuffer.setHandler { [weak self] records in
       Task { @MainActor [weak self] in
         guard let self else { return }
-        recentDiagnostics = records
+        diagnosticsState.replaceRecords(with: records)
         preferencesStore.setDiagnosticRecords(records)
       }
     }
@@ -346,15 +363,18 @@ final class AppModel: ObservableObject {
   }
 
   func refreshPermissions() {
-    permissionState = permissionCoordinator.refresh()
-    if permissionState == .checking,
+    var refreshedState = permissionCoordinator.refresh()
+    if refreshedState == .checking,
       eventTapState == .running
     {
-      permissionState = permissionCoordinator.recordEventTapCreation(
+      refreshedState = permissionCoordinator.recordEventTapCreation(
         succeeded: true
       )
     }
-    if permissionState == .checking || permissionState == .granted {
+    if permissionState != refreshedState {
+      permissionState = refreshedState
+    }
+    if refreshedState == .checking || refreshedState == .granted {
       eventTapManager.start()
       eventTapManager.setEnabled(isEnabled)
     } else {
@@ -382,7 +402,10 @@ final class AppModel: ObservableObject {
   }
 
   func refreshLoginItemStatus() {
-    loginItemState = loginItemController.refresh()
+    let refreshedState = loginItemController.refresh()
+    if loginItemState != refreshedState {
+      loginItemState = refreshedState
+    }
   }
 
   func setLaunchAtLoginEnabled(_ isEnabled: Bool) {
@@ -494,7 +517,7 @@ final class AppModel: ObservableObject {
     isDiagnosticPersistenceEnabled = enabled
     preferencesStore.setDiagnosticPersistenceEnabled(enabled)
     if enabled {
-      preferencesStore.setDiagnosticRecords(recentDiagnostics)
+      preferencesStore.setDiagnosticRecords(diagnosticsState.records)
     }
   }
 
@@ -638,7 +661,7 @@ final class AppModel: ObservableObject {
     guard triggerButton != secondaryTriggerButton else {
       triggerConfigurationError = String(
         localized:
-          "Primary and secondary trigger buttons must be different."
+          "Primary and secondary triggers must be different."
       )
       return false
     }
@@ -667,14 +690,14 @@ final class AppModel: ObservableObject {
     guard triggerButton != .trackpad else {
       triggerConfigurationError = String(
         localized:
-          "Trackpad cannot be used as the secondary mouse trigger."
+          "Trackpad cannot be used as the secondary trigger."
       )
       return false
     }
     guard triggerButton != self.triggerButton else {
       triggerConfigurationError = String(
         localized:
-          "Primary and secondary trigger buttons must be different."
+          "Primary and secondary triggers must be different."
       )
       return false
     }
@@ -685,7 +708,7 @@ final class AppModel: ObservableObject {
     else {
       triggerConfigurationError = String(
         localized:
-          "The secondary trigger button is already used by a gesture."
+          "The secondary trigger is already used by a gesture."
       )
       return false
     }
@@ -835,7 +858,7 @@ final class AppModel: ObservableObject {
     guard draft.triggerButton != secondaryTriggerButton else {
       triggerConfigurationError = String(
         localized:
-          "This button is reserved as the secondary trigger."
+          "This input is reserved as the secondary trigger."
       )
       return nil
     }
@@ -852,7 +875,7 @@ final class AppModel: ObservableObject {
     guard draft.triggerButton != secondaryTriggerButton else {
       triggerConfigurationError = String(
         localized:
-          "This button is reserved as the secondary trigger."
+          "This input is reserved as the secondary trigger."
       )
       return
     }
@@ -914,7 +937,7 @@ final class AppModel: ObservableObject {
     guard triggerButton != secondaryTriggerButton else {
       triggerConfigurationError = String(
         localized:
-          "This button is reserved as the secondary trigger."
+          "This input is reserved as the secondary trigger."
       )
       return
     }
@@ -1696,8 +1719,12 @@ final class AppModel: ObservableObject {
     else {
       return
     }
-    currentApplicationName = application.localizedName
-    currentApplicationBundleIdentifier = application.bundleIdentifier
+    if currentApplicationName != application.localizedName {
+      currentApplicationName = application.localizedName
+    }
+    if currentApplicationBundleIdentifier != application.bundleIdentifier {
+      currentApplicationBundleIdentifier = application.bundleIdentifier
+    }
   }
 
   private var gestureInputConfiguration: GestureInputConfiguration {

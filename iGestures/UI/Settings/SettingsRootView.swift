@@ -8,7 +8,7 @@ enum SettingsSidebarMetrics {
   static let maximumWidth: CGFloat = 280
 }
 
-private enum SettingsRootTab: Hashable {
+private enum SettingsRootDestination {
   case gestures
   case settings
 }
@@ -41,33 +41,29 @@ private enum SettingsCategory: CaseIterable, Hashable, Identifiable {
 struct SettingsRootView: View {
   static let minimumContentSize = NSSize(width: 640, height: 480)
 
-  @ObservedObject var model: AppModel
-  @State private var selectedTab: SettingsRootTab = .gestures
+  let model: AppModel
+  @State private var destination: SettingsRootDestination = .gestures
   @State private var selectedCategory: SettingsCategory? = .general
 
   var body: some View {
-    TabView(selection: $selectedTab) {
-      GesturesSettingsView(model: model)
-        .tabItem {
-          Label(
-            String(localized: "Gestures"),
-            systemImage: "scribble.variable"
-          )
-        }
-        .tag(SettingsRootTab.gestures)
-
-      SettingsCategoriesView(
-        model: model,
-        selection: $selectedCategory
-      )
-      .tabItem {
-        Label(
-          String(localized: "Settings"),
-          systemImage: "gearshape"
+    Group {
+      switch destination {
+      case .gestures:
+        GesturesSettingsView(
+          model: model,
+          onOpenSettings: {
+            destination = .settings
+          }
+        )
+      case .settings:
+        SettingsCategoriesView(
+          model: model,
+          selection: $selectedCategory,
+          onOpenGestures: {
+            destination = .gestures
+          }
         )
       }
-      .tag(SettingsRootTab.settings)
-
     }
     .frame(
       minWidth: Self.minimumContentSize.width,
@@ -81,18 +77,34 @@ struct SettingsRootView: View {
 }
 
 private struct SettingsCategoriesView: View {
-  @ObservedObject var model: AppModel
+  let model: AppModel
   @Binding var selection: SettingsCategory?
+  let onOpenGestures: () -> Void
 
   var body: some View {
     NavigationSplitView {
-      List(selection: $selection) {
-        ForEach(SettingsCategory.allCases) { category in
-          Label(category.title, systemImage: category.systemImage)
-            .tag(category)
+      VStack(spacing: 0) {
+        List(selection: $selection) {
+          ForEach(SettingsCategory.allCases) { category in
+            Label(category.title, systemImage: category.systemImage)
+              .tag(category)
+          }
         }
+        .listStyle(.sidebar)
+
+        Divider()
+
+        Button(action: onOpenGestures) {
+          Label(
+            String(localized: "Gestures"),
+            systemImage: "scribble.variable"
+          )
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(12)
       }
-      .listStyle(.sidebar)
       .navigationSplitViewColumnWidth(
         min: SettingsSidebarMetrics.minimumWidth,
         ideal: SettingsSidebarMetrics.idealWidth,
@@ -123,153 +135,148 @@ private struct GeneralSettingsView: View {
 
   var body: some View {
     Form {
-      Toggle(
-        String(localized: "Enable gesture recognition"),
-        isOn: Binding(
-          get: { model.isEnabled },
-          set: { _ in model.toggleEnabled() }
+      Section(String(localized: "General")) {
+        Toggle(
+          String(localized: "Enable gesture recognition"),
+          isOn: Binding(
+            get: { model.isEnabled },
+            set: { _ in model.toggleEnabled() }
+          )
         )
-      )
 
-      Toggle(
-        String(localized: "Show Gesture Trail"),
-        isOn: Binding(
-          get: { model.isOverlayEnabled },
-          set: { model.setOverlayEnabled($0) }
+        Toggle(
+          String(localized: "Show Gesture Trail"),
+          isOn: Binding(
+            get: { model.isOverlayEnabled },
+            set: { model.setOverlayEnabled($0) }
+          )
         )
-      )
 
-      ColorPicker(
-        String(localized: "Gesture Trail Color"),
-        selection: Binding(
-          get: { Color(nsColor: model.trailColor) },
-          set: { model.setTrailColor(NSColor($0)) }
-        ),
-        supportsOpacity: false
-      )
-      .disabled(!model.isOverlayEnabled)
-
-      Toggle(
-        String(localized: "Show Recognition Feedback"),
-        isOn: Binding(
-          get: { model.isFeedbackEnabled },
-          set: { model.setFeedbackEnabled($0) }
-        )
-      )
-
-      Picker(
-        String(localized: "Recognition Sensitivity"),
-        selection: Binding(
-          get: { model.recognitionSensitivity },
-          set: { model.setRecognitionSensitivity($0) }
-        )
-      ) {
-        Text(String(localized: "Loose"))
-          .tag(RecognitionSensitivity.loose)
-        Text(String(localized: "Standard"))
-          .tag(RecognitionSensitivity.standard)
-        Text(String(localized: "Strict"))
-          .tag(RecognitionSensitivity.strict)
-      }
-
-      LabeledContent(String(localized: "Global Enable Shortcut")) {
-        ShortcutRecorderView(
-          shortcut: Binding(
-            get: { model.globalToggleShortcut },
-            set: { model.setGlobalToggleShortcut($0) }
-          ),
-          model: model
-        )
-        .frame(width: 170)
-      }
-
-      if let conflict = SystemShortcutConflictDetector().conflict(
-        for: model.globalToggleShortcut
-      ) {
-        Text(conflict.localizedDescription)
-          .foregroundStyle(.orange)
-      }
-
-      Toggle(
-        String(localized: "Enable Trackpad Modifier Gestures"),
-        isOn: Binding(
-          get: { model.isTrackpadGestureEnabled },
-          set: { model.setTrackpadGestureEnabled($0) }
-        )
-      )
-
-      if model.isTrackpadGestureEnabled {
-        Picker(
-          String(localized: "Trackpad Modifiers"),
+        ColorPicker(
+          String(localized: "Gesture Trail Color"),
           selection: Binding(
-            get: { model.trackpadModifiers },
-            set: { model.setTrackpadModifiers($0) }
+            get: { Color(nsColor: model.trailColor) },
+            set: { model.setTrailColor(NSColor($0)) }
+          ),
+          supportsOpacity: false
+        )
+        .disabled(!model.isOverlayEnabled)
+
+        Toggle(
+          String(localized: "Show Recognition Feedback"),
+          isOn: Binding(
+            get: { model.isFeedbackEnabled },
+            set: { model.setFeedbackEnabled($0) }
+          )
+        )
+
+        Picker(
+          String(localized: "Recognition Sensitivity"),
+          selection: Binding(
+            get: { model.recognitionSensitivity },
+            set: { model.setRecognitionSensitivity($0) }
           )
         ) {
-          Text(String(localized: "Control + Option"))
-            .tag(UInt64(0x4_0000 | 0x8_0000))
-          Text(String(localized: "Command + Option"))
-            .tag(UInt64(0x10_0000 | 0x8_0000))
-          Text(String(localized: "Control + Command"))
-            .tag(UInt64(0x4_0000 | 0x10_0000))
+          Text(String(localized: "Loose"))
+            .tag(RecognitionSensitivity.loose)
+          Text(String(localized: "Standard"))
+            .tag(RecognitionSensitivity.standard)
+          Text(String(localized: "Strict"))
+            .tag(RecognitionSensitivity.strict)
+        }
+
+        LabeledContent(String(localized: "Global Enable Shortcut")) {
+          ShortcutRecorderView(
+            shortcut: Binding(
+              get: { model.globalToggleShortcut },
+              set: { model.setGlobalToggleShortcut($0) }
+            ),
+            model: model
+          )
+          .frame(width: 170)
+        }
+
+        if let conflict = SystemShortcutConflictDetector().conflict(
+          for: model.globalToggleShortcut
+        ) {
+          Text(conflict.localizedDescription)
+            .foregroundStyle(.orange)
         }
       }
 
-      Toggle(
-        String(localized: "Haptic Feedback"),
-        isOn: Binding(
-          get: { model.isHapticFeedbackEnabled },
-          set: { model.setHapticFeedbackEnabled($0) }
+      Section(String(localized: "System")) {
+        Toggle(
+          String(localized: "Enable Trackpad Modifier Gestures"),
+          isOn: Binding(
+            get: { model.isTrackpadGestureEnabled },
+            set: { model.setTrackpadGestureEnabled($0) }
+          )
         )
-      )
 
-      Toggle(
-        String(localized: "Launch at Login"),
-        isOn: Binding(
-          get: { model.isLaunchAtLoginEnabled },
-          set: { model.setLaunchAtLoginEnabled($0) }
-        )
-      )
-      .disabled(!model.canChangeLaunchAtLogin)
-
-      if model.loginItemState == .requiresApproval {
-        LabeledContent(String(localized: "Launch at Login")) {
-          Button(String(localized: "Open System Settings")) {
-            model.openLoginItemSettings()
+        if model.isTrackpadGestureEnabled {
+          Picker(
+            String(localized: "Trackpad Modifiers"),
+            selection: Binding(
+              get: { model.trackpadModifiers },
+              set: { model.setTrackpadModifiers($0) }
+            )
+          ) {
+            Text(String(localized: "Control + Option"))
+              .tag(UInt64(0x4_0000 | 0x8_0000))
+            Text(String(localized: "Command + Option"))
+              .tag(UInt64(0x10_0000 | 0x8_0000))
+            Text(String(localized: "Control + Command"))
+              .tag(UInt64(0x4_0000 | 0x10_0000))
           }
         }
-        Text(
-          String(
-            localized:
-              "Launch at login requires approval in System Settings."
+
+        Toggle(
+          String(localized: "Haptic Feedback"),
+          isOn: Binding(
+            get: { model.isHapticFeedbackEnabled },
+            set: { model.setHapticFeedbackEnabled($0) }
           )
         )
-        .foregroundStyle(.secondary)
-      } else if model.loginItemState == .notFound {
-        Text(
-          String(
-            localized:
-              "Launch at login is unavailable in this build."
+
+        Toggle(
+          String(localized: "Launch at Login"),
+          isOn: Binding(
+            get: { model.isLaunchAtLoginEnabled },
+            set: { model.setLaunchAtLoginEnabled($0) }
           )
         )
-        .foregroundStyle(.secondary)
-      }
+        .disabled(!model.canChangeLaunchAtLogin)
 
-      if let error = model.loginItemError {
-        Text(error)
-          .foregroundStyle(.red)
-      }
-
-      LabeledContent(String(localized: "Stored Gestures")) {
-        Text(
-          String(
-            format: String(localized: "%d gestures loaded"),
-            model.mappingCount
+        if model.loginItemState == .requiresApproval {
+          LabeledContent(String(localized: "Launch at Login")) {
+            Button(String(localized: "Open System Settings")) {
+              model.openLoginItemSettings()
+            }
+          }
+          Text(
+            String(
+              localized:
+                "Launch at login requires approval in System Settings."
+            )
           )
-        )
+          .foregroundStyle(.secondary)
+        } else if model.loginItemState == .notFound {
+          Text(
+            String(
+              localized:
+                "Launch at login is unavailable in this build."
+            )
+          )
+          .foregroundStyle(.secondary)
+        }
+
+        if let error = model.loginItemError {
+          Text(error)
+            .foregroundStyle(.red)
+        }
       }
 
-      LabeledContent(String(localized: "Software Update")) {
+      Section(String(localized: "Software Update")) {
         adaptiveControlGroup {
           Button(String(localized: "Check for Updates")) {
             model.checkForUpdates(manual: true)
@@ -295,18 +302,18 @@ private struct GeneralSettingsView: View {
             }
           }
         }
+
+        if let updateMessage = model.updateMessage {
+          Text(updateMessage)
+            .foregroundStyle(
+              model.updateState == .failed
+                ? Color.red
+                : Color.secondary
+            )
+        }
       }
 
-      if let updateMessage = model.updateMessage {
-        Text(updateMessage)
-          .foregroundStyle(
-            model.updateState == .failed
-              ? Color.red
-              : Color.secondary
-          )
-      }
-
-      LabeledContent(String(localized: "Getting Started")) {
+      Section(String(localized: "Getting Started")) {
         adaptiveControlGroup {
           Button(String(localized: "Practice Gestures")) {
             isPracticePresented = true
@@ -318,30 +325,39 @@ private struct GeneralSettingsView: View {
         }
       }
 
-      if !model.applicationExclusions.isEmpty {
-        LabeledContent(String(localized: "Excluded Applications")) {
-          VStack(alignment: .trailing, spacing: 6) {
-            ForEach(
-              model.applicationExclusions.sorted {
-                $0.id < $1.id
-              }
-            ) { rule in
-              HStack {
-                Text(exclusionSummary(rule))
-                  .font(.callout)
-                Button {
-                  model.removeApplicationExclusion(rule)
-                } label: {
-                  Image(systemName: "xmark.circle.fill")
+      Section(String(localized: "Configuration")) {
+        LabeledContent(String(localized: "Stored Gestures")) {
+          Text(
+            String(
+              format: String(localized: "%d gestures loaded"),
+              model.mappingCount
+            )
+          )
+        }
+
+        if !model.applicationExclusions.isEmpty {
+          LabeledContent(String(localized: "Excluded Applications")) {
+            VStack(alignment: .trailing, spacing: 6) {
+              ForEach(
+                model.applicationExclusions.sorted {
+                  $0.id < $1.id
                 }
-                .buttonStyle(.borderless)
+              ) { rule in
+                HStack {
+                  Text(exclusionSummary(rule))
+                    .font(.callout)
+                  Button {
+                    model.removeApplicationExclusion(rule)
+                  } label: {
+                    Image(systemName: "xmark.circle.fill")
+                  }
+                  .buttonStyle(.borderless)
+                }
               }
             }
           }
         }
-      }
 
-      LabeledContent(String(localized: "Configuration")) {
         adaptiveControlGroup {
           Button(String(localized: "Import…")) {
             chooseImportFile()
@@ -354,20 +370,20 @@ private struct GeneralSettingsView: View {
           }
           .disabled(!model.canUndoLastImport)
         }
-      }
-      .disabled(model.isTransferringMappings)
+        .disabled(model.isTransferringMappings)
 
-      if model.isTransferringMappings {
-        ProgressView()
-          .controlSize(.small)
-      } else if let message = model.mappingTransferMessage {
-        Text(message)
-          .foregroundStyle(.secondary)
-      }
+        if model.isTransferringMappings {
+          ProgressView()
+            .controlSize(.small)
+        } else if let message = model.mappingTransferMessage {
+          Text(message)
+            .foregroundStyle(.secondary)
+        }
 
-      if let error = model.mappingStoreError {
-        Text(error)
-          .foregroundStyle(.red)
+        if let error = model.mappingStoreError {
+          Text(error)
+            .foregroundStyle(.red)
+        }
       }
     }
     .formStyle(.grouped)
@@ -433,28 +449,16 @@ private struct GeneralSettingsView: View {
   private func triggerButtonLabel(
     _ button: GestureTriggerButton
   ) -> String {
-    return switch button.buttonNumber {
-    case 0:
-      String(localized: "Left Mouse Button")
-    case 1:
-      String(localized: "Right Mouse Button")
-    case 2:
-      String(localized: "Middle Mouse Button")
-    default:
-      String(
-        format: String(localized: "Mouse Button %d"),
-        Int(button.buttonNumber) + 1
-      )
-    }
+    button.localizedName
   }
 
   private func exclusionSummary(
     _ rule: ApplicationExclusionRule
   ) -> String {
     let applicationName =
-      NSWorkspace.shared.urlForApplication(
-        withBundleIdentifier: rule.bundleIdentifier
-      )?.deletingPathExtension().lastPathComponent
+      ApplicationMetadataCache.shared.metadata(
+        for: rule.bundleIdentifier
+      )?.displayName
       ?? rule.bundleIdentifier
     guard let triggerButton = rule.triggerButton else {
       return applicationName
@@ -662,8 +666,8 @@ struct TriggerButtonRecorderView: View {
     } label: {
       Label(
         recordingID == nil
-          ? String(localized: "Record Button…")
-          : String(localized: "Press a Mouse Button…"),
+          ? String(localized: "Record Trigger…")
+          : String(localized: "Press a Trigger…"),
         systemImage:
           recordingID == nil ? "record.circle" : "record.circle.fill"
       )
@@ -673,10 +677,10 @@ struct TriggerButtonRecorderView: View {
     )
     .help(
       recordingID == nil
-        ? String(localized: "Record a custom physical mouse button.")
+        ? String(localized: "Record a mouse button or keyboard key.")
         : String(
           localized:
-            "Press any physical mouse button to use it as the trigger."
+            "Press a mouse button or keyboard key to use it as the trigger."
         )
     )
     .onDisappear {
@@ -703,6 +707,14 @@ struct TriggerButtonRecorderView: View {
 
 private struct PermissionsSettingsView: View {
   @ObservedObject var model: AppModel
+  @ObservedObject private var diagnosticsState: GestureDiagnosticsState
+
+  init(model: AppModel) {
+    _model = ObservedObject(wrappedValue: model)
+    _diagnosticsState = ObservedObject(
+      wrappedValue: model.diagnosticsState
+    )
+  }
 
   var body: some View {
     Form {
@@ -743,13 +755,13 @@ private struct PermissionsSettingsView: View {
         )
       )
 
-      if model.recentDiagnostics.isEmpty {
+      if diagnosticsState.records.isEmpty {
         Text(String(localized: "No recent gesture diagnostics."))
           .foregroundStyle(.secondary)
       } else {
         GroupBox(String(localized: "Recent Gesture Diagnostics")) {
           VStack(alignment: .leading, spacing: 6) {
-            ForEach(model.recentDiagnostics.suffix(8).reversed()) {
+            ForEach(diagnosticsState.records.suffix(8).reversed()) {
               record in
               HStack {
                 Text(record.timestamp, style: .time)

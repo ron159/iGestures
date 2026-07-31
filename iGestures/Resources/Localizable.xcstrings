@@ -1803,6 +1803,16 @@
         }
       }
     },
+    "Keyboard Key %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "键盘按键 %@"
+          }
+        }
+      }
+    },
     "Launch at Login": {
       "localizations": {
         "zh-Hans": {
@@ -2659,6 +2669,26 @@
         }
       }
     },
+    "Press a Trigger…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请按下触发键…"
+          }
+        }
+      }
+    },
+    "Press a mouse button or keyboard key to use it as the trigger.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按下鼠标按键或键盘按键，将其设为触发键。"
+          }
+        }
+      }
+    },
     "Press any physical mouse button to use it as the trigger.": {
       "localizations": {
         "zh-Hans": {
@@ -2700,6 +2730,16 @@
       }
     },
     "Primary and secondary trigger buttons must be different.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主触发键和第二触发键不能相同。"
+          }
+        }
+      }
+    },
+    "Primary and secondary triggers must be different.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -2815,6 +2855,16 @@
         }
       }
     },
+    "Record Trigger…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制触发键…"
+          }
+        }
+      }
+    },
     "Record Gesture": {
       "localizations": {
         "zh-Hans": {
@@ -2841,6 +2891,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "录制一个自定义物理鼠标按键。"
+          }
+        }
+      }
+    },
+    "Record a mouse button or keyboard key.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制鼠标按键或键盘按键。"
           }
         }
       }
@@ -2941,6 +3001,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "再次单击触发键即可重复上次成功识别的动作。"
+          }
+        }
+      }
+    },
+    "Repeat the last successful action with another trigger press.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再次按下触发键即可重复上次成功识别的动作。"
           }
         }
       }
@@ -3691,6 +3761,16 @@
         }
       }
     },
+    "The secondary trigger is already used by a gesture.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该第二触发键已被某个手势用作触发键。"
+          }
+        }
+      }
+    },
     "The stroke is too short or incomplete. Try again.": {
       "localizations": {
         "zh-Hans": {
@@ -3777,6 +3857,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "该按键已保留为第二触发键。"
+          }
+        }
+      }
+    },
+    "This input is reserved as the secondary trigger.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该输入已保留为第二触发键。"
           }
         }
       }
@@ -3927,6 +4017,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "触控板不能用作第二鼠标触发键。"
+          }
+        }
+      }
+    },
+    "Trackpad cannot be used as the secondary trigger.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触控板不能用作第二触发键。"
           }
         }
       }

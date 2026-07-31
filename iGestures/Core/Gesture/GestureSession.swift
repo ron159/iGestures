@@ -6,6 +6,10 @@ public struct GestureTriggerButton:
   Identifiable,
   Sendable
 {
+  private static let keyboardPrefix: UInt32 = 0xFFFE_0000
+  private static let keyboardPrefixMask: UInt32 = 0xFFFF_0000
+  private static let keyboardMask: UInt32 = 0x0000_FFFF
+
   public static let left = GestureTriggerButton(buttonNumber: 0)
   public static let right = GestureTriggerButton(buttonNumber: 1)
   public static let middle = GestureTriggerButton(buttonNumber: 2)
@@ -25,6 +29,21 @@ public struct GestureTriggerButton:
 
   public init(buttonNumber: UInt32) {
     self.buttonNumber = buttonNumber
+  }
+
+  public static func keyboard(keyCode: UInt16) -> GestureTriggerButton {
+    GestureTriggerButton(
+      buttonNumber: keyboardPrefix | UInt32(keyCode)
+    )
+  }
+
+  public var keyboardKeyCode: UInt16? {
+    guard self != .trackpad,
+      buttonNumber & Self.keyboardPrefixMask == Self.keyboardPrefix
+    else {
+      return nil
+    }
+    return UInt16(buttonNumber & Self.keyboardMask)
   }
 
   public var id: UInt32 { buttonNumber }

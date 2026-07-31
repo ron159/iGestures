@@ -119,3 +119,35 @@ extension SystemShortcutConflict {
     }
   }
 }
+
+extension GestureTriggerButton {
+  var localizedName: String {
+    if self == .trackpad {
+      return String(localized: "Trackpad")
+    }
+    if let keyboardKeyCode {
+      return String(
+        format: String(localized: "Keyboard Key %@"),
+        KeyboardShortcutFormatter.string(
+          for: KeyboardShortcut(
+            keyCode: keyboardKeyCode,
+            modifiers: 0
+          )
+        )
+      )
+    }
+    return switch buttonNumber {
+    case 0:
+      String(localized: "Left Mouse Button")
+    case 1:
+      String(localized: "Right Mouse Button")
+    case 2:
+      String(localized: "Middle Mouse Button")
+    default:
+      String(
+        format: String(localized: "Mouse Button %d"),
+        Int(buttonNumber) + 1
+      )
+    }
+  }
+}

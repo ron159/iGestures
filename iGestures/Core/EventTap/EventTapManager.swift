@@ -128,6 +128,8 @@ public final class EventTapManager: @unchecked Sendable {
   ) -> UUID {
     let id = UUID()
     lifecycleLock.lock()
+    triggerButtonRecording = nil
+    triggerButtonCaptureState.cancel()
     shortcutCaptureState.begin()
     shortcutRecording = (id, handler)
     lifecycleLock.unlock()
@@ -149,6 +151,8 @@ public final class EventTapManager: @unchecked Sendable {
   ) -> UUID {
     let id = UUID()
     lifecycleLock.lock()
+    shortcutRecording = nil
+    shortcutCaptureState.cancel()
     triggerButtonCaptureState.begin()
     triggerButtonRecording = (id, handler)
     lifecycleLock.unlock()
@@ -413,6 +417,11 @@ public final class EventTapManager: @unchecked Sendable {
     if type == .keyDown || type == .keyUp {
       return handleShortcutEvent(type: type, event: event)
     }
+    if type == .mouseMoved,
+      activeTriggerButton?.keyboardKeyCode == nil
+    {
+      return Unmanaged.passUnretained(event)
+    }
 
     let signpostID = OSSignpostID(log: Self.performanceLog)
     os_signpost(
@@ -459,8 +468,18 @@ public final class EventTapManager: @unchecked Sendable {
     else {
       return Unmanaged.passUnretained(event)
     }
-    let phase = triggerEvent.phase
-    let triggerButton = triggerEvent.button
+    return processTriggerEvent(
+      phase: triggerEvent.phase,
+      triggerButton: triggerEvent.button,
+      event: event
+    )
+  }
+
+  private func processTriggerEvent(
+    phase: TriggerEventPhase,
+    triggerButton: GestureTriggerButton,
+    event: CGEvent
+  ) -> Unmanaged<CGEvent>? {
     let inputDevice: GestureInputDevice =
       triggerButton == .trackpad
       ? .trackpad
@@ -506,6 +525,9 @@ public final class EventTapManager: @unchecked Sendable {
     }
 
     if phase == .down {
+      if activeTriggerButton == triggerButton {
+        return nil
+      }
       if let state = repeatState {
         let now = ProcessInfo.processInfo.systemUptime
         if now <= state.expiresAt,
@@ -597,6 +619,9 @@ public final class EventTapManager: @unchecked Sendable {
     }
 
     apply(result.commands, currentEvent: event)
+    if phase == .dragged, triggerButton.keyboardKeyCode != nil {
+      return Unmanaged.passUnretained(event)
+    }
     return result.disposition == .passThrough
       ? Unmanaged.passUnretained(event)
       : nil
@@ -611,6 +636,10 @@ public final class EventTapManager: @unchecked Sendable {
     )
     guard !EventSourceMarker.isSynthetic(sourceUserData) else {
       return Unmanaged.passUnretained(event)
+    }
+
+    if handleTriggerButtonRecordingEvent(type: type, event: event) {
+      return nil
     }
 
     let keyCode = UInt16(
@@ -678,9 +707,20 @@ public final class EventTapManager: @unchecked Sendable {
     if didSuppressGlobalToggle {
       return nil
     }
-    return result == .passThrough
-      ? Unmanaged.passUnretained(event)
-      : nil
+    guard result == .passThrough else {
+      return nil
+    }
+    if let triggerEvent = keyboardTriggerEvent(
+      type: type,
+      keyCode: keyCode
+    ) {
+      return processTriggerEvent(
+        phase: triggerEvent.phase,
+        triggerButton: triggerEvent.button,
+        event: event
+      )
+    }
+    return Unmanaged.passUnretained(event)
   }
 
   private func handleEscape(
@@ -742,9 +782,6 @@ public final class EventTapManager: @unchecked Sendable {
     else {
       return false
     }
-    let buttonNumber = event.getIntegerValueField(
-      .mouseEventButtonNumber
-    )
     let result: TriggerButtonCaptureResult
     var handler: TriggerButtonRecordingHandler?
 
@@ -752,7 +789,9 @@ public final class EventTapManager: @unchecked Sendable {
     switch type {
     case .leftMouseDown, .rightMouseDown, .otherMouseDown:
       result = triggerButtonCaptureState.handleMouseDown(
-        buttonNumber: buttonNumber
+        buttonNumber: event.getIntegerValueField(
+          .mouseEventButtonNumber
+        )
       )
       if case .captured = result {
         handler = triggerButtonRecording?.handler
@@ -760,11 +799,31 @@ public final class EventTapManager: @unchecked Sendable {
       }
     case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
       result = triggerButtonCaptureState.handleMouseDragged(
-        buttonNumber: buttonNumber
+        buttonNumber: event.getIntegerValueField(
+          .mouseEventButtonNumber
+        )
       )
     case .leftMouseUp, .rightMouseUp, .otherMouseUp:
       result = triggerButtonCaptureState.handleMouseUp(
-        buttonNumber: buttonNumber
+        buttonNumber: event.getIntegerValueField(
+          .mouseEventButtonNumber
+        )
+      )
+    case .keyDown:
+      result = triggerButtonCaptureState.handleKeyDown(
+        keyCode: UInt16(
+          event.getIntegerValueField(.keyboardEventKeycode)
+        )
+      )
+      if case .captured = result {
+        handler = triggerButtonRecording?.handler
+        triggerButtonRecording = nil
+      }
+    case .keyUp:
+      result = triggerButtonCaptureState.handleKeyUp(
+        keyCode: UInt16(
+          event.getIntegerValueField(.keyboardEventKeycode)
+        )
       )
     default:
       result = .passThrough
@@ -830,18 +889,28 @@ public final class EventTapManager: @unchecked Sendable {
     guard let mouseDown = pendingMouseDown else { return }
     pendingMouseDown = nil
 
-    let mouseUp: CGEvent?
-    if let currentEvent,
+    let triggerButton =
+      activeTriggerButton ?? inputConfiguration.triggerButton
+    let triggerUp: CGEvent?
+    if let keyboardKeyCode = triggerButton.keyboardKeyCode {
+      if let currentEvent, currentEvent.type == .keyUp {
+        triggerUp = currentEvent.copy()
+      } else {
+        triggerUp = CGEvent(
+          keyboardEventSource: nil,
+          virtualKey: CGKeyCode(keyboardKeyCode),
+          keyDown: false
+        )
+      }
+    } else if let currentEvent,
       triggerEvent(
         type: currentEvent.type,
         event: currentEvent
       )?.phase == .up
     {
-      mouseUp = currentEvent.copy()
+      triggerUp = currentEvent.copy()
     } else {
-      let triggerButton =
-        activeTriggerButton ?? inputConfiguration.triggerButton
-      mouseUp = CGEvent(
+      triggerUp = CGEvent(
         mouseEventSource: nil,
         mouseType: triggerButton.mouseUpEventType,
         mouseCursorPosition: CGPoint(
@@ -856,7 +925,7 @@ public final class EventTapManager: @unchecked Sendable {
     }
 
     guard let replayDown = mouseDown.copy(),
-      let replayUp = mouseUp
+      let replayUp = triggerUp
     else {
       return
     }
@@ -1006,6 +1075,9 @@ public final class EventTapManager: @unchecked Sendable {
 
     switch phase {
     case .down:
+      if secondaryTriggerIsDown {
+        return nil
+      }
       secondaryTriggerIsDown = true
       if activeTriggerButton != nil {
         activeSessionUsesSecondaryTrigger = true
@@ -1172,6 +1244,13 @@ public final class EventTapManager: @unchecked Sendable {
     type: CGEventType,
     event: CGEvent
   ) -> (button: GestureTriggerButton, phase: TriggerEventPhase)? {
+    if type == .mouseMoved,
+      let activeTriggerButton,
+      activeTriggerButton.keyboardKeyCode != nil
+    {
+      return (activeTriggerButton, .dragged)
+    }
+
     let number = event.getIntegerValueField(
       .mouseEventButtonNumber
     )
@@ -1203,6 +1282,27 @@ public final class EventTapManager: @unchecked Sendable {
     return (button, phase)
   }
 
+  private func keyboardTriggerEvent(
+    type: CGEventType,
+    keyCode: UInt16
+  ) -> (button: GestureTriggerButton, phase: TriggerEventPhase)? {
+    let button = GestureTriggerButton.keyboard(keyCode: keyCode)
+    guard
+      button == inputConfiguration.triggerButton
+        || button == inputConfiguration.secondaryTriggerButton
+    else {
+      return nil
+    }
+    switch type {
+    case .keyDown:
+      return (button, .down)
+    case .keyUp:
+      return (button, .up)
+    default:
+      return nil
+    }
+  }
+
   private func isExcluded(
     bundleID: String?,
     triggerButton: GestureTriggerButton
@@ -1225,6 +1325,7 @@ public final class EventTapManager: @unchecked Sendable {
     .otherMouseDown,
     .otherMouseDragged,
     .otherMouseUp,
+    .mouseMoved,
     .keyDown,
     .keyUp,
   ].reduce(0) { mask, type in
@@ -1265,6 +1366,9 @@ extension GestureTriggerButton {
     for type: CGEventType,
     buttonNumber eventButtonNumber: Int64
   ) -> TriggerEventPhase? {
+    guard keyboardKeyCode == nil else {
+      return nil
+    }
     if self == .trackpad {
       switch type {
       case .leftMouseDown:
@@ -1327,6 +1431,7 @@ enum TriggerButtonCaptureResult: Equatable {
 struct TriggerButtonCaptureState {
   private(set) var isRecording = false
   private var suppressedButtonNumber: Int64?
+  private var suppressedKeyCode: UInt16?
 
   mutating func begin() {
     isRecording = true
@@ -1338,6 +1443,7 @@ struct TriggerButtonCaptureState {
 
   mutating func releaseSuppressedButton() {
     suppressedButtonNumber = nil
+    suppressedKeyCode = nil
   }
 
   mutating func reset() {
@@ -1381,6 +1487,31 @@ struct TriggerButtonCaptureState {
       return .passThrough
     }
     suppressedButtonNumber = nil
+    return .suppress
+  }
+
+  mutating func handleKeyDown(
+    keyCode: UInt16
+  ) -> TriggerButtonCaptureResult {
+    if suppressedKeyCode == keyCode {
+      return .suppress
+    }
+    guard isRecording, keyCode != 53 else {
+      return .passThrough
+    }
+
+    isRecording = false
+    suppressedKeyCode = keyCode
+    return .captured(.keyboard(keyCode: keyCode))
+  }
+
+  mutating func handleKeyUp(
+    keyCode: UInt16
+  ) -> TriggerButtonCaptureResult {
+    guard suppressedKeyCode == keyCode else {
+      return .passThrough
+    }
+    suppressedKeyCode = nil
     return .suppress
   }
 }
