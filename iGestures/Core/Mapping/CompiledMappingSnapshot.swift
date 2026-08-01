@@ -57,14 +57,14 @@ public struct CompiledMappingSnapshot: Sendable {
     )
   }
 
-  public func hasApplicableSecondaryAction(
+  public func hasApplicableSecondaryGesture(
     for bundleID: String?,
     inputDevice: GestureInputDevice = .mouse(identifier: nil)
   ) -> Bool {
     mappings.contains {
       $0.isEnabled
         && $0.action.isValid
-        && ($0.secondaryAction?.isValid ?? false)
+        && ($0.secondaryAction?.isValid ?? true)
         && !$0.templates.isEmpty
         && $0.appScope.includes(bundleID: bundleID)
         && $0.deviceScope.includes(inputDevice)

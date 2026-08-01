@@ -3,6 +3,18 @@ import XCTest
 @testable import iGestures
 
 final class ShortcutExecutorTests: XCTestCase {
+  func testNoActionCompletesWithoutExecutingAnything() async {
+    let request = ActionRequest(
+      mappingID: UUID(),
+      mappingName: "None",
+      action: .none
+    )
+
+    let result = await SystemGestureActionExecutor().execute(request)
+
+    XCTAssertEqual(result, .succeeded)
+  }
+
   func testEventSequenceContainsMarkedKeyDownAndKeyUp() {
     let shortcut = KeyboardShortcut(
       keyCode: 12,

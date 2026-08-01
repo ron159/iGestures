@@ -149,6 +149,36 @@ final class GestureLibraryTests: XCTestCase {
     XCTAssertTrue(library.database.mappings[0].isEnabled)
   }
 
+  func testPrimaryAndSecondaryActionsSupportAllFourStates() throws {
+    let template = try makeTemplate(angle: 0)
+    var library = GestureLibrary()
+    let id = library.create(
+      draft(name: "Independent Actions", template: template)
+    )
+
+    try library.setSecondaryAction(id: id, .window(.maximize))
+    XCTAssertTrue(library.database.mappings[0].action.performsAction)
+    XCTAssertNotNil(library.database.mappings[0].secondaryAction)
+
+    try library.setAction(id: id, .none)
+    XCTAssertEqual(library.database.mappings[0].action, .none)
+    XCTAssertNotNil(library.database.mappings[0].secondaryAction)
+    XCTAssertTrue(library.database.mappings[0].isEnabled)
+
+    try library.setSecondaryAction(id: id, nil)
+    XCTAssertEqual(library.database.mappings[0].action, .none)
+    XCTAssertNil(library.database.mappings[0].secondaryAction)
+    XCTAssertTrue(library.database.mappings[0].isEnabled)
+    XCTAssertTrue(
+      library.database.compiledSnapshot
+        .hasApplicableSecondaryGesture(for: nil)
+    )
+
+    try library.setAction(id: id, .window(.leftHalf))
+    XCTAssertTrue(library.database.mappings[0].action.performsAction)
+    XCTAssertNil(library.database.mappings[0].secondaryAction)
+  }
+
   func testDraftUpdateReplacesRecordedConfiguration() throws {
     let original = try makeTemplate(angle: 0)
     let replacement = try makeTemplate(angle: .pi / 2)

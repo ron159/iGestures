@@ -1441,7 +1441,9 @@ private struct GestureMappingInspector: View {
     }
     .sheet(isPresented: $isEditingAction) {
       GestureActionEditorSheet(
-        action: mapping.action,
+        action:
+          mapping.action.performsAction
+          ? mapping.action : .window(.leftHalf),
         model: model
       ) {
         model.setMappingAction(id: mapping.id, action: $0)
@@ -1672,13 +1674,31 @@ private struct GestureMappingInspector: View {
   private var actionEditor: some View {
     GroupBox(String(localized: "Action")) {
       HStack(spacing: 12) {
-        Image(systemName: "bolt.circle")
-          .font(.title3)
-          .foregroundStyle(.secondary)
-          .accessibilityHidden(true)
+        Image(
+          systemName:
+            mapping.action.performsAction
+            ? "bolt.circle" : "minus.circle"
+        )
+        .font(.title3)
+        .foregroundStyle(.secondary)
+        .accessibilityHidden(true)
         Text(GestureActionSummary.text(for: mapping.action))
           .frame(maxWidth: .infinity, alignment: .leading)
-        Button(String(localized: "Edit")) {
+        if mapping.action.performsAction {
+          Button(
+            String(localized: "Clear Action"),
+            role: .destructive
+          ) {
+            model.setMappingAction(id: mapping.id, action: .none)
+          }
+          .fixedSize()
+          .layoutPriority(1)
+        }
+        Button(
+          mapping.action.performsAction
+            ? String(localized: "Edit")
+            : String(localized: "Set Action")
+        ) {
           isEditingAction = true
         }
         .fixedSize()
@@ -1720,16 +1740,43 @@ private struct GestureMappingInspector: View {
           .font(.caption)
           .foregroundStyle(.secondary)
 
-          if let secondaryAction = mapping.secondaryAction {
-            HStack(spacing: 12) {
-              Image(systemName: "bolt.badge.plus")
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-              Text(GestureActionSummary.text(for: secondaryAction))
-                .frame(maxWidth: .infinity, alignment: .leading)
+          HStack(spacing: 12) {
+            Image(
+              systemName:
+                mapping.secondaryAction == nil
+                ? "minus.circle" : "bolt.badge.plus"
+            )
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
+            Text(
+              GestureActionSummary.text(
+                for: mapping.secondaryAction ?? .none
+              )
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if let secondaryAction = mapping.secondaryAction {
+              Button(
+                String(localized: "Clear Action"),
+                role: .destructive
+              ) {
+                model.setMappingSecondaryAction(
+                  id: mapping.id,
+                  action: nil
+                )
+              }
+              .fixedSize()
+              .layoutPriority(1)
               Button(String(localized: "Edit")) {
                 secondaryActionEditorItem = SecondaryActionEditorItem(
                   action: secondaryAction
+                )
+              }
+              .fixedSize()
+              .layoutPriority(1)
+            } else {
+              Button(String(localized: "Set Action")) {
+                secondaryActionEditorItem = SecondaryActionEditorItem(
+                  action: .window(.leftHalf)
                 )
               }
               .fixedSize()
@@ -2253,6 +2300,8 @@ struct AppScopeEditor: View {
 enum GestureActionSummary {
   static func text(for action: GestureAction) -> String {
     switch action {
+    case .none:
+      return String(localized: "No Action")
     case .keyboardShortcut(let shortcut):
       return KeyboardShortcutFormatter.string(for: shortcut)
     case .openURL:
@@ -2413,7 +2462,10 @@ struct GestureActionEditorSheet: View {
     model: AppModel,
     onSave: @escaping (GestureAction) -> Void
   ) {
-    _action = State(initialValue: action)
+    _action = State(
+      initialValue:
+        action.performsAction ? action : .window(.leftHalf)
+    )
     self.model = model
     self.onSave = onSave
   }
@@ -2533,6 +2585,8 @@ struct GestureActionEditor: View {
       }
 
       switch action {
+      case .none:
+        EmptyView()
       case .keyboardShortcut:
         ShortcutRecorderView(
           shortcut: keyboardShortcut,
@@ -2648,6 +2702,8 @@ struct GestureActionEditor: View {
     Binding(
       get: {
         switch action {
+        case .none:
+          .window
         case .keyboardShortcut:
           .keyboardShortcut
         case .openURL:

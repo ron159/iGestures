@@ -96,6 +96,7 @@ public struct GestureRecognizer: Sendable {
   private struct Candidate {
     let mapping: GestureMapping
     let distance: Float
+    let specificity: Int
   }
 
   public let configuration: Configuration
@@ -111,101 +112,11 @@ public struct GestureRecognizer: Sendable {
     inputDevice: GestureInputDevice? = nil,
     useSecondaryAction: Bool = false
   ) -> Decision {
-    let enabled = mappings.filter {
-      $0.isEnabled
-        && $0.action.isValid
-        && $0.appScope.includes(bundleID: frontmostBundleID)
-    }
-    if let inputDevice {
-      let deviceApplicable = enabled.filter {
-        $0.deviceScope.includes(inputDevice)
-      }
-      let deviceSpecific = deviceApplicable.filter {
-        $0.deviceScope.isDeviceSpecific
-      }
-      if !deviceSpecific.isEmpty {
-        let decision = recognizeByApplication(
-          gesture,
-          mappings: deviceSpecific,
-          frontmostBundleID: frontmostBundleID,
-          useSecondaryAction: useSecondaryAction
-        )
-        if decision != .noMatch {
-          return decision
-        }
-      }
-      return recognizeByApplication(
-        gesture,
-        mappings: deviceApplicable.filter {
-          !$0.deviceScope.isDeviceSpecific
-        },
-        frontmostBundleID: frontmostBundleID,
-        useSecondaryAction: useSecondaryAction
-      )
-    }
-    return recognizeByApplication(
-      gesture,
-      mappings: enabled,
-      frontmostBundleID: frontmostBundleID,
-      useSecondaryAction: useSecondaryAction
-    )
-  }
-
-  private func recognizeByApplication(
-    _ gesture: GestureTemplate,
-    mappings: [GestureMapping],
-    frontmostBundleID: String?,
-    useSecondaryAction: Bool
-  ) -> Decision {
-    let applicable = mappings.filter {
-      $0.appScope.includes(bundleID: frontmostBundleID)
-    }
-    let applicationSpecific = applicable.filter {
-      $0.appScope.isApplicationSpecific(for: frontmostBundleID)
-    }
-    let directApplicationMappings = applicationSpecific.filter {
-      $0.applicationGroupID == nil
-    }
-    if !directApplicationMappings.isEmpty {
-      let decision = recognize(
-        gesture,
-        candidatesFrom: directApplicationMappings,
-        useSecondaryAction: useSecondaryAction
-      )
-      if decision != .noMatch {
-        return decision
-      }
-    }
-    let groupMappings = applicationSpecific.filter {
-      $0.applicationGroupID != nil
-    }
-    if !groupMappings.isEmpty {
-      let decision = recognize(
-        gesture,
-        candidatesFrom: groupMappings,
-        useSecondaryAction: useSecondaryAction
-      )
-      if decision != .noMatch {
-        return decision
-      }
-    }
-    return recognize(
-      gesture,
-      candidatesFrom: applicable.filter {
-        !$0.appScope.isApplicationSpecific(for: frontmostBundleID)
-      },
-      useSecondaryAction: useSecondaryAction
-    )
-  }
-
-  private func recognize(
-    _ gesture: GestureTemplate,
-    candidatesFrom mappings: [GestureMapping],
-    useSecondaryAction: Bool
-  ) -> Decision {
     let candidates = mappings.compactMap { mapping -> Candidate? in
       guard mapping.isEnabled,
-        mapping.action.isValid
+        mapping.action.isValid,
+        mapping.appScope.includes(bundleID: frontmostBundleID),
+        inputDevice.map(mapping.deviceScope.includes) ?? true
       else {
         return nil
       }
@@ -220,19 +131,41 @@ public struct GestureRecognizer: Sendable {
       }
       return Candidate(
         mapping: mapping,
-        distance: bestTemplateDistance
+        distance: bestTemplateDistance,
+        specificity: specificity(
+          of: mapping,
+          for: frontmostBundleID,
+          inputDevice: inputDevice
+        )
       )
     }
     .sorted(by: candidatePrecedes)
 
-    guard let best = candidates.first,
-      best.distance <= configuration.acceptanceThreshold
+    guard let nearest = candidates.first,
+      nearest.distance <= configuration.acceptanceThreshold
     else {
       return .noMatch
     }
 
-    if candidates.count > 1 {
-      let second = candidates[1]
+    let preferredSpecificity =
+      candidates
+      .filter {
+        $0.distance <= configuration.acceptanceThreshold
+          && ($0.distance == nearest.distance
+            || $0.distance - nearest.distance
+              < configuration.ambiguityMargin)
+      }
+      .map(\.specificity)
+      .max() ?? nearest.specificity
+    let preferredCandidates = candidates.filter {
+      $0.specificity == preferredSpecificity
+    }
+    guard let best = preferredCandidates.first else {
+      return .noMatch
+    }
+
+    if preferredCandidates.count > 1 {
+      let second = preferredCandidates[1]
       let difference = second.distance - best.distance
       if difference > 0,
         difference < configuration.ambiguityMargin
@@ -251,13 +184,35 @@ public struct GestureRecognizer: Sendable {
           mappingName: best.mapping.name,
           action:
             useSecondaryAction
-            ? best.mapping.secondaryAction ?? best.mapping.action
+            ? best.mapping.secondaryAction ?? .none
             : best.mapping.action,
           repeatModeEnabled: best.mapping.repeatModeEnabled
         ),
         distance: best.distance
       )
     )
+  }
+
+  private func specificity(
+    of mapping: GestureMapping,
+    for frontmostBundleID: String?,
+    inputDevice: GestureInputDevice?
+  ) -> Int {
+    let applicationSpecificity: Int
+    if mapping.appScope.isApplicationSpecific(
+      for: frontmostBundleID
+    ) {
+      applicationSpecificity =
+        mapping.applicationGroupID == nil ? 2 : 1
+    } else {
+      applicationSpecificity = 0
+    }
+
+    // Device scope remains the outer tie-breaker for near-identical gestures.
+    let deviceSpecificity =
+      inputDevice != nil && mapping.deviceScope.isDeviceSpecific
+      ? 3 : 0
+    return deviceSpecificity + applicationSpecificity
   }
 
   public func distance(

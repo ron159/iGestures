@@ -180,6 +180,33 @@ final class MappingStoreTests: XCTestCase {
     XCTAssertTrue(json.contains(#""type" : "window""#))
   }
 
+  func testIndependentEmptyActionsRoundTrip() async throws {
+    var database = try makeDatabase(name: "Independent")
+    database.mappings[0].action = .none
+    database.mappings[0].secondaryAction = .window(.maximize)
+    let store = MappingStore(directoryURL: directoryURL)
+
+    try await store.save(database)
+    var reloaded = try await store.load()
+    let exported = try await store.exportData()
+    let json = try XCTUnwrap(
+      String(data: exported, encoding: .utf8)
+    )
+
+    XCTAssertEqual(reloaded, database)
+    XCTAssertEqual(reloaded.mappings[0].action, .none)
+    XCTAssertEqual(
+      reloaded.mappings[0].secondaryAction,
+      .window(.maximize)
+    )
+    XCTAssertTrue(json.contains(#""type" : "none""#))
+
+    reloaded.mappings[0].secondaryAction = nil
+    try await store.save(reloaded)
+    let bothEmptyReloaded = try await store.load()
+    XCTAssertEqual(bothEmptyReloaded, reloaded)
+  }
+
   func testRemovedCompoundBindingsAreIgnoredDuringLoad()
     async throws
   {

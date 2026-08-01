@@ -141,7 +141,11 @@ struct GestureRecorderSheet: View {
                 .accessibilityHidden(true)
               Text(GestureActionSummary.text(for: action))
                 .frame(maxWidth: .infinity, alignment: .leading)
-              Button(String(localized: "Edit")) {
+              Button(
+                action.performsAction
+                  ? String(localized: "Edit")
+                  : String(localized: "Set Action")
+              ) {
                 isEditingAction = true
               }
             }
@@ -223,7 +227,8 @@ struct GestureRecorderSheet: View {
     }
     .sheet(isPresented: $isEditingAction) {
       GestureActionEditorSheet(
-        action: action,
+        action:
+          action.performsAction ? action : .window(.leftHalf),
         model: model
       ) {
         action = $0

@@ -214,6 +214,7 @@ public struct GestureActionSequence: Codable, Hashable, Sendable {
 }
 
 public indirect enum GestureAction: Codable, Hashable, Sendable {
+  case none
   case keyboardShortcut(KeyboardShortcut)
   case openURL(String)
   case openPath(String)
@@ -244,6 +245,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
   }
 
   private enum ActionType: String, Codable {
+    case none
     case keyboardShortcut
     case openURL
     case openPath
@@ -261,6 +263,8 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     switch try container.decode(ActionType.self, forKey: .type) {
+    case .none:
+      self = .none
     case .keyboardShortcut:
       self = .keyboardShortcut(
         try container.decode(
@@ -339,6 +343,8 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     switch self {
+    case .none:
+      try container.encode(ActionType.none, forKey: .type)
     case .keyboardShortcut(let shortcut):
       try container.encode(
         ActionType.keyboardShortcut,
@@ -412,6 +418,8 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
   ) -> Bool {
     guard depth <= 20 else { return false }
     switch self {
+    case .none:
+      return true
     case .keyboardShortcut(let shortcut):
       return shortcut.isValid
     case .openURL(let value):
@@ -453,21 +461,24 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
       case .stop, .continue:
         fallbackIsValid = true
       case .fallback(let action):
-        fallbackIsValid = action.isValid(
-          allowingUnconfirmedScripts:
-            allowingUnconfirmedScripts,
-          depth: depth + 1
-        )
+        fallbackIsValid =
+          action.performsAction
+          && action.isValid(
+            allowingUnconfirmedScripts:
+              allowingUnconfirmedScripts,
+            depth: depth + 1
+          )
       }
       return fallbackIsValid
         && !sequence.steps.isEmpty
         && sequence.steps.count <= 20
         && sequence.steps.allSatisfy {
-          $0.action.isValid(
-            allowingUnconfirmedScripts:
-              allowingUnconfirmedScripts,
-            depth: depth + 1
-          )
+          $0.action.performsAction
+            && $0.action.isValid(
+              allowingUnconfirmedScripts:
+                allowingUnconfirmedScripts,
+              depth: depth + 1
+            )
             && $0.delayAfter.isFinite
             && (0...5).contains($0.delayAfter)
         }
@@ -480,6 +491,10 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
         && script.timeout.isFinite
         && (1...30).contains(script.timeout)
     }
+  }
+
+  public var performsAction: Bool {
+    self != .none
   }
 
   public var keyboardShortcut: KeyboardShortcut? {
@@ -496,7 +511,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
         + sequenceFallbackScripts(sequence.failurePolicy)
     case .script(let script):
       return [script]
-    case .keyboardShortcut, .openURL, .openPath, .launchApplication,
+    case .none, .keyboardShortcut, .openURL, .openPath, .launchApplication,
       .system, .window, .customWindow, .typeText, .applicationMenu,
       .appleShortcut:
       return []
@@ -521,7 +536,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
         )
       }
       return .sequence(sequence)
-    case .keyboardShortcut, .openURL, .openPath, .launchApplication,
+    case .none, .keyboardShortcut, .openURL, .openPath, .launchApplication,
       .system, .window, .customWindow, .typeText, .applicationMenu,
       .appleShortcut:
       return self

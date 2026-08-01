@@ -76,6 +76,7 @@ public struct ActionPreset:
       && summary.utf8.count <= 500
       && keywords.count <= 20
       && keywords.allSatisfy { $0.utf8.count <= 80 }
+      && action.performsAction
       && action.isValid
   }
 

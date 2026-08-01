@@ -6130,6 +6130,36 @@
           }
         }
       }
+    },
+    "Clear Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清空动作"
+          }
+        }
+      }
+    },
+    "No Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无动作"
+          }
+        }
+      }
+    },
+    "Set Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置动作"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

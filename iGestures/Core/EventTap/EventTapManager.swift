@@ -1020,6 +1020,10 @@ public final class EventTapManager: @unchecked Sendable {
         break
       }
       guard case .matched(let match) = decision else { return }
+      guard match.action.performsAction else {
+        repeatState = nil
+        return
+      }
       repeatState =
         match.request.repeatModeEnabled
         ? RepeatState(
@@ -1112,7 +1116,7 @@ public final class EventTapManager: @unchecked Sendable {
           triggerButton:
             inputConfiguration.secondaryTriggerButton ?? .right
         ),
-        mappingSnapshot.hasApplicableSecondaryAction(
+        mappingSnapshot.hasApplicableSecondaryGesture(
           for: bundleID
         ),
         let copy = event.copy()

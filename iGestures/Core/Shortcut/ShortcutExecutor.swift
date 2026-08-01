@@ -143,6 +143,8 @@ public struct SystemGestureActionExecutor: ActionExecuting {
     }
 
     switch action {
+    case .none:
+      return .succeeded
     case .keyboardShortcut(let shortcut):
       guard action.isValid else {
         return .failed(.invalidAction)

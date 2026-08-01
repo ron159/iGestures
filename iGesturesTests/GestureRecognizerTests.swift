@@ -59,12 +59,14 @@ final class GestureRecognizerTests: XCTestCase {
     XCTAssertEqual(match.mappingID, globalID)
   }
 
-  func testApplicationSpecificLayerWinsBeforeDistanceComparison()
+  func testApplicationSpecificLayerWinsWhenDistancesAreClose()
     throws
   {
     let candidate = try template(angle: 0)
+    let specificTemplate = try template(angle: 0.12)
     let specificID = UUID()
     let globalID = UUID()
+    let recognizer = GestureRecognizer()
     let mappings = [
       mapping(
         id: globalID,
@@ -74,13 +76,18 @@ final class GestureRecognizerTests: XCTestCase {
       ),
       mapping(
         id: specificID,
-        template: try template(angle: 0.15),
+        template: specificTemplate,
         scope: .only(["com.apple.Safari"]),
         priority: 1
       ),
     ]
 
-    let decision = GestureRecognizer().recognize(
+    XCTAssertLessThan(
+      recognizer.distance(from: candidate, to: specificTemplate),
+      recognizer.configuration.ambiguityMargin
+    )
+
+    let decision = recognizer.recognize(
       candidate,
       mappings: mappings,
       frontmostBundleID: "com.apple.Safari"
@@ -90,6 +97,143 @@ final class GestureRecognizerTests: XCTestCase {
       return XCTFail("Expected a match, got \(decision)")
     }
     XCTAssertEqual(match.mappingID, specificID)
+  }
+
+  func testClearlyCloserGlobalMappingBeatsRecognizableGroupMapping()
+    throws
+  {
+    let candidate = try template(angle: 0)
+    let groupTemplate = try template(angle: 0.8)
+    let globalID = UUID()
+    let recognizer = GestureRecognizer()
+    let groupDistance = recognizer.distance(
+      from: candidate,
+      to: groupTemplate
+    )
+
+    XCTAssertGreaterThan(
+      groupDistance,
+      recognizer.configuration.ambiguityMargin
+    )
+    XCTAssertLessThan(
+      groupDistance,
+      recognizer.configuration.acceptanceThreshold
+    )
+
+    let decision = recognizer.recognize(
+      candidate,
+      mappings: [
+        mapping(
+          id: UUID(),
+          template: groupTemplate,
+          scope: .only(["com.microsoft.edgemac"]),
+          applicationGroupID: UUID()
+        ),
+        mapping(
+          id: globalID,
+          template: candidate,
+          scope: .all
+        ),
+      ],
+      frontmostBundleID: "com.microsoft.edgemac"
+    )
+
+    guard case .matched(let match) = decision else {
+      return XCTFail("Expected the clearly closer global match")
+    }
+    XCTAssertEqual(match.mappingID, globalID)
+  }
+
+  func testClearlyCloserGlobalMappingBeatsRecognizableDirectMapping()
+    throws
+  {
+    let candidate = try template(angle: 0)
+    let directTemplate = try template(angle: 0.8)
+    let globalID = UUID()
+    let recognizer = GestureRecognizer()
+    let directDistance = recognizer.distance(
+      from: candidate,
+      to: directTemplate
+    )
+
+    XCTAssertGreaterThan(
+      directDistance,
+      recognizer.configuration.ambiguityMargin
+    )
+    XCTAssertLessThan(
+      directDistance,
+      recognizer.configuration.acceptanceThreshold
+    )
+
+    let decision = recognizer.recognize(
+      candidate,
+      mappings: [
+        mapping(
+          id: UUID(),
+          template: directTemplate,
+          scope: .only(["com.microsoft.edgemac"])
+        ),
+        mapping(id: globalID, template: candidate),
+      ],
+      frontmostBundleID: "com.microsoft.edgemac"
+    )
+
+    guard case .matched(let match) = decision else {
+      return XCTFail("Expected the clearly closer global match")
+    }
+    XCTAssertEqual(match.mappingID, globalID)
+  }
+
+  func testGroupAmbiguityDoesNotBlockClearlyCloserGlobalMapping()
+    throws
+  {
+    let candidate = try template(angle: 0)
+    let firstGroupTemplate = try template(angle: 0.8)
+    let secondGroupTemplate = try template(angle: 0.82)
+    let globalID = UUID()
+    let recognizer = GestureRecognizer()
+    let groupDistances = [firstGroupTemplate, secondGroupTemplate].map {
+      recognizer.distance(from: candidate, to: $0)
+    }
+
+    XCTAssertTrue(
+      groupDistances.allSatisfy {
+        $0 < recognizer.configuration.acceptanceThreshold
+      }
+    )
+    XCTAssertLessThan(
+      abs(groupDistances[0] - groupDistances[1]),
+      recognizer.configuration.ambiguityMargin
+    )
+    XCTAssertGreaterThan(
+      groupDistances.min() ?? 0,
+      recognizer.configuration.ambiguityMargin
+    )
+
+    let decision = recognizer.recognize(
+      candidate,
+      mappings: [
+        mapping(
+          id: UUID(),
+          template: firstGroupTemplate,
+          scope: .only(["com.microsoft.edgemac"]),
+          applicationGroupID: UUID()
+        ),
+        mapping(
+          id: UUID(),
+          template: secondGroupTemplate,
+          scope: .only(["com.microsoft.edgemac"]),
+          applicationGroupID: UUID()
+        ),
+        mapping(id: globalID, template: candidate),
+      ],
+      frontmostBundleID: "com.microsoft.edgemac"
+    )
+
+    guard case .matched(let match) = decision else {
+      return XCTFail("Expected the clearly closer global match")
+    }
+    XCTAssertEqual(match.mappingID, globalID)
   }
 
   func testApplicationSpecificNoMatchFallsBackToGlobal() throws {
@@ -236,6 +380,43 @@ final class GestureRecognizerTests: XCTestCase {
     XCTAssertEqual(match.mappingID, trackpadID)
   }
 
+  func testClearlyCloserDeviceAgnosticFlowBeatsTrackpadFlow()
+    throws
+  {
+    let candidate = try template(angle: 0)
+    let anyDeviceID = UUID()
+    let recognizer = GestureRecognizer()
+    let trackpadTemplate = try template(angle: 0.8)
+
+    XCTAssertGreaterThan(
+      recognizer.distance(from: candidate, to: trackpadTemplate),
+      recognizer.configuration.ambiguityMargin
+    )
+
+    let decision = recognizer.recognize(
+      candidate,
+      mappings: [
+        mapping(
+          id: anyDeviceID,
+          template: candidate,
+          deviceScope: .any
+        ),
+        mapping(
+          id: UUID(),
+          template: trackpadTemplate,
+          deviceScope: .trackpad
+        ),
+      ],
+      frontmostBundleID: nil,
+      inputDevice: .trackpad
+    )
+
+    guard case .matched(let match) = decision else {
+      return XCTFail("Expected the clearly closer device-agnostic match")
+    }
+    XCTAssertEqual(match.mappingID, anyDeviceID)
+  }
+
   func testMouseFlowDoesNotConsumeTrackpadInput() throws {
     let candidate = try template(angle: 0)
     let decision = GestureRecognizer().recognize(
@@ -378,7 +559,7 @@ final class GestureRecognizerTests: XCTestCase {
     XCTAssertEqual(match.action, .window(.maximize))
   }
 
-  func testSecondaryTriggerFallsBackToPrimaryAction() throws {
+  func testMissingSecondaryActionDoesNotFallBackToPrimaryAction() throws {
     let candidate = try template(angle: 0)
     let mapping = mapping(
       id: UUID(),
@@ -395,7 +576,37 @@ final class GestureRecognizerTests: XCTestCase {
     guard case .matched(let match) = decision else {
       return XCTFail("Expected a match, got \(decision)")
     }
-    XCTAssertEqual(match.action, .keyboardShortcut(shortcut))
+    XCTAssertEqual(match.action, .none)
+  }
+
+  func testPrimaryAndSecondaryActionsCanBeSelectedIndependently() throws {
+    let candidate = try template(angle: 0)
+    var mapping = mapping(
+      id: UUID(),
+      template: candidate
+    )
+    mapping.action = .none
+    mapping.secondaryAction = .window(.maximize)
+
+    let primaryDecision = GestureRecognizer().recognize(
+      candidate,
+      mappings: [mapping],
+      frontmostBundleID: nil
+    )
+    let secondaryDecision = GestureRecognizer().recognize(
+      candidate,
+      mappings: [mapping],
+      frontmostBundleID: nil,
+      useSecondaryAction: true
+    )
+
+    guard case .matched(let primaryMatch) = primaryDecision,
+      case .matched(let secondaryMatch) = secondaryDecision
+    else {
+      return XCTFail("Expected both trigger modes to match")
+    }
+    XCTAssertEqual(primaryMatch.action, .none)
+    XCTAssertEqual(secondaryMatch.action, .window(.maximize))
   }
 
   func testDisabledAndInvalidMappingsDoNotParticipate() throws {

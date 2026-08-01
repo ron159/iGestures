@@ -619,6 +619,8 @@ public actor MappingStore {
 
   private func actionType(_ action: GestureAction) -> String {
     switch action {
+    case .none:
+      "none"
     case .keyboardShortcut:
       "keyboardShortcut"
     case .openURL:
