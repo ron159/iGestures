@@ -1067,6 +1067,16 @@
         }
       }
     },
+    "Choose an application for the selected gestures.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要应用这些手势的应用。"
+          }
+        }
+      }
+    },
     "Choose an application to add to “%@”.": {
       "localizations": {
         "zh-Hans": {
@@ -1307,6 +1317,16 @@
         }
       }
     },
+    "Delete Selected Gestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除选中手势"
+          }
+        }
+      }
+    },
     "Delete Group": {
       "localizations": {
         "zh-Hans": {
@@ -1394,6 +1414,16 @@
       }
     },
     "Disable Selected Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停用选中手势"
+          }
+        }
+      }
+    },
+    "Disable Selected Gestures": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -1560,6 +1590,16 @@
       }
     },
     "Enable Selected Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用选中手势"
+          }
+        }
+      }
+    },
+    "Enable Selected Gestures": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -2513,6 +2553,16 @@
         }
       }
     },
+    "Move": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移动"
+          }
+        }
+      }
+    },
     "Move Up": {
       "localizations": {
         "zh-Hans": {
@@ -2529,6 +2579,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "移动到分组"
+          }
+        }
+      }
+    },
+    "Move to Application": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移动到应用"
           }
         }
       }

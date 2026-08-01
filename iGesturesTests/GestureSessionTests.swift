@@ -4,6 +4,27 @@ import XCTest
 @testable import iGestures
 
 final class GestureSessionTests: XCTestCase {
+  func testUnconfiguredSecondaryTriggerDoesNotReserveInheritedTrigger() {
+    XCTAssertFalse(
+      AppModel.mappingTriggerConflictsWithSecondary(
+        nil,
+        secondaryTriggerButton: nil
+      )
+    )
+    XCTAssertFalse(
+      AppModel.mappingTriggerConflictsWithSecondary(
+        .left,
+        secondaryTriggerButton: nil
+      )
+    )
+    XCTAssertTrue(
+      AppModel.mappingTriggerConflictsWithSecondary(
+        .button4,
+        secondaryTriggerButton: .button4
+      )
+    )
+  }
+
   func testSecondaryTriggerIsOptionalAndCannotConflict() {
     XCTAssertNil(
       GestureInputConfiguration(

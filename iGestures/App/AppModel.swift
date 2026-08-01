@@ -868,13 +868,25 @@ final class AppModel: ObservableObject {
 
   @discardableResult
   func createMapping(_ draft: GestureMappingDraft) -> UUID? {
-    guard draft.triggerButton != secondaryTriggerButton else {
+    guard
+      !Self.mappingTriggerConflictsWithSecondary(
+        draft.triggerButton,
+        secondaryTriggerButton: secondaryTriggerButton
+      )
+    else {
       triggerConfigurationError = String(
         localized:
           "This input is reserved as the secondary trigger."
       )
       return nil
     }
+    guard let draft = mappingDraftSynchronizingApplicationGroup(draft) else {
+      mappingStoreError = String(
+        localized: "Gesture changes could not be saved."
+      )
+      return nil
+    }
+    triggerConfigurationError = nil
     var library = GestureLibrary(database: database)
     let id = library.create(draft)
     apply(library.database)
@@ -885,13 +897,25 @@ final class AppModel: ObservableObject {
     id: UUID,
     with draft: GestureMappingDraft
   ) {
-    guard draft.triggerButton != secondaryTriggerButton else {
+    guard
+      !Self.mappingTriggerConflictsWithSecondary(
+        draft.triggerButton,
+        secondaryTriggerButton: secondaryTriggerButton
+      )
+    else {
       triggerConfigurationError = String(
         localized:
           "This input is reserved as the secondary trigger."
       )
       return
     }
+    guard let draft = mappingDraftSynchronizingApplicationGroup(draft) else {
+      mappingStoreError = String(
+        localized: "Gesture changes could not be saved."
+      )
+      return
+    }
+    triggerConfigurationError = nil
     mutateLibrary {
       try $0.update(id: id, with: draft)
     }
@@ -947,7 +971,12 @@ final class AppModel: ObservableObject {
     id: UUID,
     triggerButton: GestureTriggerButton?
   ) {
-    guard triggerButton != secondaryTriggerButton else {
+    guard
+      !Self.mappingTriggerConflictsWithSecondary(
+        triggerButton,
+        secondaryTriggerButton: secondaryTriggerButton
+      )
+    else {
       triggerConfigurationError = String(
         localized:
           "This input is reserved as the secondary trigger."
@@ -1096,6 +1125,61 @@ final class AppModel: ObservableObject {
   func deleteMapping(id: UUID) {
     mutateLibrary {
       try $0.delete(id: id)
+    }
+  }
+
+  func deleteMappings(ids: Set<UUID>) {
+    mutateLibrary {
+      try $0.delete(ids: ids)
+    }
+  }
+
+  func moveMappings(
+    ids: Set<UUID>,
+    toApplicationGroupID groupID: UUID
+  ) {
+    guard !ids.isEmpty,
+      let group = database.applicationGroups.first(where: {
+        $0.id == groupID
+      })
+    else {
+      return
+    }
+    mutateLibrary {
+      try $0.setTarget(
+        ids: ids,
+        appScope: .only(group.bundleIdentifiers),
+        applicationGroupID: group.id
+      )
+    }
+  }
+
+  func moveMappings(
+    ids: Set<UUID>,
+    toApplicationBundleIdentifier bundleIdentifier: String
+  ) {
+    guard !ids.isEmpty else { return }
+    let normalized = bundleIdentifier.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+    guard !normalized.isEmpty else { return }
+    var updated = database
+    updated.managedApplicationBundleIdentifiers =
+      normalizedBundleIdentifiers(
+        updated.managedApplicationBundleIdentifiers + [normalized]
+      )
+    var library = GestureLibrary(database: updated)
+    do {
+      try library.setTarget(
+        ids: ids,
+        appScope: .only([normalized]),
+        applicationGroupID: nil
+      )
+      apply(library.database)
+    } catch {
+      mappingStoreError = String(
+        localized: "Gesture changes could not be saved."
+      )
     }
   }
 
@@ -1409,6 +1493,30 @@ final class AppModel: ObservableObject {
         localized: "Gesture changes could not be saved."
       )
     }
+  }
+
+  nonisolated static func mappingTriggerConflictsWithSecondary(
+    _ triggerButton: GestureTriggerButton?,
+    secondaryTriggerButton: GestureTriggerButton?
+  ) -> Bool {
+    guard let secondaryTriggerButton else { return false }
+    return triggerButton == secondaryTriggerButton
+  }
+
+  private func mappingDraftSynchronizingApplicationGroup(
+    _ draft: GestureMappingDraft
+  ) -> GestureMappingDraft? {
+    guard let groupID = draft.applicationGroupID else { return draft }
+    guard
+      let group = database.applicationGroups.first(where: {
+        $0.id == groupID
+      })
+    else {
+      return nil
+    }
+    var synchronized = draft
+    synchronized.appScope = .only(group.bundleIdentifiers)
+    return synchronized
   }
 
   private func moveApplication(

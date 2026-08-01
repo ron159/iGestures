@@ -108,7 +108,7 @@ struct GesturesSettingsView: View {
   @State private var selectedDestination: GestureWorkspaceDestination? =
     .gestures(.global)
   @State private var selectedGestureTarget: GestureTarget = .global
-  @State private var selectedMappingID: UUID?
+  @State private var selectedMappingIDs: Set<UUID> = []
   @State private var isInspectorPresented = true
   @State private var isPresentingRecorder = false
   @State private var isPresentingPresets = false
@@ -117,6 +117,7 @@ struct GesturesSettingsView: View {
   @State private var isGroupsSectionExpanded = true
   @State private var isApplicationsSectionExpanded = true
   @State private var groupPendingDeletion: GestureApplicationGroup?
+  @State private var mappingIDsPendingDeletion: Set<UUID> = []
   @State private var searchText = ""
 
   var body: some View {
@@ -147,9 +148,12 @@ struct GesturesSettingsView: View {
         existingMappings: model.mappings,
         initialAppScope: newGestureScope,
         initialApplicationGroupID: selectedApplicationGroup?.id,
-        applicationGroupName: selectedApplicationGroup?.name
+        applicationGroupName: selectedApplicationGroup?.name,
+        applicationName: selectedApplicationName
       ) { draft in
-        selectedMappingID = model.createMapping(draft)
+        if let id = model.createMapping(draft) {
+          selectedMappingIDs = [id]
+        }
       }
     }
     .sheet(isPresented: $isPresentingPresets) {
@@ -224,6 +228,25 @@ struct GesturesSettingsView: View {
           group.name
         )
       )
+    }
+    .confirmationDialog(
+      deleteMappingsDialogTitle,
+      isPresented: Binding(
+        get: { !mappingIDsPendingDeletion.isEmpty },
+        set: {
+          if !$0 {
+            mappingIDsPendingDeletion = []
+          }
+        }
+      )
+    ) {
+      Button(String(localized: "Delete"), role: .destructive) {
+        let ids = mappingIDsPendingDeletion
+        mappingIDsPendingDeletion = []
+        selectedMappingIDs.subtract(ids)
+        model.deleteMappings(ids: ids)
+      }
+      Button(String(localized: "Cancel"), role: .cancel) {}
     }
   }
 
@@ -392,31 +415,36 @@ struct GesturesSettingsView: View {
   }
 
   private var gestureWorkspace: some View {
-    VStack(spacing: 0) {
-      workspaceHeader
-      Divider()
-
-      if model.isLoadingMappings {
-        ProgressView(String(localized: "Loading Gestures…"))
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else {
-        gestureList
-      }
-
-      if let error = model.mappingStoreError {
+    HStack(spacing: 0) {
+      VStack(spacing: 0) {
+        workspaceHeader
         Divider()
-        Text(error)
-          .font(.callout)
-          .foregroundStyle(.red)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal, 16)
-          .padding(.vertical, 10)
+
+        if model.isLoadingMappings {
+          ProgressView(String(localized: "Loading Gestures…"))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+          gestureList
+        }
+
+        if let error = model.mappingStoreError {
+          Divider()
+          Text(error)
+            .font(.callout)
+            .foregroundStyle(.red)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
       }
-    }
-    .frame(minWidth: 340)
-    .inspector(isPresented: $isInspectorPresented) {
-      gestureInspector
-        .inspectorColumnWidth(min: 320, ideal: 320, max: 500)
+      .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
+
+      if isInspectorPresented {
+        Divider()
+        gestureInspector
+          .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
+          .transition(.move(edge: .trailing).combined(with: .opacity))
+      }
     }
   }
 
@@ -500,23 +528,34 @@ struct GesturesSettingsView: View {
           .foregroundStyle(.secondary)
 
         Menu {
-          Button(String(localized: "Enable Selected Gesture")) {
-            guard let selectedMappingID else { return }
-            model.setMappingsEnabled(ids: [selectedMappingID], isEnabled: true)
+          Button(String(localized: "Enable Selected Gestures")) {
+            model.setMappingsEnabled(
+              ids: selectedMappingIDs,
+              isEnabled: true
+            )
           }
-          .disabled(selectedMapping?.isEnabled != false)
-          Button(String(localized: "Disable Selected Gesture")) {
-            guard let selectedMappingID else { return }
-            model.setMappingsEnabled(ids: [selectedMappingID], isEnabled: false)
+          .disabled(!selectedMappings.contains { !$0.isEnabled })
+          Button(String(localized: "Disable Selected Gestures")) {
+            model.setMappingsEnabled(
+              ids: selectedMappingIDs,
+              isEnabled: false
+            )
           }
-          .disabled(selectedMapping?.isEnabled != true)
+          .disabled(!selectedMappings.contains { $0.isEnabled })
+          Divider()
+          Button(
+            String(localized: "Delete Selected Gestures"),
+            role: .destructive
+          ) {
+            mappingIDsPendingDeletion = selectedMappingIDs
+          }
         } label: {
           Image(systemName: "ellipsis.circle")
         }
         .menuStyle(.borderlessButton)
         .help(String(localized: "More Gesture Actions"))
         .accessibilityLabel(String(localized: "More Gesture Actions"))
-        .disabled(selectedMapping == nil)
+        .disabled(selectedMappingIDs.isEmpty)
       }
       .padding(.horizontal, 16)
       .padding(.vertical, 10)
@@ -541,10 +580,13 @@ struct GesturesSettingsView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 150)
       } else {
-        List(selection: $selectedMappingID) {
+        List(selection: $selectedMappingIDs) {
           ForEach(displayedMappings, id: \.mapping.id) { item in
             GestureLibraryRow(model: model, mapping: item.mapping)
               .tag(item.mapping.id)
+              .contextMenu {
+                gestureContextMenu(mappingID: item.mapping.id)
+              }
           }
         }
         .listStyle(.inset)
@@ -566,9 +608,10 @@ struct GesturesSettingsView: View {
           applicationGroupName:
             mapping.applicationGroupID.flatMap {
               applicationGroupName($0)
-            }
+            },
+          applicationName: directApplicationName(for: mapping)
         ) {
-          selectedMappingID = nil
+          selectedMappingIDs.remove(mapping.id)
         }
         .id(mapping.id)
         .background(SubtleScrollIndicatorConfigurator())
@@ -616,6 +659,11 @@ struct GesturesSettingsView: View {
   private var selectedApplicationGroup: GestureApplicationGroup? {
     guard case .group(let groupID) = selected else { return nil }
     return model.gestureApplicationGroups.first { $0.id == groupID }
+  }
+
+  private var selectedApplicationName: String? {
+    guard case .application(let bundleID) = selected else { return nil }
+    return applicationName(bundleIdentifier: bundleID)
   }
 
   private var ungroupedApplicationBundleIdentifiers: [String] {
@@ -693,12 +741,21 @@ struct GesturesSettingsView: View {
   }
 
   private var selectedMapping: GestureMapping? {
-    guard let selectedMappingID else { return nil }
+    guard selectedMappingIDs.count == 1,
+      let selectedMappingID = selectedMappingIDs.first
+    else {
+      return nil
+    }
     return model.mappings.first { $0.id == selectedMappingID }
   }
 
+  private var selectedMappings: [GestureMapping] {
+    model.mappings.filter { selectedMappingIDs.contains($0.id) }
+  }
+
   private var selectedMappingIndex: Int {
-    model.mappings.firstIndex { $0.id == selectedMappingID } ?? 0
+    guard let selectedMappingID = selectedMappingIDs.first else { return 0 }
+    return model.mappings.firstIndex { $0.id == selectedMappingID } ?? 0
   }
 
   private var newGestureScope: AppScope {
@@ -717,12 +774,12 @@ struct GesturesSettingsView: View {
   }
 
   private func selectFirstVisibleMapping() {
-    guard
-      let selectedMappingID,
-      visibleMappingIDs.contains(selectedMappingID)
-    else {
-      selectedMappingID = visibleMappingIDs.first
-      return
+    let visibleIDs = Set(visibleMappingIDs)
+    selectedMappingIDs.formIntersection(visibleIDs)
+    if selectedMappingIDs.isEmpty,
+      let firstVisibleMappingID = visibleMappingIDs.first
+    {
+      selectedMappingIDs = [firstVisibleMappingID]
     }
   }
 
@@ -794,7 +851,6 @@ struct GesturesSettingsView: View {
             .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
             .frame(width: 12, height: 18)
             .foregroundStyle(.secondary)
-            .offset(x: 4)
             .accessibilityHidden(true)
 
           sidebarNavigationIcon(systemImage)
@@ -810,7 +866,6 @@ struct GesturesSettingsView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 34)
         .contentShape(Rectangle())
-        .offset(x: -18)
       }
       .buttonStyle(.plain)
       .accessibilityLabel(title)
@@ -827,20 +882,6 @@ struct GesturesSettingsView: View {
       .accessibilityLabel(addLabel)
     }
     .frame(maxWidth: .infinity, minHeight: 34)
-    .overlay(alignment: .leading) {
-      Button {
-        withAnimation(.easeInOut(duration: 0.12)) {
-          isExpanded.wrappedValue.toggle()
-        }
-      } label: {
-        Color.clear
-          .frame(width: 36, height: 34)
-          .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .offset(x: -18)
-      .accessibilityHidden(true)
-    }
   }
 
   private func sidebarNavigationIcon(_ systemImage: String) -> some View {
@@ -1064,6 +1105,79 @@ struct GesturesSettingsView: View {
     }.count
   }
 
+  private var deleteMappingsDialogTitle: String {
+    mappingIDsPendingDeletion.count == 1
+      ? String(localized: "Delete this gesture?")
+      : String(localized: "Delete Selected Gestures")
+  }
+
+  @ViewBuilder
+  private func gestureContextMenu(mappingID: UUID) -> some View {
+    let mappingIDs = contextMappingIDs(for: mappingID)
+    if !model.gestureApplicationGroups.isEmpty {
+      Menu(String(localized: "Move to Group")) {
+        ForEach(model.gestureApplicationGroups) { group in
+          Button(group.name) {
+            selectedMappingIDs = mappingIDs
+            model.moveMappings(
+              ids: mappingIDs,
+              toApplicationGroupID: group.id
+            )
+          }
+        }
+      }
+    }
+
+    let applicationBundleIdentifiers =
+      sortedApplicationBundleIdentifiers(
+        allManagedApplicationBundleIdentifiers
+      )
+    Menu(String(localized: "Move to Application")) {
+      if !applicationBundleIdentifiers.isEmpty {
+        ForEach(applicationBundleIdentifiers, id: \.self) { bundleID in
+          Button(applicationName(bundleIdentifier: bundleID)) {
+            selectedMappingIDs = mappingIDs
+            model.moveMappings(
+              ids: mappingIDs,
+              toApplicationBundleIdentifier: bundleID
+            )
+          }
+        }
+        Divider()
+      }
+      Button(String(localized: "Choose Application…")) {
+        moveMappingsToChosenApplication(mappingIDs)
+      }
+    }
+
+    Divider()
+    Button(role: .destructive) {
+      selectedMappingIDs = mappingIDs
+      mappingIDsPendingDeletion = mappingIDs
+    } label: {
+      Label(String(localized: "Delete Gesture"), systemImage: "trash")
+    }
+  }
+
+  private func contextMappingIDs(for mappingID: UUID) -> Set<UUID> {
+    selectedMappingIDs.contains(mappingID)
+      ? selectedMappingIDs
+      : [mappingID]
+  }
+
+  private func directApplicationName(
+    for mapping: GestureMapping
+  ) -> String? {
+    guard mapping.applicationGroupID == nil,
+      case .only(let bundleIDs) = mapping.appScope,
+      bundleIDs.count == 1,
+      let bundleID = bundleIDs.first
+    else {
+      return nil
+    }
+    return applicationName(bundleIdentifier: bundleID)
+  }
+
   private func addGroup() {
     let group = trimmedGroupName
     guard !group.isEmpty else { return }
@@ -1111,6 +1225,34 @@ struct GesturesSettingsView: View {
       toGroupID: destinationGroupID
     )
     selectedDestination = .gestures(.application(bundleID))
+  }
+
+  private func moveMappingsToChosenApplication(_ mappingIDs: Set<UUID>) {
+    let panel = NSOpenPanel()
+    panel.allowedContentTypes = [.application]
+    panel.allowsMultipleSelection = false
+    panel.canChooseDirectories = false
+    panel.treatsFilePackagesAsDirectories = false
+    panel.directoryURL = URL(
+      fileURLWithPath: "/Applications",
+      isDirectory: true
+    )
+    panel.prompt = String(localized: "Move")
+    panel.message = String(
+      localized: "Choose an application for the selected gestures."
+    )
+
+    guard panel.runModal() == .OK,
+      let url = panel.url,
+      let bundleID = Bundle(url: url)?.bundleIdentifier
+    else {
+      return
+    }
+    selectedMappingIDs = mappingIDs
+    model.moveMappings(
+      ids: mappingIDs,
+      toApplicationBundleIdentifier: bundleID
+    )
   }
 
 }
@@ -1193,6 +1335,7 @@ private struct GestureMappingInspector: View {
   let index: Int
   let mappingCount: Int
   let applicationGroupName: String?
+  let applicationName: String?
   let onDelete: () -> Void
 
   @State private var name: String
@@ -1209,6 +1352,7 @@ private struct GestureMappingInspector: View {
     index: Int,
     mappingCount: Int,
     applicationGroupName: String?,
+    applicationName: String?,
     onDelete: @escaping () -> Void
   ) {
     self.model = model
@@ -1216,6 +1360,7 @@ private struct GestureMappingInspector: View {
     self.index = index
     self.mappingCount = mappingCount
     self.applicationGroupName = applicationGroupName
+    self.applicationName = applicationName
     self.onDelete = onDelete
     _name = State(initialValue: mapping.name)
   }
@@ -1270,7 +1415,8 @@ private struct GestureMappingInspector: View {
         model: model,
         existingMappings: model.mappings,
         editingMapping: mapping,
-        applicationGroupName: applicationGroupName
+        applicationGroupName: applicationGroupName,
+        applicationName: applicationName
       ) { draft in
         model.updateMapping(id: mapping.id, with: draft)
       }
@@ -1369,6 +1515,8 @@ private struct GestureMappingInspector: View {
   private var mappingScopeControl: some View {
     if let applicationGroupName {
       Label(applicationGroupName, systemImage: "folder")
+    } else if let applicationName {
+      Label(applicationName, systemImage: "app")
     } else {
       Button(scopeSummary(mapping.appScope)) {
         isEditingScope = true

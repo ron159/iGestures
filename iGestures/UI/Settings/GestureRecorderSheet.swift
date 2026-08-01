@@ -23,6 +23,7 @@ struct GestureRecorderSheet: View {
   private let initialCategory: String?
   private let applicationGroupID: UUID?
   private let applicationGroupName: String?
+  private let applicationName: String?
   private let initialRepeatModeEnabled: Bool
   private let isEditing: Bool
   private let originalGesture: [GesturePoint]
@@ -36,6 +37,7 @@ struct GestureRecorderSheet: View {
     initialCategory: String? = nil,
     initialApplicationGroupID: UUID? = nil,
     applicationGroupName: String? = nil,
+    applicationName: String? = nil,
     onSave: @escaping (GestureMappingDraft) -> Void
   ) {
     self.model = model
@@ -45,6 +47,7 @@ struct GestureRecorderSheet: View {
     self.applicationGroupID =
       editingMapping?.applicationGroupID ?? initialApplicationGroupID
     self.applicationGroupName = applicationGroupName
+    self.applicationName = applicationName
     self.initialRepeatModeEnabled =
       editingMapping?.repeatModeEnabled ?? false
     self.isEditing = editingMapping != nil
@@ -145,12 +148,33 @@ struct GestureRecorderSheet: View {
             .padding(.vertical, 6)
           }
 
-          DisclosureGroup(
-            String(localized: "Advanced Options"),
-            isExpanded: $isAdvancedOptionsExpanded
-          ) {
-            advancedOptions
-              .padding(.top, 12)
+          VStack(alignment: .leading, spacing: 0) {
+            Button {
+              withAnimation(.easeInOut(duration: 0.12)) {
+                isAdvancedOptionsExpanded.toggle()
+              }
+            } label: {
+              HStack(spacing: 8) {
+                Image(systemName: "chevron.right")
+                  .font(.system(size: 11, weight: .semibold))
+                  .rotationEffect(
+                    .degrees(isAdvancedOptionsExpanded ? 90 : 0)
+                  )
+                  .frame(width: 12, height: 18)
+                  .accessibilityHidden(true)
+                Text(String(localized: "Advanced Options"))
+                  .fontWeight(.medium)
+                Spacer()
+              }
+              .frame(maxWidth: .infinity, minHeight: 28)
+              .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isAdvancedOptionsExpanded {
+              advancedOptions
+                .padding(.top, 12)
+            }
           }
 
           if let triggerConflictMessage {
@@ -219,6 +243,8 @@ struct GestureRecorderSheet: View {
         Group {
           if let applicationGroupName {
             Label(applicationGroupName, systemImage: "folder")
+          } else if let applicationName {
+            Label(applicationName, systemImage: "app")
           } else {
             Button(scopeSummary) {
               isEditingScope = true
@@ -421,7 +447,12 @@ struct GestureRecorderSheet: View {
   private func selectTriggerButton(
     _ button: GestureTriggerButton?
   ) {
-    guard button != model.secondaryTriggerButton else {
+    guard
+      !AppModel.mappingTriggerConflictsWithSecondary(
+        button,
+        secondaryTriggerButton: model.secondaryTriggerButton
+      )
+    else {
       triggerConflictMessage = String(
         localized:
           "This input is reserved as the secondary trigger."

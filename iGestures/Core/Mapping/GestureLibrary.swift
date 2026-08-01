@@ -270,6 +270,33 @@ public struct GestureLibrary: Sendable {
     normalizePriorities()
   }
 
+  public mutating func delete(ids: Set<UUID>) throws {
+    guard !ids.isEmpty else { return }
+    let existingIDs = Set(database.mappings.map(\.id))
+    guard ids.isSubset(of: existingIDs) else {
+      throw GestureLibraryError.mappingNotFound
+    }
+    database.mappings.removeAll { ids.contains($0.id) }
+    normalizePriorities()
+  }
+
+  public mutating func setTarget(
+    ids: Set<UUID>,
+    appScope: AppScope,
+    applicationGroupID: UUID?
+  ) throws {
+    guard !ids.isEmpty else { return }
+    let existingIDs = Set(database.mappings.map(\.id))
+    guard ids.isSubset(of: existingIDs) else {
+      throw GestureLibraryError.mappingNotFound
+    }
+    for index in database.mappings.indices
+    where ids.contains(database.mappings[index].id) {
+      database.mappings[index].appScope = appScope
+      database.mappings[index].applicationGroupID = applicationGroupID
+    }
+  }
+
   public mutating func move(
     from sourceIndex: Int,
     to destinationIndex: Int

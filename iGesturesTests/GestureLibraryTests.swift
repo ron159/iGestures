@@ -60,6 +60,65 @@ final class GestureLibraryTests: XCTestCase {
     )
   }
 
+  func testBulkTargetMoveAndDeleteAreAtomic() throws {
+    let template = try makeTemplate(angle: 0)
+    var library = GestureLibrary()
+    let firstID = library.create(
+      draft(name: "First", template: template)
+    )
+    let secondID = library.create(
+      draft(name: "Second", template: template)
+    )
+    let untouchedID = library.create(
+      draft(name: "Untouched", template: template)
+    )
+    let groupID = UUID()
+
+    try library.setTarget(
+      ids: [firstID, secondID],
+      appScope: .only(["com.apple.Safari"]),
+      applicationGroupID: groupID
+    )
+
+    XCTAssertEqual(
+      library.database.mappings.prefix(2).map(\.appScope),
+      [.only(["com.apple.Safari"]), .only(["com.apple.Safari"])]
+    )
+    XCTAssertEqual(
+      library.database.mappings.prefix(2).map(\.applicationGroupID),
+      [groupID, groupID]
+    )
+    XCTAssertNil(library.database.mappings[2].applicationGroupID)
+
+    try library.delete(ids: [firstID, secondID])
+
+    XCTAssertEqual(library.database.mappings.map(\.id), [untouchedID])
+    XCTAssertEqual(library.database.mappings.map(\.priority), [0])
+  }
+
+  func testBulkMutationRejectsMissingMappingWithoutPartialChanges() throws {
+    let template = try makeTemplate(angle: 0)
+    var library = GestureLibrary()
+    let existingID = library.create(
+      draft(name: "Existing", template: template)
+    )
+    let original = library.database
+
+    XCTAssertThrowsError(
+      try library.setTarget(
+        ids: [existingID, UUID()],
+        appScope: .all,
+        applicationGroupID: nil
+      )
+    )
+    XCTAssertEqual(library.database, original)
+
+    XCTAssertThrowsError(
+      try library.delete(ids: [existingID, UUID()])
+    )
+    XCTAssertEqual(library.database, original)
+  }
+
   func testClearingShortcutDisablesMappingUntilRebound() throws {
     let template = try makeTemplate(angle: 0)
     var library = GestureLibrary()
