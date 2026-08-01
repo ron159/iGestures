@@ -123,7 +123,7 @@ struct GesturesSettingsView: View {
   var body: some View {
     GeometryReader { geometry in
       HStack(spacing: 0) {
-        targetSidebar
+        targetSidebar(topSafeAreaInset: geometry.safeAreaInsets.top)
           .frame(width: SettingsSidebarMetrics.width)
           .frame(maxHeight: .infinity)
 
@@ -141,6 +141,7 @@ struct GesturesSettingsView: View {
           )
           .clipped()
       }
+      .ignoresSafeArea(.container, edges: .top)
     }
     .sheet(isPresented: $isPresentingRecorder) {
       GestureRecorderSheet(
@@ -266,12 +267,12 @@ struct GesturesSettingsView: View {
     }
   }
 
-  private var targetSidebar: some View {
+  private func targetSidebar(topSafeAreaInset: CGFloat) -> some View {
     VStack(alignment: .leading, spacing: 0) {
       Text(verbatim: "iGestures")
         .font(.title2.weight(.bold))
         .padding(.horizontal, 16)
-        .padding(.top, 10)
+        .padding(.top, topSafeAreaInset + 8)
         .padding(.bottom, 4)
         .accessibilityAddTraits(.isHeader)
 
@@ -348,7 +349,7 @@ struct GesturesSettingsView: View {
                   bundleIdentifier: bundleIdentifier,
                   groupID: group.id
                 )
-                .padding(.leading, 42)
+                .padding(.leading, 28)
               }
             }
           }
@@ -370,7 +371,7 @@ struct GesturesSettingsView: View {
                 bundleIdentifier: bundleIdentifier,
                 groupID: nil
               )
-              .padding(.leading, 14)
+              .padding(.leading, 8)
             }
           }
         } header: {
@@ -561,24 +562,7 @@ struct GesturesSettingsView: View {
       .padding(.vertical, 10)
 
       if displayedMappings.isEmpty {
-        ContentUnavailableView {
-          Label(
-            String(localized: "No Gestures for This Target"),
-            systemImage: "scribble.variable"
-          )
-        } description: {
-          Text(
-            String(
-              localized:
-                "Add or record a gesture for the selected target."
-            )
-          )
-        } actions: {
-          Button(String(localized: "Record Gesture")) {
-            isPresentingRecorder = true
-          }
-        }
-        .frame(maxWidth: .infinity, minHeight: 150)
+        emptyGestureList
       } else {
         List(selection: $selectedMappingIDs) {
           ForEach(displayedMappings, id: \.mapping.id) { item in
@@ -594,6 +578,48 @@ struct GesturesSettingsView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private var emptyGestureList: some View {
+    ContentUnavailableView {
+      Label(
+        emptyGestureListTitle,
+        systemImage: "scribble.variable"
+      )
+    } description: {
+      Text(emptyGestureListDescription)
+    } actions: {
+      Button(String(localized: "Record Gesture")) {
+        isPresentingRecorder = true
+      }
+    }
+    .frame(maxWidth: .infinity, minHeight: 150)
+  }
+
+  private var emptyGestureListTitle: String {
+    guard selectedApplicationGroupMembership != nil else {
+      return String(localized: "No Gestures for This Target")
+    }
+    return String(localized: "No Additional Gestures for This Application")
+  }
+
+  private var emptyGestureListDescription: String {
+    guard let group = selectedApplicationGroupMembership else {
+      return String(
+        localized: "Add or record a gesture for the selected target."
+      )
+    }
+    let inheritedCount = model.mappings.count {
+      $0.applicationGroupID == group.id
+    }
+    return String(
+      format: String(
+        localized:
+          "This application inherits %1$d shared gestures from “%2$@”. Add or record an extra gesture for this application."
+      ),
+      inheritedCount,
+      group.name
+    )
   }
 
   @ViewBuilder
@@ -664,6 +690,13 @@ struct GesturesSettingsView: View {
   private var selectedApplicationName: String? {
     guard case .application(let bundleID) = selected else { return nil }
     return applicationName(bundleIdentifier: bundleID)
+  }
+
+  private var selectedApplicationGroupMembership: GestureApplicationGroup? {
+    guard case .application(let bundleID) = selected else { return nil }
+    return model.gestureApplicationGroups.first {
+      $0.bundleIdentifiers.contains(bundleID)
+    }
   }
 
   private var ungroupedApplicationBundleIdentifiers: [String] {
@@ -1367,23 +1400,8 @@ private struct GestureMappingInspector: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      HStack {
-        Text(String(localized: "Gesture Settings"))
-          .font(.headline)
-        Spacer()
-        Toggle(
-          String(localized: "Enable"),
-          isOn: Binding(
-            get: { mapping.isEnabled },
-            set: {
-              model.setMappingEnabled(
-                id: mapping.id,
-                isEnabled: $0
-              )
-            }
-          )
-        )
-      }
+      Text(String(localized: "Gesture Settings"))
+        .font(.headline)
 
       VStack(alignment: .leading, spacing: 16) {
         gesturePreview
@@ -1483,21 +1501,30 @@ private struct GestureMappingInspector: View {
   }
 
   private var mappingFieldsStack: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      stackedMappingField(String(localized: "Gesture Name")) {
+    Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 12) {
+      GridRow {
+        mappingFieldLabel(String(localized: "Gesture Name"))
         mappingNameField
       }
-      stackedMappingField(String(localized: "Application Scope")) {
+      GridRow {
+        mappingFieldLabel(String(localized: "Application Scope"))
         mappingScopeControl
+          .frame(maxWidth: .infinity, alignment: .leading)
       }
-      stackedMappingField(String(localized: "Trigger")) {
+      GridRow(alignment: .top) {
+        mappingFieldLabel(String(localized: "Trigger"))
         mappingTriggerControls
       }
-      stackedMappingField(String(localized: "Input Device")) {
-        mappingDevicePicker
+      GridRow {
+        mappingFieldLabel(String(localized: "Input Device"))
+        HStack(spacing: 12) {
+          mappingDevicePicker
+          mappingRepeatToggle
+            .fixedSize()
+        }
       }
-      mappingRepeatToggle
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private var mappingNameField: some View {
@@ -1525,9 +1552,15 @@ private struct GestureMappingInspector: View {
   }
 
   private var mappingTriggerControls: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      mappingTriggerPicker
-      mappingTriggerRecorder
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 8) {
+        mappingTriggerPicker
+        mappingTriggerRecorder
+      }
+      VStack(alignment: .leading, spacing: 8) {
+        mappingTriggerPicker
+        mappingTriggerRecorder
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
@@ -1563,7 +1596,7 @@ private struct GestureMappingInspector: View {
       }
     }
     .labelsHidden()
-    .frame(width: 155, alignment: .leading)
+    .frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
   }
 
   private var mappingTriggerRecorder: some View {
@@ -1579,7 +1612,7 @@ private struct GestureMappingInspector: View {
         )
       }
     }
-    .frame(width: 155, alignment: .leading)
+    .frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
   }
 
   private var mappingDevicePicker: some View {
@@ -1607,8 +1640,7 @@ private struct GestureMappingInspector: View {
       }
     }
     .labelsHidden()
-    .frame(width: 190, alignment: .leading)
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
   }
 
   private var mappingRepeatToggle: some View {
@@ -1635,17 +1667,6 @@ private struct GestureMappingInspector: View {
   private func mappingFieldLabel(_ title: String) -> some View {
     Text(title)
       .foregroundStyle(.secondary)
-  }
-
-  private func stackedMappingField<Content: View>(
-    _ title: String,
-    @ViewBuilder content: () -> Content
-  ) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
-      mappingFieldLabel(title)
-      content()
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private var actionEditor: some View {

@@ -484,7 +484,13 @@ public final class EventTapManager: @unchecked Sendable {
       triggerButton == .trackpad
       ? .trackpad
       : .mouse(identifier: nil)
-    let bundleID = frontmostAppProvider.currentBundleID()
+    let shouldResolveWindowUnderPointer =
+      phase == .down
+      && triggerButton.keyboardKeyCode == nil
+      && triggerButton != .trackpad
+    let bundleID = frontmostAppProvider.currentBundleID(
+      at: shouldResolveWindowUnderPointer ? event.location : nil
+    )
 
     if triggerButton == inputConfiguration.secondaryTriggerButton {
       return handleSecondaryTriggerEvent(

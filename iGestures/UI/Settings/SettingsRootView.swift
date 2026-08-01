@@ -27,6 +27,9 @@ struct SettingsRootView: View {
           minimumSize: Self.minimumContentSize
         )
       )
+      .preferredColorScheme(
+        model.interfaceAppearance.preferredColorScheme
+      )
   }
 }
 
@@ -112,16 +115,6 @@ struct GeneralSettingsView: View {
           )
         )
 
-        ColorPicker(
-          String(localized: "Gesture Trail Color"),
-          selection: Binding(
-            get: { Color(nsColor: model.trailColor) },
-            set: { model.setTrailColor(NSColor($0)) }
-          ),
-          supportsOpacity: false
-        )
-        .disabled(!model.isOverlayEnabled)
-
         Toggle(
           String(localized: "Show Recognition Feedback"),
           isOn: Binding(
@@ -161,6 +154,60 @@ struct GeneralSettingsView: View {
         ) {
           Text(conflict.localizedDescription)
             .foregroundStyle(.orange)
+        }
+      }
+
+      Section(String(localized: "Personalization")) {
+        ColorPicker(
+          String(localized: "Gesture Trail Color"),
+          selection: Binding(
+            get: { Color(nsColor: model.trailColor) },
+            set: { model.setTrailColor(NSColor($0)) }
+          ),
+          supportsOpacity: false
+        )
+        .disabled(!model.isOverlayEnabled)
+
+        Picker(
+          String(localized: "Appearance"),
+          selection: Binding(
+            get: { model.interfaceAppearance },
+            set: { model.setInterfaceAppearance($0) }
+          )
+        ) {
+          Text(String(localized: "Follow System"))
+            .tag(InterfaceAppearance.system)
+          Text(String(localized: "Light"))
+            .tag(InterfaceAppearance.light)
+          Text(String(localized: "Dark"))
+            .tag(InterfaceAppearance.dark)
+        }
+      }
+
+      Section(String(localized: "Language")) {
+        Picker(
+          String(localized: "Language"),
+          selection: Binding(
+            get: { model.interfaceLanguage },
+            set: { model.setInterfaceLanguage($0) }
+          )
+        ) {
+          Text(String(localized: "Follow System"))
+            .tag(InterfaceLanguage.system)
+          Text(String(localized: "English"))
+            .tag(InterfaceLanguage.english)
+          Text(String(localized: "Simplified Chinese"))
+            .tag(InterfaceLanguage.simplifiedChinese)
+        }
+
+        if model.languageRestartRequired {
+          Text(
+            String(
+              localized:
+                "Restart iGestures to apply the language change."
+            )
+          )
+          .foregroundStyle(.secondary)
         }
       }
 
@@ -324,7 +371,8 @@ struct GeneralSettingsView: View {
       }
     }
     .labelsHidden()
-    .frame(width: 165)
+    .pickerStyle(.menu)
+    .frame(width: 165, alignment: .trailing)
   }
 
   private var primaryTriggerRecorder: some View {
@@ -350,7 +398,8 @@ struct GeneralSettingsView: View {
       }
     }
     .labelsHidden()
-    .frame(width: 165)
+    .pickerStyle(.menu)
+    .frame(width: 165, alignment: .trailing)
   }
 
   private var secondaryTriggerRecorder: some View {
@@ -814,14 +863,15 @@ struct AdvancedSettingsView: View {
   private func chooseExportFile() {
     let panel = NSSavePanel()
     panel.allowedContentTypes = [.json]
-    panel.nameFieldStringValue = "iGestures-gestures.json"
+    panel.nameFieldStringValue = "iGestures-configuration.json"
     panel.message = String(
-      localized: "Choose where to export the gesture configuration."
+      localized:
+        "Choose where to export gestures and app settings."
     )
     guard panel.runModal() == .OK, let url = panel.url else {
       return
     }
-    model.exportMappings(to: url)
+    model.exportConfiguration(to: url)
   }
 
   private func exclusionSummary(
@@ -958,6 +1008,14 @@ private struct MappingImportPreviewView: View {
           Text("\(preview.importedMappingCount)")
         }
         GridRow {
+          Text(String(localized: "App Settings"))
+          Text(
+            preview.includesSettings
+              ? String(localized: "Included")
+              : String(localized: "Not Included")
+          )
+        }
+        GridRow {
           Text(String(localized: "New Mappings"))
           Text("\(preview.mappingsToAdd)")
         }
@@ -981,6 +1039,17 @@ private struct MappingImportPreviewView: View {
           String(
             localized:
               "Merge keeps existing mappings when stable IDs collide. Similar imported gestures are added and shown for review."
+          )
+        )
+        .font(.callout)
+        .foregroundStyle(.secondary)
+      }
+
+      if preview.includesSettings {
+        Text(
+          String(
+            localized:
+              "App settings in this file are applied in both merge and replace modes."
           )
         )
         .font(.callout)

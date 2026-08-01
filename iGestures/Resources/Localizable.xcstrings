@@ -2713,6 +2713,16 @@
         }
       }
     },
+    "No Additional Gestures for This Application": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此应用暂无额外手势"
+          }
+        }
+      }
+    },
     "No Applications Selected": {
       "localizations": {
         "zh-Hans": {
@@ -4421,6 +4431,16 @@
         }
       }
     },
+    "This application inherits %1$d shared gestures from “%2$@”. Add or record an extra gesture for this application.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此应用已继承“%2$@”分组中的 %1$d 个共用手势。可再添加或录制仅对此应用生效的额外手势。"
+          }
+        }
+      }
+    },
     "This button is reserved as the secondary trigger.": {
       "localizations": {
         "zh-Hans": {
@@ -5937,6 +5957,176 @@
           "stringUnit": {
             "state": "translated",
             "value": "YouTube"
+          }
+        }
+      }
+    },
+    "Personalization": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个性化"
+          }
+        }
+      }
+    },
+    "Appearance": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主题"
+          }
+        }
+      }
+    },
+    "Follow System": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随系统"
+          }
+        }
+      }
+    },
+    "Light": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浅色"
+          }
+        }
+      }
+    },
+    "Dark": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暗色"
+          }
+        }
+      }
+    },
+    "Language": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语言"
+          }
+        }
+      }
+    },
+    "English": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "英语"
+          }
+        }
+      }
+    },
+    "Simplified Chinese": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "简体中文"
+          }
+        }
+      }
+    },
+    "Restart iGestures to apply the language change.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新启动 iGestures 后语言更改将生效。"
+          }
+        }
+      }
+    },
+    "Choose where to export gestures and app settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择手势和应用设置的导出位置。"
+          }
+        }
+      }
+    },
+    "App Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用设置"
+          }
+        }
+      }
+    },
+    "Included": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已包含"
+          }
+        }
+      }
+    },
+    "Not Included": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未包含"
+          }
+        }
+      }
+    },
+    "App settings in this file are applied in both merge and replace modes.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无论选择合并还是替换，文件中的应用设置都会生效。"
+          }
+        }
+      }
+    },
+    "Import complete: %d mappings added and app settings applied.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入完成：已添加 %d 个映射并应用应用设置。"
+          }
+        }
+      }
+    },
+    "Configuration exported successfully.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置导出成功。"
+          }
+        }
+      }
+    },
+    "Configuration could not be exported.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法导出配置。"
           }
         }
       }

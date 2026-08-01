@@ -350,6 +350,102 @@ final class MappingStoreTests: XCTestCase {
     XCTAssertEqual(imported, original)
   }
 
+  func testLegacyGestureOnlyArchiveDoesNotReplaceAppSettings()
+    async throws
+  {
+    let importedDatabase = try makeDatabase(name: "Legacy Export")
+    let exportURL = directoryURL.appendingPathComponent(
+      "legacy-gestures.json"
+    )
+    let sourceDirectoryURL = directoryURL.appendingPathComponent(
+      "legacy-source",
+      isDirectory: true
+    )
+    let destinationDirectoryURL = directoryURL.appendingPathComponent(
+      "legacy-destination",
+      isDirectory: true
+    )
+    let sourceStore = MappingStore(directoryURL: sourceDirectoryURL)
+    let destinationStore = MappingStore(
+      directoryURL: destinationDirectoryURL
+    )
+    try await sourceStore.save(importedDatabase)
+    try await sourceStore.exportData(to: exportURL)
+
+    let preview = try await destinationStore.previewImport(
+      from: exportURL,
+      mode: .replace
+    )
+    let imported = try await destinationStore.importConfiguration(
+      from: exportURL,
+      mode: .replace,
+      currentSettings: AppSettingsSnapshot(
+        interfaceAppearance: .dark
+      )
+    )
+
+    XCTAssertFalse(preview.includesSettings)
+    XCTAssertEqual(imported.gestureDatabase, importedDatabase)
+    XCTAssertNil(imported.settings)
+  }
+
+  func testConfigurationArchiveImportsSettingsAndUndoRestoresBoth()
+    async throws
+  {
+    let currentDatabase = try makeDatabase(name: "Current")
+    let importedDatabase = try makeDatabase(name: "Imported")
+    let currentSettings = AppSettingsSnapshot(
+      interfaceAppearance: .system,
+      interfaceLanguage: .system,
+      recognitionSensitivity: .standard
+    )
+    let importedSettings = AppSettingsSnapshot(
+      recognitionEnabled: false,
+      overlayEnabled: false,
+      interfaceAppearance: .dark,
+      interfaceLanguage: .simplifiedChinese,
+      recognitionSensitivity: .strict,
+      feedbackEnabled: false,
+      launchAtLoginEnabled: true
+    )
+    let sourceDirectoryURL = directoryURL.appendingPathComponent(
+      "configuration-source",
+      isDirectory: true
+    )
+    let exportURL = directoryURL.appendingPathComponent(
+      "configuration.json"
+    )
+    let sourceStore = MappingStore(directoryURL: sourceDirectoryURL)
+    let destinationStore = MappingStore(directoryURL: directoryURL)
+    try await sourceStore.save(importedDatabase)
+    try await sourceStore.exportConfiguration(
+      settings: importedSettings,
+      to: exportURL
+    )
+    try await destinationStore.save(currentDatabase)
+
+    let preview = try await destinationStore.previewImport(
+      from: exportURL,
+      mode: .replace
+    )
+    let imported = try await destinationStore.importConfiguration(
+      from: exportURL,
+      mode: .replace,
+      currentSettings: currentSettings
+    )
+
+    XCTAssertTrue(preview.includesSettings)
+    XCTAssertEqual(imported.gestureDatabase, importedDatabase)
+    XCTAssertEqual(imported.settings, importedSettings)
+
+    let restored = try await destinationStore.undoConfigurationImport()
+    let canUndoAfterRestore = await destinationStore.canUndoLastImport()
+
+    XCTAssertEqual(restored.gestureDatabase, currentDatabase)
+    XCTAssertEqual(restored.settings, currentSettings)
+    XCTAssertFalse(canUndoAfterRestore)
+  }
+
   func testMergeImportDisablesScriptsAndCanBeUndone()
     async throws
   {

@@ -28,6 +28,9 @@ struct IGesturesApp: App {
         model: model,
         showSettings: settingsWindowController.showSettings
       )
+      .preferredColorScheme(
+        model.interfaceAppearance.preferredColorScheme
+      )
     } label: {
       MenuBarIcon(
         isActive: isGestureRecognitionActive(model)
@@ -50,9 +53,25 @@ struct IGesturesApp: App {
         id: "onboarding"
       ) {
         OnboardingView(model: model)
+          .preferredColorScheme(
+            model.interfaceAppearance.preferredColorScheme
+          )
       }
       .defaultSize(width: 660, height: 560)
     #endif
+  }
+}
+
+extension InterfaceAppearance {
+  var preferredColorScheme: ColorScheme? {
+    switch self {
+    case .system:
+      nil
+    case .light:
+      .light
+    case .dark:
+      .dark
+    }
   }
 }
 
@@ -104,12 +123,17 @@ private final class SettingsWindowController: ObservableObject {
         .closable,
         .miniaturizable,
         .resizable,
+        .fullSizeContentView,
       ],
       backing: .buffered,
       defer: false
     )
     window.contentViewController = hostingController
     window.title = "iGestures"
+    window.titleVisibility = .hidden
+    window.titlebarAppearsTransparent = true
+    window.titlebarSeparatorStyle = .none
+    window.isMovableByWindowBackground = true
     window.contentMinSize = SettingsRootView.minimumContentSize
     window.isReleasedWhenClosed = false
     window.center()

@@ -17,6 +17,8 @@ final class AppPreferencesStoreTests: XCTestCase {
     XCTAssertTrue(store.overlayEnabled)
     XCTAssertFalse(store.scriptExecutionNoticeAcknowledged)
     XCTAssertNil(store.trailColor)
+    XCTAssertEqual(store.interfaceAppearance, .system)
+    XCTAssertEqual(store.interfaceLanguage, .system)
     XCTAssertEqual(store.triggerButton, .right)
     XCTAssertNil(store.secondaryTriggerButton)
     XCTAssertEqual(
@@ -38,6 +40,8 @@ final class AppPreferencesStoreTests: XCTestCase {
       GestureTrailColor(red: 0.2, green: 0.4, blue: 0.8)
     )
     store.setTrailColor(trailColor)
+    store.setInterfaceAppearance(.dark)
+    store.setInterfaceLanguage(.simplifiedChinese)
     store.setTriggerButton(
       GestureTriggerButton(buttonNumber: 7)
     )
@@ -57,6 +61,12 @@ final class AppPreferencesStoreTests: XCTestCase {
     XCTAssertFalse(reloaded.recognitionEnabled)
     XCTAssertFalse(reloaded.overlayEnabled)
     XCTAssertEqual(reloaded.trailColor, trailColor)
+    XCTAssertEqual(reloaded.interfaceAppearance, .dark)
+    XCTAssertEqual(reloaded.interfaceLanguage, .simplifiedChinese)
+    XCTAssertEqual(
+      userDefaults.stringArray(forKey: "AppleLanguages"),
+      ["zh-Hans"]
+    )
     XCTAssertEqual(
       reloaded.triggerButton,
       GestureTriggerButton(buttonNumber: 7)
@@ -76,6 +86,70 @@ final class AppPreferencesStoreTests: XCTestCase {
     reloaded.clearGestureSidebarConfiguration()
     XCTAssertTrue(reloaded.gestureSidebarGroups.isEmpty)
     XCTAssertTrue(reloaded.gestureSidebarApplications.isEmpty)
+  }
+
+  @MainActor
+  func testConfigurationSnapshotRoundTripsUserFacingSettings()
+    throws
+  {
+    let (sourceSuiteName, sourceDefaults) = makeUserDefaults()
+    let (targetSuiteName, targetDefaults) = makeUserDefaults()
+    defer {
+      sourceDefaults.removePersistentDomain(forName: sourceSuiteName)
+      targetDefaults.removePersistentDomain(forName: targetSuiteName)
+    }
+    let source = AppPreferencesStore(userDefaults: sourceDefaults)
+    let target = AppPreferencesStore(userDefaults: targetDefaults)
+    let trailColor = try XCTUnwrap(
+      GestureTrailColor(red: 0.1, green: 0.3, blue: 0.9)
+    )
+    let preset = ActionPreset(
+      id: "user.exported",
+      name: "Exported Action",
+      category: .editing,
+      action: .keyboardShortcut(
+        KeyboardShortcut(keyCode: 8, modifiers: 0x10_0000)
+      ),
+      isUserDefined: true
+    )
+
+    source.setRecognitionEnabled(false)
+    source.setOverlayEnabled(false)
+    source.setTrailColor(trailColor)
+    source.setInterfaceAppearance(.light)
+    source.setInterfaceLanguage(.english)
+    source.setTriggerButton(.button4)
+    source.setSecondaryTriggerButton(.button5)
+    source.setTriggerDuration(0.42)
+    source.setRecognitionSensitivity(.strict)
+    source.setFeedbackEnabled(false)
+    source.setGlobalToggleShortcut(
+      KeyboardShortcut(keyCode: 12, modifiers: 0x10_0000)
+    )
+    source.setApplicationExclusions([
+      ApplicationExclusionRule(bundleIdentifier: "com.example.app")
+    ])
+    source.setTrackpadGestureEnabled(true)
+    source.setTrackpadModifiers(0x10_0000 | 0x8_0000)
+    source.setHapticFeedbackEnabled(true)
+    source.setDiagnosticPersistenceEnabled(true)
+    source.setCustomActionPresets([preset])
+    source.setFavoriteActionPresetIDs([preset.id])
+    source.setRecentActionPresetIDs([preset.id])
+    let snapshot = source.configurationSnapshot(
+      launchAtLoginEnabled: true
+    )
+
+    target.applyConfigurationSnapshot(snapshot)
+
+    XCTAssertEqual(
+      target.configurationSnapshot(launchAtLoginEnabled: true),
+      snapshot
+    )
+    XCTAssertEqual(
+      targetDefaults.stringArray(forKey: "AppleLanguages"),
+      ["en"]
+    )
   }
 
   @MainActor

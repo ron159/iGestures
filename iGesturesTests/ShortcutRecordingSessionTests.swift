@@ -14,6 +14,25 @@ final class ShortcutRecordingSessionTests: XCTestCase {
     XCTAssertTrue(control.hitTest(NSPoint(x: 60, y: 14)) === control)
   }
 
+  @MainActor
+  func testRecorderUsesDarkBackgroundInDarkAppearance() throws {
+    let control = ShortcutRecorderControl(
+      frame: NSRect(x: 0, y: 0, width: 120, height: 28)
+    )
+    control.appearance = NSAppearance(named: .darkAqua)
+    control.viewDidChangeEffectiveAppearance()
+
+    let backgroundColor = try XCTUnwrap(
+      control.layer?.backgroundColor.flatMap(NSColor.init(cgColor:))?
+        .usingColorSpace(.deviceRGB)
+    )
+    XCTAssertLessThan(
+      (backgroundColor.redComponent + backgroundColor.greenComponent
+        + backgroundColor.blueComponent) / 3,
+      0.5
+    )
+  }
+
   func testRecordingNormalizesModifiersAndStops() {
     var session = ShortcutRecordingSession(
       shortcut: KeyboardShortcut(keyCode: 1, modifiers: 0)

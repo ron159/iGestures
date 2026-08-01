@@ -146,6 +146,11 @@ final class ShortcutRecorderControl: NSControl {
     super.viewWillMove(toWindow: newWindow)
   }
 
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    updateAppearance()
+  }
+
   private func handleKeyDown(
     keyCode: UInt16,
     modifiers: UInt64
@@ -200,11 +205,14 @@ final class ShortcutRecorderControl: NSControl {
   }
 
   private func updateAppearance() {
-    let isFocused = window?.firstResponder === self
-    layer?.borderColor =
-      (isFocused ? NSColor.controlAccentColor : NSColor.separatorColor)
-      .cgColor
-    layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+    effectiveAppearance.performAsCurrentDrawingAppearance {
+      let isFocused = window?.firstResponder === self
+      layer?.borderColor =
+        (isFocused ? NSColor.controlAccentColor : NSColor.separatorColor)
+        .cgColor
+      layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+      label.textColor = NSColor.labelColor
+    }
   }
 }
 

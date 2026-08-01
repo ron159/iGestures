@@ -70,6 +70,11 @@ final class AppModel: ObservableObject {
   @Published private(set) var isEnabled = false
   @Published private(set) var isOverlayEnabled = true
   @Published private(set) var trailColor = NSColor.controlAccentColor
+  @Published private(set) var interfaceAppearance: InterfaceAppearance =
+    .system
+  @Published private(set) var interfaceLanguage: InterfaceLanguage =
+    .system
+  @Published private(set) var languageRestartRequired = false
   @Published private(set) var triggerButton: GestureTriggerButton = .right
   @Published private(set) var secondaryTriggerButton: GestureTriggerButton?
   @Published private(set) var triggerConfigurationError: String?
@@ -160,6 +165,8 @@ final class AppModel: ObservableObject {
     self.trailColor =
       preferencesStore.trailColor?.nsColor
       ?? .controlAccentColor
+    self.interfaceAppearance = preferencesStore.interfaceAppearance
+    self.interfaceLanguage = preferencesStore.interfaceLanguage
     self.triggerButton = preferencesStore.triggerButton
     self.secondaryTriggerButton =
       preferencesStore.secondaryTriggerButton
@@ -468,6 +475,18 @@ final class AppModel: ObservableObject {
     trailColor = color
     preferencesStore.setTrailColor(storedColor)
     overlayController.setTrailColor(color)
+  }
+
+  func setInterfaceAppearance(_ appearance: InterfaceAppearance) {
+    interfaceAppearance = appearance
+    preferencesStore.setInterfaceAppearance(appearance)
+  }
+
+  func setInterfaceLanguage(_ language: InterfaceLanguage) {
+    guard interfaceLanguage != language else { return }
+    interfaceLanguage = language
+    languageRestartRequired = true
+    preferencesStore.setInterfaceLanguage(language)
   }
 
   func setFeedbackEnabled(_ isEnabled: Bool) {
@@ -1403,20 +1422,36 @@ final class AppModel: ObservableObject {
           from: sourceURL,
           mode: mode
         )
-        let imported = try await mappingStore.importData(
+        let imported = try await mappingStore.importConfiguration(
           from: sourceURL,
-          mode: mode
+          mode: mode,
+          currentSettings: preferencesStore.configurationSnapshot(
+            launchAtLoginEnabled: isLaunchAtLoginEnabled
+          )
         )
-        install(imported)
+        install(imported.gestureDatabase)
+        if let settings = imported.settings {
+          applyImportedSettings(settings)
+        }
         pendingImportPreview = nil
         pendingImportURL = nil
         canUndoLastImport = true
-        mappingTransferMessage = String(
-          format: String(
-            localized: "Import complete: %d mappings added."
-          ),
-          preview.mappingsToAdd
-        )
+        if imported.settings == nil {
+          mappingTransferMessage = String(
+            format: String(
+              localized: "Import complete: %d mappings added."
+            ),
+            preview.mappingsToAdd
+          )
+        } else {
+          mappingTransferMessage = String(
+            format: String(
+              localized:
+                "Import complete: %d mappings added and app settings applied."
+            ),
+            preview.mappingsToAdd
+          )
+        }
       } catch {
         mappingStoreError = String(
           localized: "Gesture data could not be imported."
@@ -1437,8 +1472,11 @@ final class AppModel: ObservableObject {
     persistenceTask = Task { @MainActor [weak self] in
       guard let self else { return }
       do {
-        let restored = try await mappingStore.undoLastImport()
-        install(restored)
+        let restored = try await mappingStore.undoConfigurationImport()
+        install(restored.gestureDatabase)
+        if let settings = restored.settings {
+          applyImportedSettings(settings)
+        }
         canUndoLastImport = false
         mappingTransferMessage = String(
           localized: "The last import was undone."
@@ -1452,7 +1490,7 @@ final class AppModel: ObservableObject {
     }
   }
 
-  func exportMappings(to destinationURL: URL) {
+  func exportConfiguration(to destinationURL: URL) {
     guard let mappingStore else {
       mappingStoreError = String(
         localized: "Gesture storage is unavailable."
@@ -1467,17 +1505,84 @@ final class AppModel: ObservableObject {
       await pendingSave?.value
       guard let self else { return }
       do {
-        try await mappingStore.exportData(to: destinationURL)
+        try await mappingStore.exportConfiguration(
+          settings: preferencesStore.configurationSnapshot(
+            launchAtLoginEnabled: isLaunchAtLoginEnabled
+          ),
+          to: destinationURL
+        )
         mappingStoreError = nil
         mappingTransferMessage = String(
-          localized: "Gestures exported successfully."
+          localized: "Configuration exported successfully."
         )
       } catch {
         mappingStoreError = String(
-          localized: "Gesture data could not be exported."
+          localized: "Configuration could not be exported."
         )
       }
       isTransferringMappings = false
+    }
+  }
+
+  private func applyImportedSettings(_ snapshot: AppSettingsSnapshot) {
+    let previousLanguage = interfaceLanguage
+    preferencesStore.applyConfigurationSnapshot(snapshot)
+
+    isEnabled = preferencesStore.recognitionEnabled
+    isOverlayEnabled = preferencesStore.overlayEnabled
+    trailColor =
+      preferencesStore.trailColor?.nsColor
+      ?? .controlAccentColor
+    interfaceAppearance = preferencesStore.interfaceAppearance
+    interfaceLanguage = preferencesStore.interfaceLanguage
+    languageRestartRequired =
+      languageRestartRequired || previousLanguage != interfaceLanguage
+    triggerButton = preferencesStore.triggerButton
+    secondaryTriggerButton = preferencesStore.secondaryTriggerButton
+    triggerDuration = preferencesStore.triggerDuration
+    recognitionSensitivity = preferencesStore.recognitionSensitivity
+    isFeedbackEnabled = preferencesStore.feedbackEnabled
+    globalToggleShortcut = preferencesStore.globalToggleShortcut
+    applicationExclusions = preferencesStore.applicationExclusions
+    isTrackpadGestureEnabled = preferencesStore.trackpadGestureEnabled
+    trackpadModifiers = preferencesStore.trackpadModifiers
+    isHapticFeedbackEnabled = preferencesStore.hapticFeedbackEnabled
+    isDiagnosticPersistenceEnabled =
+      preferencesStore.diagnosticPersistenceEnabled
+    customActionPresets = preferencesStore.customActionPresets
+    favoriteActionPresetIDs = preferencesStore.favoriteActionPresetIDs
+    recentActionPresetIDs = preferencesStore.recentActionPresetIDs
+    triggerConfigurationError = nil
+
+    eventTapManager.setEnabled(isEnabled)
+    overlayController.eventSink.setEnabled(isOverlayEnabled)
+    overlayController.setTrailColor(trailColor)
+    overlayController.feedbackSink.setEnabled(isFeedbackEnabled)
+    overlayController.setHapticFeedbackEnabled(
+      isHapticFeedbackEnabled
+    )
+    eventTapManager.updateInputConfiguration(
+      gestureInputConfiguration
+    )
+    eventTapManager.updateRecognitionSensitivity(
+      recognitionSensitivity
+    )
+    eventTapManager.configureGlobalToggle(
+      shortcut: globalToggleShortcut
+    ) { [weak self] in
+      Task { @MainActor [weak self] in
+        self?.toggleEnabled()
+      }
+    }
+    eventTapManager.updateApplicationExclusions(
+      applicationExclusions
+    )
+
+    if let launchAtLoginEnabled = snapshot.launchAtLoginEnabled,
+      launchAtLoginEnabled != isLaunchAtLoginEnabled,
+      canChangeLaunchAtLogin
+    {
+      setLaunchAtLoginEnabled(launchAtLoginEnabled)
     }
   }
 

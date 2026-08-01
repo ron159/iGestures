@@ -47,6 +47,110 @@ public struct GestureTrailColor: Codable, Equatable, Sendable {
   }
 }
 
+public enum InterfaceAppearance:
+  String,
+  Codable,
+  CaseIterable,
+  Sendable
+{
+  case system
+  case light
+  case dark
+}
+
+public enum InterfaceLanguage:
+  String,
+  Codable,
+  CaseIterable,
+  Sendable
+{
+  case system
+  case english
+  case simplifiedChinese
+
+  fileprivate var appleLanguages: [String]? {
+    switch self {
+    case .system:
+      nil
+    case .english:
+      ["en"]
+    case .simplifiedChinese:
+      ["zh-Hans"]
+    }
+  }
+}
+
+public struct AppSettingsSnapshot: Codable, Equatable, Sendable {
+  public let recognitionEnabled: Bool
+  public let overlayEnabled: Bool
+  public let trailColor: GestureTrailColor?
+  public let interfaceAppearance: InterfaceAppearance
+  public let interfaceLanguage: InterfaceLanguage
+  public let triggerButton: GestureTriggerButton
+  public let secondaryTriggerButton: GestureTriggerButton?
+  public let triggerDuration: TimeInterval
+  public let recognitionSensitivity: RecognitionSensitivity
+  public let feedbackEnabled: Bool
+  public let globalToggleShortcut: KeyboardShortcut
+  public let applicationExclusions: Set<ApplicationExclusionRule>
+  public let trackpadGestureEnabled: Bool
+  public let trackpadModifiers: UInt64
+  public let hapticFeedbackEnabled: Bool
+  public let diagnosticPersistenceEnabled: Bool
+  public let customActionPresets: [ActionPreset]
+  public let favoriteActionPresetIDs: Set<String>
+  public let recentActionPresetIDs: [String]
+  public let launchAtLoginEnabled: Bool?
+
+  public init(
+    recognitionEnabled: Bool = true,
+    overlayEnabled: Bool = true,
+    trailColor: GestureTrailColor? = nil,
+    interfaceAppearance: InterfaceAppearance = .system,
+    interfaceLanguage: InterfaceLanguage = .system,
+    triggerButton: GestureTriggerButton = .right,
+    secondaryTriggerButton: GestureTriggerButton? = nil,
+    triggerDuration: TimeInterval =
+      GestureInputConfiguration.defaultTriggerDuration,
+    recognitionSensitivity: RecognitionSensitivity = .standard,
+    feedbackEnabled: Bool = true,
+    globalToggleShortcut: KeyboardShortcut = KeyboardShortcut(
+      keyCode: 5,
+      modifiers: 0x10_0000 | 0x8_0000 | 0x4_0000
+    ),
+    applicationExclusions: Set<ApplicationExclusionRule> = [],
+    trackpadGestureEnabled: Bool = false,
+    trackpadModifiers: UInt64 = 0x8_0000 | 0x4_0000,
+    hapticFeedbackEnabled: Bool = false,
+    diagnosticPersistenceEnabled: Bool = false,
+    customActionPresets: [ActionPreset] = [],
+    favoriteActionPresetIDs: Set<String> = [],
+    recentActionPresetIDs: [String] = [],
+    launchAtLoginEnabled: Bool? = nil
+  ) {
+    self.recognitionEnabled = recognitionEnabled
+    self.overlayEnabled = overlayEnabled
+    self.trailColor = trailColor
+    self.interfaceAppearance = interfaceAppearance
+    self.interfaceLanguage = interfaceLanguage
+    self.triggerButton = triggerButton
+    self.secondaryTriggerButton = secondaryTriggerButton
+    self.triggerDuration = triggerDuration
+    self.recognitionSensitivity = recognitionSensitivity
+    self.feedbackEnabled = feedbackEnabled
+    self.globalToggleShortcut = globalToggleShortcut
+    self.applicationExclusions = applicationExclusions
+    self.trackpadGestureEnabled = trackpadGestureEnabled
+    self.trackpadModifiers = trackpadModifiers
+    self.hapticFeedbackEnabled = hapticFeedbackEnabled
+    self.diagnosticPersistenceEnabled = diagnosticPersistenceEnabled
+    self.customActionPresets = customActionPresets
+    self.favoriteActionPresetIDs = favoriteActionPresetIDs
+    self.recentActionPresetIDs = recentActionPresetIDs
+    self.launchAtLoginEnabled = launchAtLoginEnabled
+  }
+}
+
 @MainActor
 public final class AppPreferencesStore {
   private enum Key {
@@ -54,6 +158,8 @@ public final class AppPreferencesStore {
       "general.recognition-enabled"
     static let overlayEnabled = "general.overlay-enabled"
     static let trailColor = "general.trail-color"
+    static let interfaceAppearance = "general.interface-appearance"
+    static let interfaceLanguage = "general.interface-language"
     static let triggerButton = "general.trigger-button"
     static let secondaryTriggerButton =
       "general.secondary-trigger-button"
@@ -111,6 +217,28 @@ public final class AppPreferencesStore {
       green: storedColor.green,
       blue: storedColor.blue
     )
+  }
+
+  public var interfaceAppearance: InterfaceAppearance {
+    guard
+      let rawValue = userDefaults.string(
+        forKey: Key.interfaceAppearance
+      ),
+      let appearance = InterfaceAppearance(rawValue: rawValue)
+    else {
+      return .system
+    }
+    return appearance
+  }
+
+  public var interfaceLanguage: InterfaceLanguage {
+    guard
+      let rawValue = userDefaults.string(forKey: Key.interfaceLanguage),
+      let language = InterfaceLanguage(rawValue: rawValue)
+    else {
+      return .system
+    }
+    return language
   }
 
   public var triggerButton: GestureTriggerButton {
@@ -313,7 +441,11 @@ public final class AppPreferencesStore {
     userDefaults.set(isEnabled, forKey: Key.overlayEnabled)
   }
 
-  public func setTrailColor(_ color: GestureTrailColor) {
+  public func setTrailColor(_ color: GestureTrailColor?) {
+    guard let color else {
+      userDefaults.removeObject(forKey: Key.trailColor)
+      return
+    }
     guard
       let validatedColor = GestureTrailColor(
         red: color.red,
@@ -325,6 +457,24 @@ public final class AppPreferencesStore {
       return
     }
     userDefaults.set(data, forKey: Key.trailColor)
+  }
+
+  public func setInterfaceAppearance(
+    _ appearance: InterfaceAppearance
+  ) {
+    userDefaults.set(
+      appearance.rawValue,
+      forKey: Key.interfaceAppearance
+    )
+  }
+
+  public func setInterfaceLanguage(_ language: InterfaceLanguage) {
+    userDefaults.set(language.rawValue, forKey: Key.interfaceLanguage)
+    if let appleLanguages = language.appleLanguages {
+      userDefaults.set(appleLanguages, forKey: "AppleLanguages")
+    } else {
+      userDefaults.removeObject(forKey: "AppleLanguages")
+    }
   }
 
   public func setTriggerButton(_ triggerButton: GestureTriggerButton) {
@@ -501,6 +651,62 @@ public final class AppPreferencesStore {
       Array(orderedUniqueStrings(identifiers).prefix(12)),
       forKey: Key.recentActionPresetIDs
     )
+  }
+
+  public func configurationSnapshot(
+    launchAtLoginEnabled: Bool? = nil
+  ) -> AppSettingsSnapshot {
+    AppSettingsSnapshot(
+      recognitionEnabled: recognitionEnabled,
+      overlayEnabled: overlayEnabled,
+      trailColor: trailColor,
+      interfaceAppearance: interfaceAppearance,
+      interfaceLanguage: interfaceLanguage,
+      triggerButton: triggerButton,
+      secondaryTriggerButton: secondaryTriggerButton,
+      triggerDuration: triggerDuration,
+      recognitionSensitivity: recognitionSensitivity,
+      feedbackEnabled: feedbackEnabled,
+      globalToggleShortcut: globalToggleShortcut,
+      applicationExclusions: applicationExclusions,
+      trackpadGestureEnabled: trackpadGestureEnabled,
+      trackpadModifiers: trackpadModifiers,
+      hapticFeedbackEnabled: hapticFeedbackEnabled,
+      diagnosticPersistenceEnabled: diagnosticPersistenceEnabled,
+      customActionPresets: customActionPresets,
+      favoriteActionPresetIDs: favoriteActionPresetIDs,
+      recentActionPresetIDs: recentActionPresetIDs,
+      launchAtLoginEnabled: launchAtLoginEnabled
+    )
+  }
+
+  public func applyConfigurationSnapshot(
+    _ snapshot: AppSettingsSnapshot
+  ) {
+    setRecognitionEnabled(snapshot.recognitionEnabled)
+    setOverlayEnabled(snapshot.overlayEnabled)
+    setTrailColor(snapshot.trailColor)
+    setInterfaceAppearance(snapshot.interfaceAppearance)
+    setInterfaceLanguage(snapshot.interfaceLanguage)
+    setSecondaryTriggerButton(nil)
+    setTriggerButton(snapshot.triggerButton)
+    setSecondaryTriggerButton(snapshot.secondaryTriggerButton)
+    setTriggerDuration(snapshot.triggerDuration)
+    setRecognitionSensitivity(snapshot.recognitionSensitivity)
+    setFeedbackEnabled(snapshot.feedbackEnabled)
+    if snapshot.globalToggleShortcut.isValid {
+      setGlobalToggleShortcut(snapshot.globalToggleShortcut)
+    }
+    setApplicationExclusions(snapshot.applicationExclusions)
+    setTrackpadGestureEnabled(snapshot.trackpadGestureEnabled)
+    setTrackpadModifiers(snapshot.trackpadModifiers)
+    setHapticFeedbackEnabled(snapshot.hapticFeedbackEnabled)
+    setDiagnosticPersistenceEnabled(
+      snapshot.diagnosticPersistenceEnabled
+    )
+    setCustomActionPresets(snapshot.customActionPresets)
+    setFavoriteActionPresetIDs(snapshot.favoriteActionPresetIDs)
+    setRecentActionPresetIDs(snapshot.recentActionPresetIDs)
   }
 
   private func storedBool(

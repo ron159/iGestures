@@ -74,6 +74,7 @@ public struct MappingImportPreview: Equatable, Sendable {
   public let actionTypes: [String]
   public let conflicts: [MappingImportConflict]
   public let scriptsRequiringConfirmation: [AutomationScript]
+  public let includesSettings: Bool
 
   public init(
     schemaVersion: Int,
@@ -82,7 +83,8 @@ public struct MappingImportPreview: Equatable, Sendable {
     mappingsToReplace: Int,
     actionTypes: [String],
     conflicts: [MappingImportConflict],
-    scriptsRequiringConfirmation: [AutomationScript]
+    scriptsRequiringConfirmation: [AutomationScript],
+    includesSettings: Bool = false
   ) {
     self.schemaVersion = schemaVersion
     self.importedMappingCount = importedMappingCount
@@ -91,7 +93,56 @@ public struct MappingImportPreview: Equatable, Sendable {
     self.actionTypes = actionTypes
     self.conflicts = conflicts
     self.scriptsRequiringConfirmation = scriptsRequiringConfirmation
+    self.includesSettings = includesSettings
   }
+}
+
+public struct IGesturesConfigurationArchive:
+  Codable,
+  Equatable,
+  Sendable
+{
+  public static let currentFormatVersion = 1
+
+  public let formatVersion: Int
+  public let gestureDatabase: GestureDatabase
+  public let settings: AppSettingsSnapshot
+
+  public init(
+    gestureDatabase: GestureDatabase,
+    settings: AppSettingsSnapshot
+  ) {
+    self.formatVersion = Self.currentFormatVersion
+    self.gestureDatabase = gestureDatabase
+    self.settings = settings
+  }
+}
+
+public struct ConfigurationImportResult: Equatable, Sendable {
+  public let gestureDatabase: GestureDatabase
+  public let settings: AppSettingsSnapshot?
+
+  public init(
+    gestureDatabase: GestureDatabase,
+    settings: AppSettingsSnapshot?
+  ) {
+    self.gestureDatabase = gestureDatabase
+    self.settings = settings
+  }
+}
+
+private struct ConfigurationImportUndoArchive:
+  Codable,
+  Equatable,
+  Sendable
+{
+  let gestureDatabase: GestureDatabase
+  let settings: AppSettingsSnapshot?
+}
+
+private struct DecodedImportConfiguration {
+  let gestureDatabase: GestureDatabase
+  let settings: AppSettingsSnapshot?
 }
 
 public actor MappingStore {
@@ -210,6 +261,18 @@ public actor MappingStore {
     return try encode(database)
   }
 
+  public func exportConfiguration(
+    settings: AppSettingsSnapshot
+  ) throws -> Data {
+    try validate(database)
+    return try encode(
+      IGesturesConfigurationArchive(
+        gestureDatabase: database,
+        settings: settings
+      )
+    )
+  }
+
   public func importData(from sourceURL: URL) throws -> GestureDatabase {
     try importData(from: sourceURL, mode: .merge)
   }
@@ -218,16 +281,27 @@ public actor MappingStore {
     from sourceURL: URL,
     mode: MappingImportMode = .merge
   ) throws -> MappingImportPreview {
-    let imported = try decodeAndValidate(readData(at: sourceURL))
-    return makeImportPlan(imported, mode: mode).preview
+    let imported = try decodeImportConfiguration(
+      readData(at: sourceURL)
+    )
+    return makeImportPlan(
+      imported.gestureDatabase,
+      mode: mode,
+      includesSettings: imported.settings != nil
+    ).preview
   }
 
   public func importData(
     from sourceURL: URL,
     mode: MappingImportMode
   ) throws -> GestureDatabase {
-    let imported = try decodeAndValidate(readData(at: sourceURL))
-    let plan = makeImportPlan(imported, mode: mode)
+    let imported = try decodeImportConfiguration(
+      readData(at: sourceURL)
+    )
+    let plan = makeImportPlan(
+      imported.gestureDatabase,
+      mode: mode
+    )
     try ensureDirectoryExists()
     try encode(database).write(to: importUndoURL, options: .atomic)
     do {
@@ -239,16 +313,72 @@ public actor MappingStore {
     }
   }
 
+  public func importConfiguration(
+    from sourceURL: URL,
+    mode: MappingImportMode,
+    currentSettings: AppSettingsSnapshot
+  ) throws -> ConfigurationImportResult {
+    let imported = try decodeImportConfiguration(
+      readData(at: sourceURL)
+    )
+    let plan = makeImportPlan(
+      imported.gestureDatabase,
+      mode: mode,
+      includesSettings: imported.settings != nil
+    )
+    let undoArchive = ConfigurationImportUndoArchive(
+      gestureDatabase: database,
+      settings: imported.settings == nil ? nil : currentSettings
+    )
+    try ensureDirectoryExists()
+    try encode(undoArchive).write(
+      to: importUndoURL,
+      options: .atomic
+    )
+    do {
+      try save(plan.database)
+      return ConfigurationImportResult(
+        gestureDatabase: plan.database,
+        settings: imported.settings
+      )
+    } catch {
+      try? fileManager.removeItem(at: importUndoURL)
+      throw error
+    }
+  }
+
   public func canUndoLastImport() -> Bool {
     fileManager.fileExists(atPath: importUndoURL.path)
   }
 
   public func undoLastImport() throws -> GestureDatabase {
+    try undoConfigurationImport().gestureDatabase
+  }
+
+  public func undoConfigurationImport() throws
+    -> ConfigurationImportResult
+  {
     guard fileManager.fileExists(atPath: importUndoURL.path) else {
       throw MappingStoreError.fileSystemFailure
     }
-    let restored = try decodeAndValidate(readData(at: importUndoURL))
-    try save(restored)
+    let data = try readData(at: importUndoURL)
+    let restored: ConfigurationImportResult
+    if let archive = try? JSONDecoder().decode(
+      ConfigurationImportUndoArchive.self,
+      from: data
+    ) {
+      try validate(archive.gestureDatabase)
+      restored = ConfigurationImportResult(
+        gestureDatabase: archive.gestureDatabase,
+        settings: archive.settings
+      )
+    } else {
+      restored = ConfigurationImportResult(
+        gestureDatabase: try decodeAndValidate(data),
+        settings: nil
+      )
+    }
+    try save(restored.gestureDatabase)
     do {
       try fileManager.removeItem(at: importUndoURL)
     } catch {
@@ -266,7 +396,19 @@ public actor MappingStore {
     }
   }
 
-  private func encode(_ database: GestureDatabase) throws -> Data {
+  public func exportConfiguration(
+    settings: AppSettingsSnapshot,
+    to destinationURL: URL
+  ) throws {
+    let data = try exportConfiguration(settings: settings)
+    do {
+      try data.write(to: destinationURL, options: .atomic)
+    } catch {
+      throw MappingStoreError.fileSystemFailure
+    }
+  }
+
+  private func encode<T: Encodable>(_ value: T) throws -> Data {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [
       .prettyPrinted,
@@ -274,7 +416,7 @@ public actor MappingStore {
       .withoutEscapingSlashes,
     ]
     do {
-      let data = try encoder.encode(database)
+      let data = try encoder.encode(value)
       guard data.count <= limits.maximumFileSize else {
         throw MappingStoreError.fileTooLarge(
           limit: limits.maximumFileSize
@@ -307,9 +449,40 @@ public actor MappingStore {
     return decoded
   }
 
+  private func decodeImportConfiguration(
+    _ data: Data
+  ) throws -> DecodedImportConfiguration {
+    guard data.count <= limits.maximumFileSize else {
+      throw MappingStoreError.fileTooLarge(
+        limit: limits.maximumFileSize
+      )
+    }
+    if let archive = try? JSONDecoder().decode(
+      IGesturesConfigurationArchive.self,
+      from: data
+    ) {
+      guard
+        archive.formatVersion
+          == IGesturesConfigurationArchive.currentFormatVersion
+      else {
+        throw MappingStoreError.invalidData
+      }
+      try validate(archive.gestureDatabase)
+      return DecodedImportConfiguration(
+        gestureDatabase: archive.gestureDatabase,
+        settings: archive.settings
+      )
+    }
+    return DecodedImportConfiguration(
+      gestureDatabase: try decodeAndValidate(data),
+      settings: nil
+    )
+  }
+
   private func makeImportPlan(
     _ imported: GestureDatabase,
-    mode: MappingImportMode
+    mode: MappingImportMode,
+    includesSettings: Bool = false
   ) -> (
     database: GestureDatabase,
     preview: MappingImportPreview
@@ -415,7 +588,8 @@ public actor MappingStore {
         )
       ).sorted(),
       conflicts: conflicts,
-      scriptsRequiringConfirmation: importedScripts
+      scriptsRequiringConfirmation: importedScripts,
+      includesSettings: includesSettings
     )
     return (plannedDatabase, preview)
   }
