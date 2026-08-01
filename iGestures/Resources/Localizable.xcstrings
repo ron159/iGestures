@@ -6160,6 +6160,56 @@
           }
         }
       }
+    },
+    "Choose where to export the diagnostic report.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择诊断报告的导出位置。"
+          }
+        }
+      }
+    },
+    "Diagnostic report could not be exported.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法导出诊断报告。"
+          }
+        }
+      }
+    },
+    "Diagnostic report exported successfully.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "诊断报告导出成功。"
+          }
+        }
+      }
+    },
+    "Diagnostic reports exclude raw gesture paths, typed text, URLs, file paths, and script content.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "诊断报告不包含原始手势轨迹、输入文本、URL、文件路径和脚本内容。"
+          }
+        }
+      }
+    },
+    "Export Diagnostic Report…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出诊断报告…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

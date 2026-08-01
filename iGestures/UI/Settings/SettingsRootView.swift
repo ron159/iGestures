@@ -749,6 +749,29 @@ struct AdvancedSettingsView: View {
               )
             )
 
+            Text(
+              String(
+                localized:
+                  "Diagnostic reports exclude raw gesture paths, typed text, URLs, file paths, and script content."
+              )
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            Button {
+              chooseDiagnosticExportFile()
+            } label: {
+              Label(
+                String(localized: "Export Diagnostic Report…"),
+                systemImage: "square.and.arrow.up"
+              )
+            }
+
+            if let message = model.diagnosticExportMessage {
+              Text(message)
+                .foregroundStyle(.secondary)
+            }
+
             if diagnosticsState.records.isEmpty {
               Text(String(localized: "No recent gesture diagnostics."))
                 .foregroundStyle(.secondary)
@@ -872,6 +895,23 @@ struct AdvancedSettingsView: View {
       return
     }
     model.exportConfiguration(to: url)
+  }
+
+  private func chooseDiagnosticExportFile() {
+    let panel = NSSavePanel()
+    panel.allowedContentTypes = [.json]
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyyMMdd-HHmmss"
+    panel.nameFieldStringValue =
+      "iGestures-diagnostics-\(formatter.string(from: Date())).json"
+    panel.message = String(
+      localized: "Choose where to export the diagnostic report."
+    )
+    guard panel.runModal() == .OK, let url = panel.url else {
+      return
+    }
+    model.exportDiagnostics(to: url)
   }
 
   private func exclusionSummary(

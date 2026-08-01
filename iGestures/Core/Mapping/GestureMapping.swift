@@ -556,17 +556,20 @@ public struct ActionRequest: Equatable, Sendable {
   public let mappingName: String
   public let action: GestureAction
   public let repeatModeEnabled: Bool
+  public let diagnosticTraceID: UUID?
 
   public init(
     mappingID: UUID,
     mappingName: String,
     action: GestureAction,
-    repeatModeEnabled: Bool = false
+    repeatModeEnabled: Bool = false,
+    diagnosticTraceID: UUID? = nil
   ) {
     self.mappingID = mappingID
     self.mappingName = mappingName
     self.action = action
     self.repeatModeEnabled = repeatModeEnabled
+    self.diagnosticTraceID = diagnosticTraceID
   }
 }
 

@@ -60,6 +60,8 @@
 		A20000000000000000000034 /* ActionPresetLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000038 /* ActionPresetLibraryTests.swift */; };
 		A20000000000000000000035 /* ApplicationMetadataCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000039 /* ApplicationMetadataCache.swift */; };
 		A20000000000000000000036 /* FrontmostWindowResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000003A /* FrontmostWindowResolverTests.swift */; };
+		A20000000000000000000037 /* DiagnosticLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000003B /* DiagnosticLogger.swift */; };
+		A20000000000000000000038 /* DiagnosticLoggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000003C /* DiagnosticLoggerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -130,6 +132,8 @@
 		A21000000000000000000038 /* ActionPresetLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionPresetLibraryTests.swift; sourceTree = "<group>"; };
 		A21000000000000000000039 /* ApplicationMetadataCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMetadataCache.swift; sourceTree = "<group>"; };
 		A2100000000000000000003A /* FrontmostWindowResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontmostWindowResolverTests.swift; sourceTree = "<group>"; };
+		A2100000000000000000003B /* DiagnosticLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogger.swift; sourceTree = "<group>"; };
+		A2100000000000000000003C /* DiagnosticLoggerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -250,6 +254,7 @@
 			children = (
 				A21000000000000000000038 /* ActionPresetLibraryTests.swift */,
 				A21000000000000000000030 /* AppPreferencesStoreTests.swift */,
+				A2100000000000000000003C /* DiagnosticLoggerTests.swift */,
 				A2100000000000000000003A /* FrontmostWindowResolverTests.swift */,
 				A21000000000000000000027 /* GestureLibraryTests.swift */,
 				A2100000000000000000000C /* GestureNormalizerTests.swift */,
@@ -284,6 +289,7 @@
 			children = (
 				A21000000000000000000037 /* ActionPresetLibrary.swift */,
 				A2100000000000000000002F /* AppPreferencesStore.swift */,
+				A2100000000000000000003B /* DiagnosticLogger.swift */,
 				A21000000000000000000016 /* FrontmostAppProvider.swift */,
 				A2100000000000000000002B /* LoginItemController.swift */,
 				A21000000000000000000010 /* PermissionCoordinator.swift */,
@@ -466,6 +472,7 @@
 				A20000000000000000000028 /* LoginItemController.swift in Sources */,
 				A2000000000000000000002A /* SystemShortcutConflictDetector.swift in Sources */,
 				A2000000000000000000002C /* AppPreferencesStore.swift in Sources */,
+				A20000000000000000000037 /* DiagnosticLogger.swift in Sources */,
 				A20000000000000000000033 /* ActionPresetLibrary.swift in Sources */,
 				A20000000000000000000030 /* ScriptLibrary.swift in Sources */,
 				A20000000000000000000031 /* ScriptLibraryView.swift in Sources */,
@@ -479,6 +486,7 @@
 			files = (
 				A20000000000000000000034 /* ActionPresetLibraryTests.swift in Sources */,
 				A2000000000000000000002D /* AppPreferencesStoreTests.swift in Sources */,
+				A20000000000000000000038 /* DiagnosticLoggerTests.swift in Sources */,
 				A20000000000000000000036 /* FrontmostWindowResolverTests.swift in Sources */,
 				A20000000000000000000024 /* GestureLibraryTests.swift in Sources */,
 				A20000000000000000000009 /* GestureNormalizerTests.swift in Sources */,

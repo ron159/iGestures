@@ -92,6 +92,7 @@ final class AppModel: ObservableObject {
     0x8_0000 | 0x4_0000
   @Published private(set) var isHapticFeedbackEnabled = false
   @Published private(set) var isDiagnosticPersistenceEnabled = false
+  @Published private(set) var diagnosticExportMessage: String?
   @Published private(set) var permissionState: PermissionState = .unknown
   @Published private(set) var eventTapState: EventTapManagerState = .stopped
   @Published private(set) var mappingCount = 0
@@ -128,6 +129,7 @@ final class AppModel: ObservableObject {
   private let scriptLibraryStore: ScriptLibraryStore?
   private let overlayController: OverlayController
   private let diagnosticsBuffer: GestureDiagnosticsBuffer
+  private let diagnosticLogger: DiagnosticLogger
   let diagnosticsState: GestureDiagnosticsState
   private let updateService: UpdateService?
   private let githubReleaseService: GitHubReleaseService?
@@ -156,6 +158,13 @@ final class AppModel: ObservableObject {
     let preferencesStore =
       preferencesStore ?? AppPreferencesStore()
     self.preferencesStore = preferencesStore
+    let bundleIdentifier =
+      Bundle.main.bundleIdentifier ?? "com.ron159.igestures.dev"
+    let diagnosticLogger = DiagnosticLogger.live(
+      bundleIdentifier: bundleIdentifier,
+      persistenceEnabled: preferencesStore.diagnosticPersistenceEnabled
+    )
+    self.diagnosticLogger = diagnosticLogger
     let scriptExecutionAuthorizer =
       ScriptExecutionNoticeAuthorizer(
         preferencesStore: preferencesStore
@@ -253,6 +262,7 @@ final class AppModel: ObservableObject {
             scriptExecutionAuthorizer.authorize(script)
           }
         ),
+        diagnosticLogger: diagnosticLogger,
         overlaySink: overlayController.eventSink,
         feedbackSink: CompositeGestureFeedbackSink([
           overlayController.feedbackSink,
@@ -262,14 +272,12 @@ final class AppModel: ObservableObject {
     self.mappingStore =
       mappingStore
       ?? (try? MappingStore.live(
-        bundleIdentifier: Bundle.main.bundleIdentifier
-          ?? "com.ron159.igestures.dev"
+        bundleIdentifier: bundleIdentifier
       ))
     self.scriptLibraryStore =
       scriptLibraryStore
       ?? (try? ScriptLibraryStore.live(
-        bundleIdentifier: Bundle.main.bundleIdentifier
-          ?? "com.ron159.igestures.dev"
+        bundleIdentifier: bundleIdentifier
       ))
     overlayController.eventSink.setEnabled(isOverlayEnabled)
     overlayController.setTrailColor(trailColor)
@@ -306,6 +314,14 @@ final class AppModel: ObservableObject {
         preferencesStore.setDiagnosticRecords(records)
       }
     }
+    diagnosticLogger.record(
+      category: "lifecycle",
+      name: "app_started",
+      metadata: [
+        "build": Self.applicationBuildNumber,
+        "version": Self.applicationVersion,
+      ]
+    )
     observeApplicationActivation()
     observeApplicationLifecycle()
     refreshPermissions()
@@ -321,6 +337,138 @@ final class AppModel: ObservableObject {
     applicationLifecycleTask?.cancel()
     persistenceTask?.cancel()
     scriptLibraryPersistenceTask?.cancel()
+  }
+
+  private static var applicationVersion: String {
+    Bundle.main.object(
+      forInfoDictionaryKey: "CFBundleShortVersionString"
+    ) as? String ?? "0.0"
+  }
+
+  private static var applicationBuildNumber: String {
+    Bundle.main.object(
+      forInfoDictionaryKey: "CFBundleVersion"
+    ) as? String ?? "0"
+  }
+
+  private static var processArchitecture: String {
+    #if arch(arm64)
+      "arm64"
+    #elseif arch(x86_64)
+      "x86_64"
+    #else
+      "unknown"
+    #endif
+  }
+
+  private var diagnosticReportContext: DiagnosticReportContext {
+    let permissions = permissionCoordinator.diagnostics
+    return DiagnosticReportContext(
+      applicationVersion: Self.applicationVersion,
+      buildNumber: Self.applicationBuildNumber,
+      bundleIdentifier: Bundle.main.bundleIdentifier
+        ?? "com.ron159.igestures.dev",
+      operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString,
+      architecture: Self.processArchitecture,
+      eventTapState: Self.eventTapStateName(eventTapState),
+      permissions: DiagnosticPermissionSummary(
+        accessibility: permissions.accessibilityTrusted,
+        inputMonitoring: permissions.listenEventAccess,
+        eventPosting: permissions.postEventAccess
+      ),
+      settings: DiagnosticSettingsSummary(
+        recognitionEnabled: isEnabled,
+        overlayEnabled: isOverlayEnabled,
+        feedbackEnabled: isFeedbackEnabled,
+        hapticFeedbackEnabled: isHapticFeedbackEnabled,
+        trackpadGestureEnabled: isTrackpadGestureEnabled,
+        diagnosticPersistenceEnabled: isDiagnosticPersistenceEnabled,
+        recognitionSensitivity: recognitionSensitivity.rawValue,
+        primaryTrigger: Self.triggerName(triggerButton),
+        hasSecondaryTrigger: secondaryTriggerButton != nil,
+        mappingCount: mappingCount,
+        applicationExclusionCount: applicationExclusions.count,
+        applicationGroupCount: gestureApplicationGroups.count
+      )
+    )
+  }
+
+  private func recordSettingChanged(_ setting: String, value: Bool) {
+    diagnosticLogger.record(
+      category: "settings",
+      name: "changed",
+      metadata: [
+        "setting": setting,
+        "value": String(value),
+      ]
+    )
+  }
+
+  private func permissionDiagnosticMetadata(
+    state: PermissionState
+  ) -> [String: String] {
+    let diagnostics = permissionCoordinator.diagnostics
+    return [
+      "accessibility": String(diagnostics.accessibilityTrusted),
+      "event_posting": String(diagnostics.postEventAccess),
+      "input_monitoring": String(diagnostics.listenEventAccess),
+      "state": Self.permissionStateName(state),
+    ]
+  }
+
+  private static func permissionStateName(
+    _ state: PermissionState
+  ) -> String {
+    switch state {
+    case .unknown:
+      "unknown"
+    case .needsUserAction:
+      "needs_user_action"
+    case .checking:
+      "checking"
+    case .granted:
+      "granted"
+    case .denied:
+      "denied"
+    case .tapCreationFailed:
+      "tap_creation_failed"
+    }
+  }
+
+  private static func eventTapStateName(
+    _ state: EventTapManagerState
+  ) -> String {
+    switch state {
+    case .stopped:
+      "stopped"
+    case .starting:
+      "starting"
+    case .running:
+      "running"
+    case .failedToCreateTap:
+      "failed_to_create"
+    }
+  }
+
+  private static func triggerName(
+    _ trigger: GestureTriggerButton
+  ) -> String {
+    if trigger == .trackpad {
+      return "trackpad"
+    }
+    if trigger.keyboardKeyCode != nil {
+      return "keyboard"
+    }
+    switch trigger.buttonNumber {
+    case 0:
+      return "left_mouse"
+    case 1:
+      return "right_mouse"
+    case 2:
+      return "middle_mouse"
+    default:
+      return "other_mouse"
+    }
   }
 
   var permissionStatusText: String {
@@ -386,6 +534,13 @@ final class AppModel: ObservableObject {
     if permissionState != refreshedState {
       permissionState = refreshedState
     }
+    diagnosticLogger.record(
+      category: "permission",
+      name: "refreshed",
+      metadata: permissionDiagnosticMetadata(
+        state: refreshedState
+      )
+    )
     if refreshedState == .checking || refreshedState == .granted {
       eventTapManager.start()
       eventTapManager.setEnabled(isEnabled)
@@ -395,20 +550,40 @@ final class AppModel: ObservableObject {
   }
 
   func requestAccess() {
+    diagnosticLogger.record(
+      category: "permission",
+      name: "access_requested",
+      metadata: ["scope": "all"]
+    )
     permissionState = permissionCoordinator.requestAccess()
   }
 
   func requestAccessibilityAccess() {
+    diagnosticLogger.record(
+      category: "permission",
+      name: "access_requested",
+      metadata: ["scope": "accessibility"]
+    )
     permissionState =
       permissionCoordinator.requestAccessibilityAccess()
   }
 
   func requestListenEventAccess() {
+    diagnosticLogger.record(
+      category: "permission",
+      name: "access_requested",
+      metadata: ["scope": "input_monitoring"]
+    )
     permissionState =
       permissionCoordinator.requestListenEventAccess()
   }
 
   func requestPostEventAccess() {
+    diagnosticLogger.record(
+      category: "permission",
+      name: "access_requested",
+      metadata: ["scope": "event_posting"]
+    )
     permissionState =
       permissionCoordinator.requestPostEventAccess()
   }
@@ -448,6 +623,7 @@ final class AppModel: ObservableObject {
     isEnabled.toggle()
     preferencesStore.setRecognitionEnabled(isEnabled)
     eventTapManager.setEnabled(isEnabled)
+    recordSettingChanged("recognition_enabled", value: isEnabled)
     if isEnabled,
       permissionState == .checking || permissionState == .granted
     {
@@ -459,6 +635,7 @@ final class AppModel: ObservableObject {
     isOverlayEnabled = isEnabled
     preferencesStore.setOverlayEnabled(isEnabled)
     overlayController.eventSink.setEnabled(isEnabled)
+    recordSettingChanged("overlay_enabled", value: isEnabled)
   }
 
   func setTrailColor(_ color: NSColor) {
@@ -493,6 +670,7 @@ final class AppModel: ObservableObject {
     isFeedbackEnabled = isEnabled
     preferencesStore.setFeedbackEnabled(isEnabled)
     overlayController.feedbackSink.setEnabled(isEnabled)
+    recordSettingChanged("feedback_enabled", value: isEnabled)
   }
 
   func setRecognitionSensitivity(
@@ -501,6 +679,14 @@ final class AppModel: ObservableObject {
     recognitionSensitivity = sensitivity
     preferencesStore.setRecognitionSensitivity(sensitivity)
     eventTapManager.updateRecognitionSensitivity(sensitivity)
+    diagnosticLogger.record(
+      category: "settings",
+      name: "changed",
+      metadata: [
+        "setting": "recognition_sensitivity",
+        "value": sensitivity.rawValue,
+      ]
+    )
   }
 
   func setGlobalToggleShortcut(_ shortcut: KeyboardShortcut) {
@@ -528,6 +714,7 @@ final class AppModel: ObservableObject {
     eventTapManager.updateInputConfiguration(
       gestureInputConfiguration
     )
+    recordSettingChanged("trackpad_gesture_enabled", value: enabled)
   }
 
   func setTrackpadModifiers(_ modifiers: UInt64) {
@@ -543,11 +730,14 @@ final class AppModel: ObservableObject {
     isHapticFeedbackEnabled = enabled
     preferencesStore.setHapticFeedbackEnabled(enabled)
     overlayController.setHapticFeedbackEnabled(enabled)
+    recordSettingChanged("haptic_feedback_enabled", value: enabled)
   }
 
   func setDiagnosticPersistenceEnabled(_ enabled: Bool) {
     isDiagnosticPersistenceEnabled = enabled
     preferencesStore.setDiagnosticPersistenceEnabled(enabled)
+    diagnosticLogger.setPersistenceEnabled(enabled)
+    recordSettingChanged("diagnostic_persistence_enabled", value: enabled)
     if enabled {
       preferencesStore.setDiagnosticRecords(diagnosticsState.records)
     }
@@ -555,6 +745,43 @@ final class AppModel: ObservableObject {
 
   func clearDiagnostics() {
     diagnosticsBuffer.clear()
+    diagnosticLogger.clear()
+    diagnosticExportMessage = nil
+  }
+
+  func exportDiagnostics(to destinationURL: URL) {
+    diagnosticExportMessage = nil
+    let context = diagnosticReportContext
+    let diagnosticLogger = diagnosticLogger
+    Task { @MainActor [weak self] in
+      do {
+        try await Task.detached {
+          try diagnosticLogger.exportReport(
+            to: destinationURL,
+            context: context
+          )
+        }.value
+        self?.diagnosticExportMessage = String(
+          localized: "Diagnostic report exported successfully."
+        )
+        self?.diagnosticLogger.record(
+          category: "diagnostics",
+          name: "report_exported"
+        )
+      } catch {
+        self?.diagnosticExportMessage = String(
+          localized: "Diagnostic report could not be exported."
+        )
+        self?.diagnosticLogger.record(
+          level: .error,
+          category: "diagnostics",
+          name: "report_export_failed",
+          metadata: [
+            "error_type": String(describing: type(of: error))
+          ]
+        )
+      }
+    }
   }
 
   func checkForUpdates(manual: Bool = false) {
@@ -848,6 +1075,12 @@ final class AppModel: ObservableObject {
   func reloadMappings() {
     isLoadingMappings = true
     guard let mappingStore else {
+      diagnosticLogger.record(
+        level: .error,
+        category: "storage",
+        name: "mapping_load_failed",
+        metadata: ["reason": "store_unavailable"]
+      )
       isLoadingMappings = false
       mappingStoreError = String(
         localized: "Gesture storage is unavailable."
@@ -870,6 +1103,11 @@ final class AppModel: ObservableObject {
         }
         canUndoLastImport = await mappingStore.canUndoLastImport()
         isLoadingMappings = false
+        diagnosticLogger.record(
+          category: "storage",
+          name: "mappings_loaded",
+          metadata: ["mapping_count": String(mappingCount)]
+        )
       } catch {
         database = .empty
         mappings = []
@@ -879,6 +1117,14 @@ final class AppModel: ObservableObject {
         isLoadingMappings = false
         mappingStoreError = String(
           localized: "Gesture data could not be loaded."
+        )
+        diagnosticLogger.record(
+          level: .error,
+          category: "storage",
+          name: "mapping_load_failed",
+          metadata: [
+            "error_type": String(describing: type(of: error))
+          ]
         )
         eventTapManager.updateMappingSnapshot(.empty)
       }
@@ -1357,6 +1603,12 @@ final class AppModel: ObservableObject {
   func reloadScriptLibrary() {
     isLoadingScriptLibrary = true
     guard let scriptLibraryStore else {
+      diagnosticLogger.record(
+        level: .error,
+        category: "storage",
+        name: "script_library_load_failed",
+        metadata: ["reason": "store_unavailable"]
+      )
       isLoadingScriptLibrary = false
       scriptLibraryError = String(
         localized: "Script library storage is unavailable."
@@ -1369,10 +1621,23 @@ final class AppModel: ObservableObject {
       do {
         userScriptLibrary = try await scriptLibraryStore.load()
         scriptLibraryError = nil
+        diagnosticLogger.record(
+          category: "storage",
+          name: "script_library_loaded",
+          metadata: ["item_count": String(userScriptLibrary.count)]
+        )
       } catch {
         userScriptLibrary = []
         scriptLibraryError = String(
           localized: "The script library could not be loaded."
+        )
+        diagnosticLogger.record(
+          level: .error,
+          category: "storage",
+          name: "script_library_load_failed",
+          metadata: [
+            "error_type": String(describing: type(of: error))
+          ]
         )
       }
       isLoadingScriptLibrary = false
@@ -1549,6 +1814,9 @@ final class AppModel: ObservableObject {
     isHapticFeedbackEnabled = preferencesStore.hapticFeedbackEnabled
     isDiagnosticPersistenceEnabled =
       preferencesStore.diagnosticPersistenceEnabled
+    diagnosticLogger.setPersistenceEnabled(
+      isDiagnosticPersistenceEnabled
+    )
     customActionPresets = preferencesStore.customActionPresets
     favoriteActionPresetIDs = preferencesStore.favoriteActionPresetIDs
     recentActionPresetIDs = preferencesStore.recentActionPresetIDs
@@ -1722,6 +1990,12 @@ final class AppModel: ObservableObject {
 
   private func apply(_ updatedDatabase: GestureDatabase) {
     guard let mappingStore else {
+      diagnosticLogger.record(
+        level: .error,
+        category: "storage",
+        name: "mapping_save_failed",
+        metadata: ["reason": "store_unavailable"]
+      )
       mappingStoreError = String(
         localized: "Gesture storage is unavailable."
       )
@@ -1730,6 +2004,12 @@ final class AppModel: ObservableObject {
     do {
       try mappingStore.validate(updatedDatabase)
     } catch {
+      diagnosticLogger.record(
+        level: .error,
+        category: "storage",
+        name: "mapping_save_failed",
+        metadata: ["reason": "validation_failed"]
+      )
       mappingStoreError = String(
         localized: "Gesture changes could not be saved."
       )
@@ -1753,12 +2033,27 @@ final class AppModel: ObservableObject {
       await previousTask?.value
       do {
         try await mappingStore.save(updatedDatabase)
+        self?.diagnosticLogger.record(
+          category: "storage",
+          name: "mappings_saved",
+          metadata: [
+            "mapping_count": String(updatedDatabase.mappings.count)
+          ]
+        )
       } catch {
         guard let self, database == updatedDatabase else { return }
         let persistedDatabase = await mappingStore.currentDatabase()
         install(persistedDatabase)
         mappingStoreError = String(
           localized: "Gesture changes could not be saved."
+        )
+        diagnosticLogger.record(
+          level: .error,
+          category: "storage",
+          name: "mapping_save_failed",
+          metadata: [
+            "error_type": String(describing: type(of: error))
+          ]
         )
       }
     }
@@ -1790,6 +2085,11 @@ final class AppModel: ObservableObject {
       await previousTask?.value
       do {
         try await scriptLibraryStore.save(updatedItems)
+        self?.diagnosticLogger.record(
+          category: "storage",
+          name: "script_library_saved",
+          metadata: ["item_count": String(updatedItems.count)]
+        )
       } catch {
         guard let self, userScriptLibrary == updatedItems else {
           return
@@ -1797,6 +2097,14 @@ final class AppModel: ObservableObject {
         userScriptLibrary = await scriptLibraryStore.currentItems()
         scriptLibraryError = String(
           localized: "Script library changes could not be saved."
+        )
+        diagnosticLogger.record(
+          level: .error,
+          category: "storage",
+          name: "script_library_save_failed",
+          metadata: [
+            "error_type": String(describing: type(of: error))
+          ]
         )
       }
     }
@@ -1832,6 +2140,14 @@ final class AppModel: ObservableObject {
     case .stopped, .starting:
       break
     }
+    diagnosticLogger.record(
+      level: state == .failedToCreateTap ? .error : .info,
+      category: "permission",
+      name: "event_tap_state_applied",
+      metadata: permissionDiagnosticMetadata(
+        state: permissionState
+      )
+    )
   }
 
   private func handleUpdateCheckResult(_ result: UpdateCheckResult) {

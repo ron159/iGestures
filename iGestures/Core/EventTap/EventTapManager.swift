@@ -24,6 +24,7 @@ public final class EventTapManager: @unchecked Sendable {
     category: "Performance"
   )
   private let frontmostAppProvider: any FrontmostAppProviding
+  private let diagnosticLogger: DiagnosticLogger?
   private let actionDispatcher: ActionDispatcher
   private let overlaySink: any GestureOverlaySinking
   private let feedbackSink: any GestureFeedbackSinking
@@ -87,6 +88,7 @@ public final class EventTapManager: @unchecked Sendable {
       SystemFrontmostAppProvider(),
     actionExecutor: any ActionExecuting = SystemGestureActionExecutor(),
     actionResultHandler: ActionDispatcher.ResultHandler? = nil,
+    diagnosticLogger: DiagnosticLogger? = nil,
     overlaySink: any GestureOverlaySinking = NoOpGestureOverlaySink(),
     feedbackSink: any GestureFeedbackSinking =
       NoOpGestureFeedbackSink(),
@@ -94,6 +96,7 @@ public final class EventTapManager: @unchecked Sendable {
     recognizer: GestureRecognizer = GestureRecognizer()
   ) {
     self.frontmostAppProvider = frontmostAppProvider
+    self.diagnosticLogger = diagnosticLogger
     self.feedbackSink = feedbackSink
     self.actionDispatcher = ActionDispatcher(
       executor: actionExecutor,
@@ -108,6 +111,16 @@ public final class EventTapManager: @unchecked Sendable {
             .actionFailed(mappingName: request.mappingName)
           )
         }
+        diagnosticLogger?.record(
+          level: result == .succeeded ? .info : .error,
+          category: "action",
+          name: "finished",
+          traceID: request.diagnosticTraceID,
+          metadata: Self.actionResultMetadata(
+            request: request,
+            result: result
+          )
+        )
         actionResultHandler?(request, result)
       }
     )
@@ -446,6 +459,12 @@ public final class EventTapManager: @unchecked Sendable {
         type == .tapDisabledByTimeout
         ? .tapDisabledByTimeout
         : .tapDisabledByUserInput
+      diagnosticLogger?.record(
+        level: .warning,
+        category: "event_tap",
+        name: "disabled",
+        metadata: ["reason": Self.cancellationReasonName(reason)]
+      )
       let result = session.cancel(reason)
       apply(result.commands, currentEvent: nil)
       releasePendingSecondaryTrigger()
@@ -879,7 +898,14 @@ public final class EventTapManager: @unchecked Sendable {
         activeSessionUsesSecondaryTrigger = false
         endSessionSignpost()
         enqueueRecognition(recognizedCandidate)
-      case .didFailOpen:
+      case .didFailOpen(let reason):
+        diagnosticLogger?.record(
+          level: .warning,
+          category: "gesture",
+          name: "cancelled",
+          traceID: UUID(),
+          metadata: ["reason": Self.cancellationReasonName(reason)]
+        )
         feedbackSink.show(.cancelled)
         activeTriggerButton = nil
         activeSessionUsesSecondaryTrigger = false
@@ -951,6 +977,22 @@ public final class EventTapManager: @unchecked Sendable {
       runLoop,
       CFRunLoopMode.defaultMode!.rawValue as CFTypeRef
     ) { [self] in
+      let traceID = UUID()
+      diagnosticLogger?.record(
+        category: "gesture",
+        name: "completed",
+        traceID: traceID,
+        metadata: [
+          "duration_ms": String(
+            format: "%.0f",
+            candidate.duration * 1_000
+          ),
+          "input_device": Self.inputDeviceName(candidate.inputDevice),
+          "point_count": String(candidate.points.count),
+          "secondary_action": String(candidate.usesSecondaryTrigger),
+          "trigger": Self.triggerName(candidate.triggerButton),
+        ]
+      )
       let signpostID = OSSignpostID(log: Self.performanceLog)
       os_signpost(
         .begin,
@@ -982,6 +1024,12 @@ public final class EventTapManager: @unchecked Sendable {
         signpostID: normalizationID
       )
       guard let gesture else {
+        diagnosticLogger?.record(
+          level: .warning,
+          category: "recognition",
+          name: "normalization_failed",
+          traceID: traceID
+        )
         feedbackSink.show(.noMatch)
         return
       }
@@ -1011,23 +1059,64 @@ public final class EventTapManager: @unchecked Sendable {
       )
       switch decision {
       case .noMatch:
+        diagnosticLogger?.record(
+          category: "recognition",
+          name: "no_match",
+          traceID: traceID
+        )
         feedbackSink.show(.noMatch)
         return
-      case .ambiguous:
+      case .ambiguous(let bestDistance, let secondDistance):
+        diagnosticLogger?.record(
+          level: .warning,
+          category: "recognition",
+          name: "ambiguous",
+          traceID: traceID,
+          metadata: [
+            "best_distance": String(format: "%.4f", bestDistance),
+            "second_distance": String(
+              format: "%.4f",
+              secondDistance
+            ),
+          ]
+        )
         feedbackSink.show(.ambiguous)
         return
       case .matched:
         break
       }
       guard case .matched(let match) = decision else { return }
+      diagnosticLogger?.record(
+        category: "recognition",
+        name: "matched",
+        traceID: traceID,
+        metadata: [
+          "action_kind": Self.actionKind(match.action),
+          "distance": String(format: "%.4f", match.distance),
+          "mapping_id": match.mappingID.uuidString,
+        ]
+      )
       guard match.action.performsAction else {
         repeatState = nil
+        diagnosticLogger?.record(
+          category: "action",
+          name: "skipped",
+          traceID: traceID,
+          metadata: ["reason": "no_action"]
+        )
         return
       }
+      let request = ActionRequest(
+        mappingID: match.request.mappingID,
+        mappingName: match.request.mappingName,
+        action: match.request.action,
+        repeatModeEnabled: match.request.repeatModeEnabled,
+        diagnosticTraceID: traceID
+      )
       repeatState =
-        match.request.repeatModeEnabled
+        request.repeatModeEnabled
         ? RepeatState(
-          request: match.request,
+          request: request,
           triggerButton: candidate.triggerButton,
           bundleID: candidate.frontmostBundleID,
           usesSecondaryTrigger: candidate.usesSecondaryTrigger,
@@ -1043,7 +1132,7 @@ public final class EventTapManager: @unchecked Sendable {
         signpostID: actionID
       )
       Task { [actionDispatcher] in
-        await actionDispatcher.submit(match.request)
+        await actionDispatcher.submit(request)
       }
       os_signpost(
         .end,
@@ -1244,10 +1333,161 @@ public final class EventTapManager: @unchecked Sendable {
   }
 
   private func notifyState(_ state: EventTapManagerState) {
+    diagnosticLogger?.record(
+      level: state == .failedToCreateTap ? .error : .info,
+      category: "event_tap",
+      name: "state_changed",
+      metadata: ["state": Self.eventTapStateName(state)]
+    )
     lifecycleLock.lock()
     let handler = stateHandler
     lifecycleLock.unlock()
     handler?(state)
+  }
+
+  private static func eventTapStateName(
+    _ state: EventTapManagerState
+  ) -> String {
+    switch state {
+    case .stopped:
+      "stopped"
+    case .starting:
+      "starting"
+    case .running:
+      "running"
+    case .failedToCreateTap:
+      "failed_to_create"
+    }
+  }
+
+  private static func cancellationReasonName(
+    _ reason: GestureCancellationReason
+  ) -> String {
+    switch reason {
+    case .disabled:
+      "disabled"
+    case .tapDisabledByTimeout:
+      "tap_disabled_by_timeout"
+    case .tapDisabledByUserInput:
+      "tap_disabled_by_user_input"
+    case .permissionLost:
+      "permission_lost"
+    case .configurationInvalid:
+      "configuration_invalid"
+    case .applicationTerminating:
+      "application_terminating"
+    case .sessionInconsistent:
+      "session_inconsistent"
+    case .durationExceeded:
+      "duration_exceeded"
+    case .userCancelled:
+      "user_cancelled"
+    }
+  }
+
+  private static func triggerName(
+    _ trigger: GestureTriggerButton
+  ) -> String {
+    if trigger == .trackpad {
+      return "trackpad"
+    }
+    if trigger.keyboardKeyCode != nil {
+      return "keyboard"
+    }
+    switch trigger.buttonNumber {
+    case 0:
+      return "left_mouse"
+    case 1:
+      return "right_mouse"
+    case 2:
+      return "middle_mouse"
+    default:
+      return "other_mouse"
+    }
+  }
+
+  private static func inputDeviceName(
+    _ inputDevice: GestureInputDevice
+  ) -> String {
+    switch inputDevice {
+    case .mouse:
+      "mouse"
+    case .trackpad:
+      "trackpad"
+    }
+  }
+
+  private static func actionKind(_ action: GestureAction) -> String {
+    switch action {
+    case .none:
+      "none"
+    case .keyboardShortcut:
+      "keyboard_shortcut"
+    case .openURL:
+      "open_url"
+    case .openPath:
+      "open_path"
+    case .launchApplication:
+      "launch_application"
+    case .system:
+      "system"
+    case .window:
+      "window"
+    case .customWindow:
+      "custom_window"
+    case .typeText:
+      "type_text"
+    case .applicationMenu:
+      "application_menu"
+    case .appleShortcut:
+      "apple_shortcut"
+    case .sequence:
+      "sequence"
+    case .script:
+      "script"
+    }
+  }
+
+  private static func actionResultMetadata(
+    request: ActionRequest,
+    result: ActionExecutionResult
+  ) -> [String: String] {
+    var metadata = [
+      "action_kind": actionKind(request.action),
+      "mapping_id": request.mappingID.uuidString,
+    ]
+    switch result {
+    case .succeeded:
+      metadata["result"] = "succeeded"
+    case .failed(let failure):
+      metadata["result"] = "failed"
+      metadata["failure"] = actionFailureName(failure)
+      if case .processFailed(let exitCode) = failure {
+        metadata["exit_code"] = String(exitCode)
+      }
+    }
+    return metadata
+  }
+
+  private static func actionFailureName(
+    _ failure: ActionExecutionFailure
+  ) -> String {
+    switch failure {
+    case .invalidAction:
+      "invalid_action"
+    case .targetNotFound:
+      "target_not_found"
+    case .launchFailed:
+      "launch_failed"
+    case .processFailed:
+      "process_failed"
+    case .timedOut:
+      "timed_out"
+    case .outputLimitExceeded:
+      "output_limit_exceeded"
+    case .notConfirmed:
+      "not_confirmed"
+    }
   }
 
   private func triggerEvent(
