@@ -505,8 +505,13 @@ final class AppModel: ObservableObject {
     availableUpdate != nil
   }
 
+  var canDownloadAvailableGitHubUpdate: Bool {
+    availableGitHubRelease?.diskImage != nil
+  }
+
   var canOpenAvailableGitHubRelease: Bool {
     availableGitHubRelease != nil
+      && availableGitHubRelease?.diskImage == nil
   }
 
   var isLaunchAtLoginEnabled: Bool {
@@ -911,6 +916,50 @@ final class AppModel: ObservableObject {
   func openAvailableGitHubRelease() {
     guard let availableGitHubRelease else { return }
     NSWorkspace.shared.open(availableGitHubRelease.pageURL)
+  }
+
+  func downloadAvailableGitHubUpdate() {
+    guard
+      let availableGitHubRelease,
+      availableGitHubRelease.diskImage != nil
+    else {
+      return
+    }
+    let version = availableGitHubRelease.version
+    updateState = .downloading(version: version)
+    updateMessage = nil
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      let directoryURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+          "iGestures-github-update",
+          isDirectory: true
+        )
+      let result = await githubReleaseService?.download(
+        availableGitHubRelease,
+        directoryURL: directoryURL
+      )
+      guard case .success(let diskImageURL) = result else {
+        updateState = .failed
+        updateMessage = String(
+          localized:
+            "The update download failed validation. The current version was not changed."
+        )
+        return
+      }
+      guard NSWorkspace.shared.open(diskImageURL) else {
+        updateState = .failed
+        updateMessage = String(
+          localized: "The update disk image could not be opened."
+        )
+        return
+      }
+      updateState = .available(version: version)
+      updateMessage = String(
+        localized:
+          "The update disk image was downloaded and opened. Quit iGestures, then drag it to Applications to finish installing."
+      )
+    }
   }
 
   @discardableResult

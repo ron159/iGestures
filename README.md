@@ -80,16 +80,18 @@ iGestures asks for macOS permissions only for the actions that need them.
 ### Option 1: Download a release
 
 Requires macOS 26 or later on an Apple Silicon Mac. Download the latest
-`iGestures-<version>-macOS-arm64.zip` from
-[GitHub Releases](https://github.com/ron159/iGestures/releases/latest).
+`iGestures-<version>-macOS-arm64.dmg` from
+[GitHub Releases](https://github.com/ron159/iGestures/releases/latest), open
+it, and drag iGestures into Applications. After installation, **About → Check
+for Updates** can download, verify, and open future DMG releases directly.
 
 If the first launch is blocked, open **System Settings → Privacy & Security**,
 click **Open Anyway**, then complete the permission checklist in iGestures.
 
-Verify the download with the checksum shipped beside the ZIP:
+Verify the download with the checksum shipped beside the DMG:
 
 ```shell
-shasum -a 256 -c iGestures-<version>-macOS-arm64.zip.sha256
+shasum -a 256 -c iGestures-<version>-macOS-arm64.dmg.sha256
 ```
 
 ### Option 2: Build from source

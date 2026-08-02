@@ -380,6 +380,150 @@ final class AppPreferencesStoreTests: XCTestCase {
     )
   }
 
+  func testGitHubReleaseServiceFindsVersionedDiskImage() async throws {
+    let service = try XCTUnwrap(
+      GitHubReleaseService(
+        currentVersion: "0.3.0",
+        latestReleaseURL: try XCTUnwrap(
+          URL(
+            string:
+              "https://api.github.com/repos/ron159/iGestures/releases/latest"
+          )
+        )
+      )
+    )
+    let releaseURL = try XCTUnwrap(
+      URL(
+        string:
+          "https://github.com/ron159/iGestures/releases/tag/v0.4.0"
+      )
+    )
+    let archiveURL = try XCTUnwrap(
+      URL(
+        string:
+          "https://github.com/ron159/iGestures/releases/download/v0.4.0/iGestures-0.4.0-macOS-arm64.dmg"
+      )
+    )
+    let checksumURL = try XCTUnwrap(
+      URL(
+        string:
+          "https://github.com/ron159/iGestures/releases/download/v0.4.0/iGestures-0.4.0-macOS-arm64.dmg.sha256"
+      )
+    )
+    let data = Data(
+      """
+      {
+        "tag_name": "v0.4.0",
+        "html_url": "\(releaseURL.absoluteString)",
+        "draft": false,
+        "prerelease": false,
+        "assets": [
+          {
+            "name": "iGestures-0.4.0-macOS-arm64.dmg",
+            "browser_download_url": "\(archiveURL.absoluteString)",
+            "size": 123456
+          },
+          {
+            "name": "iGestures-0.4.0-macOS-arm64.dmg.sha256",
+            "browser_download_url": "\(checksumURL.absoluteString)",
+            "size": 112
+          }
+        ]
+      }
+      """.utf8
+    )
+
+    let result = await service.validate(releaseData: data)
+
+    XCTAssertEqual(
+      result,
+      .available(
+        GitHubRelease(
+          version: "0.4.0",
+          pageURL: releaseURL,
+          diskImage: GitHubReleaseDiskImage(
+            name: "iGestures-0.4.0-macOS-arm64.dmg",
+            downloadURL: archiveURL,
+            checksumURL: checksumURL,
+            byteCount: 123456
+          )
+        )
+      )
+    )
+  }
+
+  func testGitHubReleaseServiceIgnoresUntrustedDiskImageURL()
+    async throws
+  {
+    let service = try XCTUnwrap(
+      GitHubReleaseService(
+        currentVersion: "0.3.0",
+        latestReleaseURL: try XCTUnwrap(
+          URL(
+            string:
+              "https://api.github.com/repos/ron159/iGestures/releases/latest"
+          )
+        )
+      )
+    )
+    let releaseURL = try XCTUnwrap(
+      URL(
+        string:
+          "https://github.com/ron159/iGestures/releases/tag/v0.4.0"
+      )
+    )
+    let data = Data(
+      """
+      {
+        "tag_name": "v0.4.0",
+        "html_url": "\(releaseURL.absoluteString)",
+        "draft": false,
+        "prerelease": false,
+        "assets": [
+          {
+            "name": "iGestures-0.4.0-macOS-arm64.dmg",
+            "browser_download_url": "https://example.com/iGestures-0.4.0-macOS-arm64.dmg",
+            "size": 123456
+          },
+          {
+            "name": "iGestures-0.4.0-macOS-arm64.dmg.sha256",
+            "browser_download_url": "https://github.com/ron159/iGestures/releases/download/v0.4.0/iGestures-0.4.0-macOS-arm64.dmg.sha256",
+            "size": 112
+          }
+        ]
+      }
+      """.utf8
+    )
+
+    let result = await service.validate(releaseData: data)
+
+    XCTAssertEqual(
+      result,
+      .available(
+        GitHubRelease(version: "0.4.0", pageURL: releaseURL)
+      )
+    )
+  }
+
+  func testGitHubReleaseChecksumRequiresExactArchiveName() {
+    let checksum = String(repeating: "a", count: 64)
+    let archiveName = "iGestures-0.4.0-macOS-arm64.dmg"
+
+    XCTAssertEqual(
+      GitHubReleaseService.checksum(
+        in: Data("\(checksum)  \(archiveName)\n".utf8),
+        archiveName: archiveName
+      ),
+      checksum
+    )
+    XCTAssertNil(
+      GitHubReleaseService.checksum(
+        in: Data("\(checksum)  other.dmg\n".utf8),
+        archiveName: archiveName
+      )
+    )
+  }
+
   func testGitHubReleaseServiceHonorsSkippedVersion() async throws {
     let service = try XCTUnwrap(
       GitHubReleaseService(

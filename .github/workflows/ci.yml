@@ -120,11 +120,20 @@ jobs:
           APP: ${{ steps.release.outputs.app }}
         run: |
           artifact_dir="$RUNNER_TEMP/iGesturesArtifacts"
-          archive="iGestures-continuous-macOS-arm64.zip"
+          image_root="$RUNNER_TEMP/iGesturesContinuousDiskImage"
+          archive="iGestures-continuous-macOS-arm64.dmg"
 
           mkdir -p "$artifact_dir"
-          ditto -c -k --sequesterRsrc --keepParent \
-            "$APP" "$artifact_dir/$archive"
+          mkdir -p "$image_root"
+          ditto "$APP" "$image_root/iGestures.app"
+          ln -s /Applications "$image_root/Applications"
+          hdiutil create \
+            -volname "iGestures Continuous" \
+            -srcfolder "$image_root" \
+            -ov \
+            -format UDZO \
+            "$artifact_dir/$archive"
+          hdiutil verify "$artifact_dir/$archive"
           (
             cd "$artifact_dir"
             shasum -a 256 "$archive" > "$archive.sha256"

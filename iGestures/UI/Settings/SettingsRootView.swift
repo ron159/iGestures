@@ -558,6 +558,11 @@ struct AboutSettingsView: View {
           model.installAvailableUpdate()
         }
         .buttonStyle(.borderedProminent)
+      } else if model.canDownloadAvailableGitHubUpdate {
+        Button(String(localized: "Download Update")) {
+          model.downloadAvailableGitHubUpdate()
+        }
+        .buttonStyle(.borderedProminent)
       } else if model.canOpenAvailableGitHubRelease {
         Button(String(localized: "View Release")) {
           model.openAvailableGitHubRelease()

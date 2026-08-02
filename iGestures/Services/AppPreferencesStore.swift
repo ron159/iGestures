@@ -800,13 +800,38 @@ public enum UpdateCheckResult: Equatable, Sendable {
   case rejected(UpdateRejectionReason)
 }
 
+public struct GitHubReleaseDiskImage: Equatable, Sendable {
+  public let name: String
+  public let downloadURL: URL
+  public let checksumURL: URL
+  public let byteCount: Int64
+
+  public init(
+    name: String,
+    downloadURL: URL,
+    checksumURL: URL,
+    byteCount: Int64
+  ) {
+    self.name = name
+    self.downloadURL = downloadURL
+    self.checksumURL = checksumURL
+    self.byteCount = byteCount
+  }
+}
+
 public struct GitHubRelease: Equatable, Sendable {
   public let version: String
   public let pageURL: URL
+  public let diskImage: GitHubReleaseDiskImage?
 
-  public init(version: String, pageURL: URL) {
+  public init(
+    version: String,
+    pageURL: URL,
+    diskImage: GitHubReleaseDiskImage? = nil
+  ) {
     self.version = version
     self.pageURL = pageURL
+    self.diskImage = diskImage
   }
 }
 
@@ -818,17 +843,31 @@ public enum GitHubReleaseCheckResult: Equatable, Sendable {
 }
 
 public actor GitHubReleaseService {
+  private struct AssetResponse: Decodable {
+    let name: String
+    let downloadURL: URL
+    let byteCount: Int64
+
+    enum CodingKeys: String, CodingKey {
+      case name
+      case downloadURL = "browser_download_url"
+      case byteCount = "size"
+    }
+  }
+
   private struct ReleaseResponse: Decodable {
     let tagName: String
     let pageURL: URL
     let isDraft: Bool
     let isPrerelease: Bool
+    let assets: [AssetResponse]?
 
     enum CodingKeys: String, CodingKey {
       case tagName = "tag_name"
       case pageURL = "html_url"
       case isDraft = "draft"
       case isPrerelease = "prerelease"
+      case assets
     }
   }
 
@@ -914,16 +953,167 @@ public actor GitHubReleaseService {
     if skippedVersion == version {
       return .skipped(version: version)
     }
+    let archiveName = "iGestures-\(version)-macOS-arm64.dmg"
+    let checksumName = "\(archiveName).sha256"
+    let assets = response.assets ?? []
+    let archive = assets.first { $0.name == archiveName }
+    let checksum = assets.first { $0.name == checksumName }
+    let diskImage: GitHubReleaseDiskImage?
+    if let archive,
+      let checksum,
+      archive.byteCount > 0,
+      Self.isTrustedReleaseAsset(
+        archive.downloadURL,
+        tagName: response.tagName,
+        assetName: archiveName
+      ),
+      Self.isTrustedReleaseAsset(
+        checksum.downloadURL,
+        tagName: response.tagName,
+        assetName: checksumName
+      )
+    {
+      diskImage = GitHubReleaseDiskImage(
+        name: archiveName,
+        downloadURL: archive.downloadURL,
+        checksumURL: checksum.downloadURL,
+        byteCount: archive.byteCount
+      )
+    } else {
+      diskImage = nil
+    }
     return .available(
       GitHubRelease(
         version: version,
-        pageURL: response.pageURL
+        pageURL: response.pageURL,
+        diskImage: diskImage
       )
     )
   }
 
   public func skip(version: String) {
     skippedVersion = version
+  }
+
+  public func download(
+    _ release: GitHubRelease,
+    directoryURL: URL
+  ) async -> Result<URL, UpdateRejectionReason> {
+    guard let diskImage = release.diskImage else {
+      return .failure(.malformedManifest)
+    }
+    do {
+      let (checksumData, checksumResponse) =
+        try await URLSession.shared.data(from: diskImage.checksumURL)
+      guard
+        let checksumResponse = checksumResponse as? HTTPURLResponse,
+        (200..<300).contains(checksumResponse.statusCode),
+        checksumData.count <= 4_096,
+        let expectedChecksum = Self.checksum(
+          in: checksumData,
+          archiveName: diskImage.name
+        )
+      else {
+        return .failure(.invalidChecksum)
+      }
+
+      let (temporaryURL, downloadResponse) =
+        try await URLSession.shared.download(from: diskImage.downloadURL)
+      guard
+        let downloadResponse = downloadResponse as? HTTPURLResponse,
+        (200..<300).contains(downloadResponse.statusCode)
+      else {
+        return .failure(.networkFailure)
+      }
+      let resourceValues = try temporaryURL.resourceValues(
+        forKeys: [.fileSizeKey]
+      )
+      guard
+        resourceValues.fileSize.map(Int64.init) == diskImage.byteCount,
+        try Self.sha256(of: temporaryURL) == expectedChecksum
+      else {
+        return .failure(.invalidChecksum)
+      }
+
+      try FileManager.default.createDirectory(
+        at: directoryURL,
+        withIntermediateDirectories: true
+      )
+      let destinationURL = directoryURL.appendingPathComponent(
+        diskImage.name
+      )
+      if FileManager.default.fileExists(atPath: destinationURL.path) {
+        try FileManager.default.removeItem(at: destinationURL)
+      }
+      try FileManager.default.moveItem(
+        at: temporaryURL,
+        to: destinationURL
+      )
+      return .success(destinationURL)
+    } catch {
+      return .failure(.networkFailure)
+    }
+  }
+
+  static func checksum(
+    in data: Data,
+    archiveName: String
+  ) -> String? {
+    guard let contents = String(data: data, encoding: .utf8) else {
+      return nil
+    }
+    let matches = contents.split(whereSeparator: \Character.isNewline)
+      .compactMap { line -> String? in
+        let fields = line.split(
+          whereSeparator: \Character.isWhitespace
+        )
+        guard fields.count == 2 else { return nil }
+        let checksum = String(fields[0]).lowercased()
+        let name = String(fields[1]).trimmingCharacters(
+          in: CharacterSet(charactersIn: "*")
+        )
+        guard
+          name == archiveName,
+          checksum.count == 64,
+          checksum.allSatisfy(\.isHexDigit)
+        else {
+          return nil
+        }
+        return checksum
+      }
+    guard matches.count == 1 else { return nil }
+    return matches[0]
+  }
+
+  private static func isTrustedReleaseAsset(
+    _ url: URL,
+    tagName: String,
+    assetName: String
+  ) -> Bool {
+    guard
+      url.scheme?.lowercased() == "https",
+      url.host?.lowercased() == "github.com",
+      url.query == nil,
+      url.fragment == nil
+    else {
+      return false
+    }
+    return url.path
+      == "/ron159/iGestures/releases/download/\(tagName)/\(assetName)"
+  }
+
+  private static func sha256(of fileURL: URL) throws -> String {
+    let file = try FileHandle(forReadingFrom: fileURL)
+    defer { try? file.close() }
+    var hasher = SHA256()
+    while let data = try file.read(upToCount: 1_048_576),
+      !data.isEmpty
+    {
+      hasher.update(data: data)
+    }
+    return hasher.finalize()
+      .map { String(format: "%02x", $0) }
+      .joined()
   }
 
   private static func versionComponents(

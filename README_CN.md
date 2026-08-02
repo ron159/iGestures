@@ -72,14 +72,15 @@ iGestures 只在相关功能需要时请求 macOS 权限。
 
 需要 macOS 26 或更高版本以及 Apple Silicon Mac。前往
 [GitHub Releases](https://github.com/ron159/iGestures/releases/latest) 下载最新的
-`iGestures-<版本>-macOS-arm64.zip`。
+`iGestures-<版本>-macOS-arm64.dmg`，打开后将 iGestures 拖入“应用程序”。完成安装后，可通过
+**关于 → 检查更新**直接下载、校验并打开后续版本的 DMG。
 
 首次启动如被阻止，请打开 **系统设置 → 隐私与安全性**，点击**仍要打开**，然后在 iGestures 中完成权限清单。
 
-使用 ZIP 旁附带的校验文件验证下载内容：
+使用 DMG 旁附带的校验文件验证下载内容：
 
 ```shell
-shasum -a 256 -c iGestures-<版本>-macOS-arm64.zip.sha256
+shasum -a 256 -c iGestures-<版本>-macOS-arm64.dmg.sha256
 ```
 
 ### 方式二：从源码构建

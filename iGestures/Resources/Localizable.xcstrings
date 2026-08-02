@@ -1453,6 +1453,16 @@
         }
       }
     },
+    "Download Update": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载更新"
+          }
+        }
+      }
+    },
     "Down": {
       "localizations": {
         "zh-Hans": {
@@ -4387,6 +4397,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新下载未通过验证。当前版本未被更改。"
+          }
+        }
+      }
+    },
+    "The update disk image could not be opened.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法打开更新磁盘映像。"
+          }
+        }
+      }
+    },
+    "The update disk image was downloaded and opened. Quit iGestures, then drag it to Applications to finish installing.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新磁盘映像已下载并打开。请退出 iGestures，然后将它拖入“应用程序”以完成安装。"
           }
         }
       }
