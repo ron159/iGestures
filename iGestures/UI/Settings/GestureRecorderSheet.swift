@@ -251,9 +251,17 @@ struct GestureRecorderSheet: View {
           } else if let applicationName {
             Label(applicationName, systemImage: "app")
           } else {
-            Button(scopeSummary) {
+            Button {
               isEditingScope = true
+            } label: {
+              Text(scopeSummary)
+                .lineLimit(1)
+                .frame(
+                  width: SettingsAlignedControlMetrics.labelWidth,
+                  alignment: .leading
+                )
             }
+            .buttonStyle(.bordered)
           }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -263,35 +271,7 @@ struct GestureRecorderSheet: View {
         Text(String(localized: "Gesture Trigger"))
           .foregroundStyle(.secondary)
         HStack(spacing: 8) {
-          Picker(
-            String(localized: "Gesture Trigger"),
-            selection: Binding(
-              get: { triggerButton },
-              set: { selectTriggerButton($0) }
-            )
-          ) {
-            Text(String(localized: "Use Global Default"))
-              .tag(GestureTriggerButton?.none)
-            ForEach(
-              GestureTriggerButton.commonPresets.filter {
-                $0 != model.secondaryTriggerButton
-              }
-            ) { button in
-              Text(triggerButtonName(button))
-                .tag(GestureTriggerButton?.some(button))
-            }
-            Text(String(localized: "Trackpad Modifier Gesture"))
-              .tag(GestureTriggerButton?.some(.trackpad))
-            if let customButton = triggerButton,
-              customButton != .trackpad,
-              !GestureTriggerButton.commonPresets.contains(customButton)
-            {
-              Text(triggerButtonName(customButton))
-                .tag(GestureTriggerButton?.some(customButton))
-            }
-          }
-          .labelsHidden()
-          .frame(width: 190, alignment: .leading)
+          triggerButtonMenu
 
           TriggerButtonRecorderView(model: model) { button in
             if deviceScope == .trackpad {
@@ -308,32 +288,79 @@ struct GestureRecorderSheet: View {
       GridRow {
         Text(String(localized: "Input Device"))
           .foregroundStyle(.secondary)
-        Picker(
-          String(localized: "Input Device"),
-          selection: Binding(
-            get: { deviceScope },
-            set: {
-              deviceScope = $0
-              training.setDeviceScope($0)
-              if $0 == .trackpad {
-                triggerButton = .trackpad
-                training.setTriggerButton(.trackpad)
-              }
-            }
-          )
-        ) {
-          Text(String(localized: "Any Device"))
-            .tag(InputDeviceScope.any)
-          Text(String(localized: "Mouse"))
-            .tag(InputDeviceScope.mouse(identifier: nil))
-          Text(String(localized: "Trackpad"))
-            .tag(InputDeviceScope.trackpad)
-        }
-        .labelsHidden()
-        .frame(width: 190, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        deviceScopeMenu
+          .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
+  }
+
+  private var triggerButtonMenu: some View {
+    SettingsAlignedSelectionMenu(
+      title: triggerButtonSummary,
+      selection: triggerButton,
+      options: triggerButtonOptions,
+      onSelect: selectTriggerButton
+    )
+  }
+
+  private var deviceScopeMenu: some View {
+    SettingsAlignedSelectionMenu(
+      title: deviceScopeSummary,
+      selection: deviceScope,
+      options: deviceScopeOptions,
+      onSelect: selectDeviceScope
+    )
+  }
+
+  private var triggerButtonOptions:
+    [(
+      title: String,
+      value: GestureTriggerButton?
+    )]
+  {
+    var options: [(title: String, value: GestureTriggerButton?)] = [
+      (
+        String(localized: "Use Global Default"),
+        nil
+      )
+    ]
+    options.append(
+      contentsOf: GestureTriggerButton.commonPresets.filter {
+        $0 != model.secondaryTriggerButton
+      }.map { button in
+        (triggerButtonName(button), button)
+      }
+    )
+    options.append(
+      (
+        String(localized: "Trackpad Modifier Gesture"),
+        .trackpad
+      )
+    )
+    if let customButton = triggerButton,
+      customButton != .trackpad,
+      !GestureTriggerButton.commonPresets.contains(customButton)
+    {
+      options.append((triggerButtonName(customButton), customButton))
+    }
+    return options
+  }
+
+  private var deviceScopeOptions:
+    [(
+      title: String,
+      value: InputDeviceScope
+    )]
+  {
+    var options: [(title: String, value: InputDeviceScope)] = [
+      (String(localized: "Any Device"), .any),
+      (String(localized: "Mouse"), .mouse(identifier: nil)),
+      (String(localized: "Trackpad"), .trackpad),
+    ]
+    if case .mouse(let identifier?) = deviceScope {
+      options.append((identifier, .mouse(identifier: identifier)))
+    }
+    return options
   }
 
   private var footer: some View {
@@ -436,6 +463,22 @@ struct GestureRecorderSheet: View {
     }
   }
 
+  private var triggerButtonSummary: String {
+    triggerButton.map(triggerButtonName)
+      ?? String(localized: "Use Global Default")
+  }
+
+  private var deviceScopeSummary: String {
+    switch deviceScope {
+    case .any:
+      String(localized: "Any Device")
+    case .mouse(let identifier):
+      identifier ?? String(localized: "Mouse")
+    case .trackpad:
+      String(localized: "Trackpad")
+    }
+  }
+
   private func triggerButtonName(
     _ button: GestureTriggerButton
   ) -> String {
@@ -471,6 +514,15 @@ struct GestureRecorderSheet: View {
     feedback = String(
       localized: "Draw the same gesture three times."
     )
+  }
+
+  private func selectDeviceScope(_ scope: InputDeviceScope) {
+    deviceScope = scope
+    training.setDeviceScope(scope)
+    if scope == .trackpad {
+      triggerButton = .trackpad
+      training.setTriggerButton(.trackpad)
+    }
   }
 
   private func handleStroke(_ stroke: [GesturePoint]) {

@@ -2,6 +2,59 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum SettingsAlignedControlMetrics {
+  static let labelWidth: CGFloat = 166
+  static let controlWidth: CGFloat = 190
+}
+
+struct SettingsAlignedSelectionMenu<Value: Hashable>: View {
+  let title: String
+  let selection: Value
+  let options: [(title: String, value: Value)]
+  let onSelect: (Value) -> Void
+
+  var body: some View {
+    Menu {
+      ForEach(options.indices, id: \.self) { index in
+        let option = options[index]
+        Button {
+          onSelect(option.value)
+        } label: {
+          optionLabel(
+            option.title,
+            isSelected: option.value == selection
+          )
+        }
+      }
+    } label: {
+      HStack(spacing: 8) {
+        Text(title)
+          .lineLimit(1)
+          .truncationMode(.middle)
+        Spacer(minLength: 8)
+        Image(systemName: "chevron.up.chevron.down")
+          .foregroundStyle(.secondary)
+      }
+      .frame(width: SettingsAlignedControlMetrics.labelWidth)
+    }
+    .menuIndicator(.hidden)
+    .menuStyle(.button)
+    .buttonStyle(.bordered)
+  }
+
+  @ViewBuilder
+  private func optionLabel(
+    _ title: String,
+    isSelected: Bool
+  ) -> some View {
+    if isSelected {
+      Label(title, systemImage: "checkmark")
+    } else {
+      Text(title)
+    }
+  }
+}
+
 private enum GestureTarget: Hashable {
   case global
   case group(UUID)
@@ -109,7 +162,6 @@ struct GesturesSettingsView: View {
     .gestures(.global)
   @State private var selectedGestureTarget: GestureTarget = .global
   @State private var selectedMappingIDs: Set<UUID> = []
-  @State private var isInspectorPresented = true
   @State private var isPresentingRecorder = false
   @State private var isPresentingPresets = false
   @State private var isAddingGroup = false
@@ -281,8 +333,11 @@ struct GesturesSettingsView: View {
           sidebarPrimaryDestinationRow(
             title: String(localized: "Global"),
             systemImage: "globe",
-            count: mappingCount(for: .global)
-          )
+            count: mappingCount(for: .global),
+            addLabel: String(localized: "Add Gesture")
+          ) {
+            presentRecorder(for: .global)
+          }
           .tag(GestureWorkspaceDestination.gestures(.global))
 
           sidebarExpandableCategoryRow(
@@ -301,8 +356,11 @@ struct GesturesSettingsView: View {
               sidebarDestinationRow(
                 title: group.name,
                 systemImage: "folder",
-                count: mappingCount(for: .group(group.id))
-              )
+                count: mappingCount(for: .group(group.id)),
+                addLabel: String(localized: "Add Gesture")
+              ) {
+                presentRecorder(for: .group(group.id))
+              }
               .tag(
                 GestureWorkspaceDestination.gestures(.group(group.id))
               )
@@ -440,12 +498,9 @@ struct GesturesSettingsView: View {
       }
       .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
 
-      if isInspectorPresented {
-        Divider()
-        gestureInspector
-          .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
-          .transition(.move(edge: .trailing).combined(with: .opacity))
-      }
+      Divider()
+      gestureInspector
+        .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
     }
   }
 
@@ -467,34 +522,19 @@ struct GesturesSettingsView: View {
   }
 
   private var workspaceActions: some View {
-    HStack(spacing: 10) {
+    HStack(spacing: 2) {
       Button {
-        withAnimation(.easeOut(duration: 0.16)) {
-          isInspectorPresented.toggle()
-        }
+        presentRecorder(for: selectedGestureTarget)
       } label: {
-        Image(systemName: "sidebar.trailing")
+        Label(
+          String(localized: "New Gesture"),
+          systemImage: "plus"
+        )
+        .frame(height: 18)
       }
-      .help(
-        isInspectorPresented
-          ? String(localized: "Hide Gesture Details")
-          : String(localized: "Show Gesture Details")
-      )
-      .accessibilityLabel(
-        isInspectorPresented
-          ? String(localized: "Hide Gesture Details")
-          : String(localized: "Show Gesture Details")
-      )
+      .buttonStyle(.borderedProminent)
 
       Menu {
-        Button {
-          isPresentingRecorder = true
-        } label: {
-          Label(
-            String(localized: "Record Gesture"),
-            systemImage: "scribble.variable"
-          )
-        }
         Button {
           isPresentingPresets = true
         } label: {
@@ -503,16 +543,41 @@ struct GesturesSettingsView: View {
             systemImage: "square.grid.2x2"
           )
         }
+        Divider()
+        Button(String(localized: "Enable Selected Gestures")) {
+          model.setMappingsEnabled(
+            ids: selectedMappingIDs,
+            isEnabled: true
+          )
+        }
+        .disabled(!selectedMappings.contains { !$0.isEnabled })
+        Button(String(localized: "Disable Selected Gestures")) {
+          model.setMappingsEnabled(
+            ids: selectedMappingIDs,
+            isEnabled: false
+          )
+        }
+        .disabled(!selectedMappings.contains { $0.isEnabled })
+        Divider()
+        Button(
+          String(localized: "Delete Selected Gestures"),
+          role: .destructive
+        ) {
+          mappingIDsPendingDeletion = selectedMappingIDs
+        }
+        .disabled(selectedMappingIDs.isEmpty)
       } label: {
-        Label(
-          String(localized: "New Gesture"),
-          systemImage: "plus"
-        )
+        Image(systemName: "chevron.down")
+          .frame(width: 18, height: 18)
       }
+      .menuIndicator(.hidden)
       .menuStyle(.button)
       .buttonStyle(.borderedProminent)
-      .disabled(model.isLoadingMappings)
+      .help(String(localized: "More Gesture Actions"))
+      .accessibilityLabel(String(localized: "More Gesture Actions"))
     }
+    .disabled(model.isLoadingMappings)
+    .controlSize(.large)
   }
 
   private var gestureList: some View {
@@ -527,36 +592,6 @@ struct GesturesSettingsView: View {
 
         Text("\(displayedMappings.count)")
           .foregroundStyle(.secondary)
-
-        Menu {
-          Button(String(localized: "Enable Selected Gestures")) {
-            model.setMappingsEnabled(
-              ids: selectedMappingIDs,
-              isEnabled: true
-            )
-          }
-          .disabled(!selectedMappings.contains { !$0.isEnabled })
-          Button(String(localized: "Disable Selected Gestures")) {
-            model.setMappingsEnabled(
-              ids: selectedMappingIDs,
-              isEnabled: false
-            )
-          }
-          .disabled(!selectedMappings.contains { $0.isEnabled })
-          Divider()
-          Button(
-            String(localized: "Delete Selected Gestures"),
-            role: .destructive
-          ) {
-            mappingIDsPendingDeletion = selectedMappingIDs
-          }
-        } label: {
-          Image(systemName: "ellipsis.circle")
-        }
-        .menuStyle(.borderlessButton)
-        .help(String(localized: "More Gesture Actions"))
-        .accessibilityLabel(String(localized: "More Gesture Actions"))
-        .disabled(selectedMappingIDs.isEmpty)
       }
       .padding(.horizontal, 16)
       .padding(.vertical, 10)
@@ -825,43 +860,55 @@ struct GesturesSettingsView: View {
     model.consumeSettingsNavigationRequest()
   }
 
+  private func presentRecorder(for target: GestureTarget) {
+    selectedGestureTarget = target
+    selectedDestination = .gestures(target)
+    DispatchQueue.main.async {
+      isPresentingRecorder = true
+    }
+  }
+
   private func sidebarDestinationRow(
     title: String,
     systemImage: String,
-    count: Int
+    count: Int,
+    addLabel: String,
+    addAction: @escaping () -> Void
   ) -> some View {
     HStack(spacing: 10) {
       sidebarNavigationIcon(systemImage)
       Text(title)
+        .lineLimit(1)
       Spacer()
-      if count > 0 {
-        Text("\(count)")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .monospacedDigit()
-      }
+      sidebarTrailingControls(
+        count: count,
+        addLabel: addLabel,
+        addAction: addAction
+      )
     }
-    .frame(minHeight: 30)
+    .frame(maxWidth: .infinity, minHeight: 30)
   }
 
   private func sidebarPrimaryDestinationRow(
     title: String,
     systemImage: String,
-    count: Int
+    count: Int,
+    addLabel: String,
+    addAction: @escaping () -> Void
   ) -> some View {
     HStack(spacing: 10) {
       sidebarNavigationIcon(systemImage)
       Text(title)
         .font(.body.weight(.medium))
+        .lineLimit(1)
       Spacer()
-      if count > 0 {
-        Text("\(count)")
-          .font(.callout)
-          .foregroundStyle(.secondary)
-          .monospacedDigit()
-      }
+      sidebarTrailingControls(
+        count: count,
+        addLabel: addLabel,
+        addAction: addAction
+      )
     }
-    .frame(minHeight: 38)
+    .frame(maxWidth: .infinity, minHeight: 38)
   }
 
   private func sidebarExpandableCategoryRow(
@@ -872,7 +919,7 @@ struct GesturesSettingsView: View {
     addLabel: String,
     addAction: @escaping () -> Void
   ) -> some View {
-    HStack(spacing: 8) {
+    HStack(spacing: 4) {
       Button {
         withAnimation(.easeInOut(duration: 0.12)) {
           isExpanded.wrappedValue.toggle()
@@ -889,19 +936,35 @@ struct GesturesSettingsView: View {
           sidebarNavigationIcon(systemImage)
           Text(title)
             .font(.body.weight(.medium))
+            .lineLimit(1)
           Spacer(minLength: 8)
-          if count > 0 {
-            Text("\(count)")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .monospacedDigit()
-          }
         }
         .frame(maxWidth: .infinity, minHeight: 34)
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
       .accessibilityLabel(title)
+
+      sidebarTrailingControls(
+        count: count,
+        addLabel: addLabel,
+        addAction: addAction
+      )
+    }
+    .frame(maxWidth: .infinity, minHeight: 34)
+  }
+
+  private func sidebarTrailingControls(
+    count: Int,
+    addLabel: String,
+    addAction: @escaping () -> Void
+  ) -> some View {
+    HStack(spacing: 4) {
+      Text(count > 0 ? "\(count)" : "")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .monospacedDigit()
+        .frame(width: 24, alignment: .trailing)
 
       Button(action: addAction) {
         Image(systemName: "plus")
@@ -914,7 +977,6 @@ struct GesturesSettingsView: View {
       .help(addLabel)
       .accessibilityLabel(addLabel)
     }
-    .frame(maxWidth: .infinity, minHeight: 34)
   }
 
   private func sidebarNavigationIcon(_ systemImage: String) -> some View {
@@ -1027,13 +1089,14 @@ struct GesturesSettingsView: View {
         .lineLimit(1)
       Spacer()
       let count = mappingCount(for: .application(bundleIdentifier))
-      if count > 0 {
-        Text("\(count)")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .monospacedDigit()
+      sidebarTrailingControls(
+        count: count,
+        addLabel: String(localized: "Add Gesture")
+      ) {
+        presentRecorder(for: .application(bundleIdentifier))
       }
     }
+    .frame(maxWidth: .infinity, minHeight: 30)
     .tag(
       GestureWorkspaceDestination.gestures(
         .application(bundleIdentifier)
@@ -1358,6 +1421,10 @@ private struct GestureLibraryRow: View {
 }
 
 private struct GestureMappingInspector: View {
+  private struct ScopeEditorPresentation: Identifiable {
+    let id = UUID()
+  }
+
   private struct SecondaryActionEditorItem: Identifiable {
     let id = UUID()
     let action: GestureAction
@@ -1375,7 +1442,7 @@ private struct GestureMappingInspector: View {
   @FocusState private var isNameFocused: Bool
   @State private var isEditingAction = false
   @State private var secondaryActionEditorItem: SecondaryActionEditorItem?
-  @State private var isEditingScope = false
+  @State private var scopeEditorPresentation: ScopeEditorPresentation?
   @State private var isRetraining = false
   @State private var isConfirmingDeletion = false
 
@@ -1423,7 +1490,7 @@ private struct GestureMappingInspector: View {
     .onDisappear {
       commitName()
     }
-    .sheet(isPresented: $isEditingScope) {
+    .sheet(item: $scopeEditorPresentation) { _ in
       AppScopeEditor(scope: mapping.appScope) {
         model.setMappingAppScope(id: mapping.id, appScope: $0)
       }
@@ -1477,7 +1544,7 @@ private struct GestureMappingInspector: View {
     isNameFocused = false
     isEditingAction = false
     secondaryActionEditorItem = nil
-    isEditingScope = false
+    scopeEditorPresentation = nil
     isRetraining = false
     isConfirmingDeletion = false
   }
@@ -1544,61 +1611,87 @@ private struct GestureMappingInspector: View {
   private var mappingScopeControl: some View {
     if let applicationGroupName {
       Label(applicationGroupName, systemImage: "folder")
+        .lineLimit(1)
+        .frame(
+          width: SettingsAlignedControlMetrics.controlWidth,
+          alignment: .leading
+        )
     } else if let applicationName {
       Label(applicationName, systemImage: "app")
+        .lineLimit(1)
+        .frame(
+          width: SettingsAlignedControlMetrics.controlWidth,
+          alignment: .leading
+        )
     } else {
-      Button(scopeSummary(mapping.appScope)) {
-        isEditingScope = true
+      Button {
+        scopeEditorPresentation = ScopeEditorPresentation()
+      } label: {
+        Text(scopeSummary(mapping.appScope))
+          .lineLimit(1)
+          .frame(
+            width: SettingsAlignedControlMetrics.labelWidth,
+            alignment: .leading
+          )
       }
+      .buttonStyle(.bordered)
     }
   }
 
   private var mappingTriggerControls: some View {
     ViewThatFits(in: .horizontal) {
       HStack(spacing: 8) {
-        mappingTriggerPicker
+        mappingTriggerMenu
         mappingTriggerRecorder
       }
       VStack(alignment: .leading, spacing: 8) {
-        mappingTriggerPicker
+        mappingTriggerMenu
         mappingTriggerRecorder
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private var mappingTriggerPicker: some View {
-    Picker(
-      String(localized: "Trigger"),
-      selection: Binding(
-        get: { mapping.triggerButton },
-        set: {
-          model.setMappingTriggerButton(
-            id: mapping.id,
-            triggerButton: $0
-          )
-        }
+  private var mappingTriggerMenu: some View {
+    SettingsAlignedSelectionMenu(
+      title: mappingTriggerSummary,
+      selection: mapping.triggerButton,
+      options: mappingTriggerOptions
+    ) { button in
+      model.setMappingTriggerButton(
+        id: mapping.id,
+        triggerButton: button
       )
-    ) {
-      Text(String(localized: "Use Global Default"))
-        .tag(GestureTriggerButton?.none)
-      ForEach(
-        GestureTriggerButton.commonPresets.filter {
-          $0 != model.secondaryTriggerButton
-        }
-      ) { button in
-        Text(triggerButtonName(button))
-          .tag(GestureTriggerButton?.some(button))
-      }
-      if let customButton = mapping.triggerButton,
-        !GestureTriggerButton.commonPresets.contains(customButton)
-      {
-        Text(triggerButtonName(customButton))
-          .tag(GestureTriggerButton?.some(customButton))
-      }
     }
-    .labelsHidden()
-    .frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var mappingTriggerOptions:
+    [(
+      title: String,
+      value: GestureTriggerButton?
+    )]
+  {
+    var options: [(title: String, value: GestureTriggerButton?)] = [
+      (String(localized: "Use Global Default"), nil)
+    ]
+    options.append(
+      contentsOf: GestureTriggerButton.commonPresets.filter {
+        $0 != model.secondaryTriggerButton
+      }.map { button in
+        (triggerButtonName(button), button)
+      }
+    )
+    if let customButton = mapping.triggerButton,
+      !GestureTriggerButton.commonPresets.contains(customButton)
+    {
+      options.append((triggerButtonName(customButton), customButton))
+    }
+    return options
+  }
+
+  private var mappingTriggerSummary: String {
+    mapping.triggerButton.map(triggerButtonName)
+      ?? String(localized: "Use Global Default")
   }
 
   private var mappingTriggerRecorder: some View {
@@ -1614,35 +1707,48 @@ private struct GestureMappingInspector: View {
         )
       }
     }
-    .frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
+    .frame(width: 170, alignment: .leading)
   }
 
   private var mappingDevicePicker: some View {
-    Picker(
-      String(localized: "Input Device"),
-      selection: Binding(
-        get: { mapping.deviceScope },
-        set: {
-          model.setMappingDeviceScope(
-            id: mapping.id,
-            deviceScope: $0
-          )
-        }
+    SettingsAlignedSelectionMenu(
+      title: mappingDeviceSummary,
+      selection: mapping.deviceScope,
+      options: mappingDeviceOptions
+    ) { scope in
+      model.setMappingDeviceScope(
+        id: mapping.id,
+        deviceScope: scope
       )
-    ) {
-      Text(String(localized: "Any Device"))
-        .tag(InputDeviceScope.any)
-      Text(String(localized: "Mouse"))
-        .tag(InputDeviceScope.mouse(identifier: nil))
-      Text(String(localized: "Trackpad"))
-        .tag(InputDeviceScope.trackpad)
-      if case .mouse(let identifier?) = mapping.deviceScope {
-        Text(identifier)
-          .tag(InputDeviceScope.mouse(identifier: identifier))
-      }
     }
-    .labelsHidden()
-    .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var mappingDeviceOptions:
+    [(
+      title: String,
+      value: InputDeviceScope
+    )]
+  {
+    var options: [(title: String, value: InputDeviceScope)] = [
+      (String(localized: "Any Device"), .any),
+      (String(localized: "Mouse"), .mouse(identifier: nil)),
+      (String(localized: "Trackpad"), .trackpad),
+    ]
+    if case .mouse(let identifier?) = mapping.deviceScope {
+      options.append((identifier, .mouse(identifier: identifier)))
+    }
+    return options
+  }
+
+  private var mappingDeviceSummary: String {
+    switch mapping.deviceScope {
+    case .any:
+      String(localized: "Any Device")
+    case .mouse(let identifier):
+      identifier ?? String(localized: "Mouse")
+    case .trackpad:
+      String(localized: "Trackpad")
+    }
   }
 
   private var mappingRepeatToggle: some View {
@@ -2516,6 +2622,10 @@ struct GestureActionEditorSheet: View {
 }
 
 struct GestureActionEditor: View {
+  private struct PresetLibraryPresentation: Identifiable {
+    let id = UUID()
+  }
+
   private enum Kind: String, CaseIterable, Identifiable {
     case keyboardShortcut
     case openURL
@@ -2565,7 +2675,7 @@ struct GestureActionEditor: View {
   @Binding var action: GestureAction
   @ObservedObject var model: AppModel
   @State private var presetSearchText = ""
-  @State private var isPresentingPresetLibrary = false
+  @State private var presetLibraryPresentation: PresetLibraryPresentation?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -2573,7 +2683,9 @@ struct GestureActionEditor: View {
         searchText: $presetSearchText,
         action: $action,
         model: model,
-        isPresentingLibrary: $isPresentingPresetLibrary
+        onBrowseLibrary: {
+          presetLibraryPresentation = PresetLibraryPresentation()
+        }
       )
 
       Divider()
@@ -2690,7 +2802,7 @@ struct GestureActionEditor: View {
         ScriptActionEditor(script: script, model: model)
       }
     }
-    .sheet(isPresented: $isPresentingPresetLibrary) {
+    .sheet(item: $presetLibraryPresentation) { _ in
       ActionPresetLibrarySheet(
         action: $action,
         model: model
@@ -3133,7 +3245,7 @@ private struct ActionPresetSearchSection: View {
   @Binding var searchText: String
   @Binding var action: GestureAction
   @ObservedObject var model: AppModel
-  @Binding var isPresentingLibrary: Bool
+  let onBrowseLibrary: () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -3144,9 +3256,7 @@ private struct ActionPresetSearchSection: View {
         )
         .textFieldStyle(.roundedBorder)
 
-        Button {
-          isPresentingLibrary = true
-        } label: {
+        Button(action: onBrowseLibrary) {
           Label(
             String(localized: "Browse Action Library"),
             systemImage: "square.grid.2x2"

@@ -104,9 +104,13 @@ private final class SettingsWindowController: ObservableObject {
     let windowController =
       windowController ?? makeWindowController()
     self.windowController = windowController
-    NSApp.activate()
     windowController.showWindow(nil)
     windowController.window?.makeKeyAndOrderFront(nil)
+
+    DispatchQueue.main.async {
+      NSApp.activate(ignoringOtherApps: true)
+      windowController.window?.makeKeyAndOrderFront(nil)
+    }
   }
 
   private func makeWindowController() -> NSWindowController {

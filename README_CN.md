@@ -138,6 +138,11 @@ flowchart LR
 Bug 与建议欢迎提交到
 [GitHub Issues](https://github.com/ron159/iGestures/issues)。
 
+## 致谢
+
+感谢 [MacGesture/MacGesture](https://github.com/MacGesture/MacGesture) 和
+[WGestures 2](https://www.yingdev.com/projects/wgestures2) 为本项目提供的灵感与参考。
+
 ## 开源协议
 
 Copyright © 2026 ron159.
