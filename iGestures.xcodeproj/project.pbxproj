@@ -62,6 +62,11 @@
 		A20000000000000000000036 /* FrontmostWindowResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000003A /* FrontmostWindowResolverTests.swift */; };
 		A20000000000000000000037 /* DiagnosticLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000003B /* DiagnosticLogger.swift */; };
 		A20000000000000000000038 /* DiagnosticLoggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000003C /* DiagnosticLoggerTests.swift */; };
+		A20000000000000000000039 /* ApplicationIconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000003D /* ApplicationIconService.swift */; };
+		A2000000000000000000003A /* AppIcon-LightWave.icns in Resources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000003E /* AppIcon-LightWave.icns */; };
+		A2000000000000000000003B /* AppIcon-GestureRunner.icns in Resources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000003F /* AppIcon-GestureRunner.icns */; };
+		A2000000000000000000003C /* AppIcon-GestureThinker.icns in Resources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000040 /* AppIcon-GestureThinker.icns */; };
+		A2000000000000000000003D /* AppIcon-PurpleMouse.icns in Resources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000041 /* AppIcon-PurpleMouse.icns */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -134,6 +139,11 @@
 		A2100000000000000000003A /* FrontmostWindowResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontmostWindowResolverTests.swift; sourceTree = "<group>"; };
 		A2100000000000000000003B /* DiagnosticLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogger.swift; sourceTree = "<group>"; };
 		A2100000000000000000003C /* DiagnosticLoggerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLoggerTests.swift; sourceTree = "<group>"; };
+		A2100000000000000000003D /* ApplicationIconService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationIconService.swift; sourceTree = "<group>"; };
+		A2100000000000000000003E /* AppIcon-LightWave.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "AlternateAppIcons/AppIcon-LightWave.icns"; sourceTree = "<group>"; };
+		A2100000000000000000003F /* AppIcon-GestureRunner.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "AlternateAppIcons/AppIcon-GestureRunner.icns"; sourceTree = "<group>"; };
+		A21000000000000000000040 /* AppIcon-GestureThinker.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "AlternateAppIcons/AppIcon-GestureThinker.icns"; sourceTree = "<group>"; };
+		A21000000000000000000041 /* AppIcon-PurpleMouse.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "AlternateAppIcons/AppIcon-PurpleMouse.icns"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -234,6 +244,10 @@
 			isa = PBXGroup;
 			children = (
 				A21000000000000000000031 /* Assets.xcassets */,
+				A2100000000000000000003F /* AppIcon-GestureRunner.icns */,
+				A21000000000000000000040 /* AppIcon-GestureThinker.icns */,
+				A2100000000000000000003E /* AppIcon-LightWave.icns */,
+				A21000000000000000000041 /* AppIcon-PurpleMouse.icns */,
 				A2100000000000000000000A /* Localizable.xcstrings */,
 				A2100000000000000000002A /* PrivacyInfo.xcprivacy */,
 			);
@@ -288,6 +302,7 @@
 			isa = PBXGroup;
 			children = (
 				A21000000000000000000037 /* ActionPresetLibrary.swift */,
+				A2100000000000000000003D /* ApplicationIconService.swift */,
 				A2100000000000000000002F /* AppPreferencesStore.swift */,
 				A2100000000000000000003B /* DiagnosticLogger.swift */,
 				A21000000000000000000016 /* FrontmostAppProvider.swift */,
@@ -422,6 +437,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A2000000000000000000003B /* AppIcon-GestureRunner.icns in Resources */,
+				A2000000000000000000003C /* AppIcon-GestureThinker.icns in Resources */,
+				A2000000000000000000003A /* AppIcon-LightWave.icns in Resources */,
+				A2000000000000000000003D /* AppIcon-PurpleMouse.icns in Resources */,
 				A2000000000000000000002E /* Assets.xcassets in Resources */,
 				A20000000000000000000008 /* Localizable.xcstrings in Resources */,
 				A20000000000000000000027 /* PrivacyInfo.xcprivacy in Resources */,
@@ -443,6 +462,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A20000000000000000000001 /* AppModel.swift in Sources */,
+				A20000000000000000000039 /* ApplicationIconService.swift in Sources */,
 				A20000000000000000000002 /* IGesturesApp.swift in Sources */,
 				A20000000000000000000003 /* GesturePoint.swift in Sources */,
 				A20000000000000000000004 /* GestureTemplate.swift in Sources */,

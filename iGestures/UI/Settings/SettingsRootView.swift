@@ -182,6 +182,8 @@ struct GeneralSettingsView: View {
           Text(String(localized: "Dark"))
             .tag(InterfaceAppearance.dark)
         }
+
+        ApplicationIconPicker(model: model)
       }
 
       Section(String(localized: "Language")) {
@@ -464,6 +466,128 @@ struct GeneralSettingsView: View {
       VStack(alignment: .trailing, spacing: 8) {
         content()
       }
+    }
+  }
+}
+
+private struct ApplicationIconPicker: View {
+  @ObservedObject var model: AppModel
+
+  private let columns = [
+    GridItem(
+      .adaptive(minimum: 82, maximum: 96),
+      spacing: 12
+    )
+  ]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text(String(localized: "Application Icon"))
+
+      LazyVGrid(
+        columns: columns,
+        alignment: .leading,
+        spacing: 12
+      ) {
+        ForEach(ApplicationIconChoice.allCases) { icon in
+          iconButton(icon)
+        }
+      }
+
+      Text(
+        String(
+          localized:
+            "Changes the icon shown in the Dock and app switcher immediately."
+        )
+      )
+      .font(.caption)
+      .foregroundStyle(.secondary)
+
+      if let error = model.applicationIconError {
+        Label(error, systemImage: "exclamationmark.triangle.fill")
+          .font(.caption)
+          .foregroundStyle(.red)
+      }
+    }
+    .padding(.vertical, 4)
+  }
+
+  private func iconButton(
+    _ icon: ApplicationIconChoice
+  ) -> some View {
+    let isSelected = model.applicationIcon == icon
+
+    return Button {
+      model.setApplicationIcon(icon)
+    } label: {
+      VStack(spacing: 6) {
+        ZStack(alignment: .bottomTrailing) {
+          Group {
+            if let image = model.applicationIconImage(for: icon) {
+              Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+            } else {
+              Image(systemName: "app.dashed")
+                .resizable()
+                .scaledToFit()
+                .padding(14)
+                .foregroundStyle(.secondary)
+            }
+          }
+          .frame(width: 64, height: 64)
+
+          if isSelected {
+            Image(systemName: "checkmark.circle.fill")
+              .symbolRenderingMode(.palette)
+              .foregroundStyle(.white, .tint)
+              .background(Circle().fill(.background))
+              .accessibilityHidden(true)
+          }
+        }
+
+        Text(icon.localizedName)
+          .font(.caption)
+          .lineLimit(1)
+      }
+      .frame(maxWidth: .infinity)
+      .padding(8)
+      .background(
+        RoundedRectangle(cornerRadius: 10)
+          .fill(
+            isSelected
+              ? Color.accentColor.opacity(0.12)
+              : Color.clear
+          )
+      )
+      .overlay {
+        RoundedRectangle(cornerRadius: 10)
+          .stroke(
+            isSelected ? Color.accentColor : Color.clear,
+            lineWidth: 1.5
+          )
+      }
+      .contentShape(RoundedRectangle(cornerRadius: 10))
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(icon.localizedName)
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
+  }
+}
+
+extension ApplicationIconChoice {
+  fileprivate var localizedName: String {
+    switch self {
+    case .systemDefault:
+      String(localized: "Default")
+    case .lightWave:
+      String(localized: "Warm Greeting")
+    case .gestureRunner:
+      String(localized: "Gesture Runner")
+    case .gestureThinker:
+      String(localized: "Clever Gesture")
+    case .purpleMouse:
+      String(localized: "Purple Mouse")
     }
   }
 }

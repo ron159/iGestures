@@ -1,3 +1,4 @@
+import AppKit
 import CryptoKit
 import Foundation
 import XCTest
@@ -19,6 +20,7 @@ final class AppPreferencesStoreTests: XCTestCase {
     XCTAssertNil(store.trailColor)
     XCTAssertEqual(store.interfaceAppearance, .system)
     XCTAssertEqual(store.interfaceLanguage, .system)
+    XCTAssertEqual(store.applicationIcon, .systemDefault)
     XCTAssertEqual(store.triggerButton, .right)
     XCTAssertNil(store.secondaryTriggerButton)
     XCTAssertEqual(
@@ -42,6 +44,7 @@ final class AppPreferencesStoreTests: XCTestCase {
     store.setTrailColor(trailColor)
     store.setInterfaceAppearance(.dark)
     store.setInterfaceLanguage(.simplifiedChinese)
+    store.setApplicationIcon(.gestureThinker)
     store.setTriggerButton(
       GestureTriggerButton(buttonNumber: 7)
     )
@@ -63,6 +66,7 @@ final class AppPreferencesStoreTests: XCTestCase {
     XCTAssertEqual(reloaded.trailColor, trailColor)
     XCTAssertEqual(reloaded.interfaceAppearance, .dark)
     XCTAssertEqual(reloaded.interfaceLanguage, .simplifiedChinese)
+    XCTAssertEqual(reloaded.applicationIcon, .gestureThinker)
     XCTAssertEqual(
       userDefaults.stringArray(forKey: "AppleLanguages"),
       ["zh-Hans"]
@@ -186,6 +190,22 @@ final class AppPreferencesStoreTests: XCTestCase {
       store.triggerDuration,
       GestureInputConfiguration.maximumTriggerDuration
     )
+  }
+
+  @MainActor
+  func testInvalidApplicationIconFallsBackToDefault() {
+    let (suiteName, userDefaults) = makeUserDefaults()
+    defer {
+      userDefaults.removePersistentDomain(forName: suiteName)
+    }
+    userDefaults.set(
+      "missing-icon",
+      forKey: "general.application-icon"
+    )
+
+    let store = AppPreferencesStore(userDefaults: userDefaults)
+
+    XCTAssertEqual(store.applicationIcon, .systemDefault)
   }
 
   @MainActor
@@ -559,5 +579,69 @@ final class AppPreferencesStoreTests: XCTestCase {
       suiteName,
       UserDefaults(suiteName: suiteName)!
     )
+  }
+}
+
+final class ApplicationIconServiceTests: XCTestCase {
+  @MainActor
+  func testAppliesCustomIconAndRestoresDefault() {
+    let defaultImage = NSImage(size: NSSize(width: 32, height: 32))
+    let customImage = NSImage(size: NSSize(width: 64, height: 64))
+    var appliedImage: NSImage?
+    var applyCount = 0
+    var loadCount = 0
+    let service = ApplicationIconService(
+      defaultIconImage: defaultImage,
+      imageLoader: { resourceName in
+        loadCount += 1
+        return resourceName == "AppIcon-GestureRunner"
+          ? customImage
+          : nil
+      },
+      applyImage: { image in
+        appliedImage = image
+        applyCount += 1
+      }
+    )
+
+    XCTAssertTrue(service.apply(.gestureRunner))
+    XCTAssertTrue(appliedImage === customImage)
+    XCTAssertTrue(service.image(for: .gestureRunner) === customImage)
+    XCTAssertEqual(loadCount, 1)
+    XCTAssertTrue(service.image(for: .systemDefault) === defaultImage)
+
+    XCTAssertTrue(service.apply(.systemDefault))
+    XCTAssertNil(appliedImage)
+    XCTAssertEqual(applyCount, 2)
+  }
+
+  @MainActor
+  func testMissingCustomIconDoesNotReplaceCurrentIcon() {
+    let defaultImage = NSImage(size: NSSize(width: 32, height: 32))
+    var applyCount = 0
+    let service = ApplicationIconService(
+      defaultIconImage: defaultImage,
+      imageLoader: { _ in nil },
+      applyImage: { _ in applyCount += 1 }
+    )
+
+    XCTAssertFalse(service.apply(.purpleMouse))
+    XCTAssertEqual(applyCount, 0)
+  }
+
+  @MainActor
+  func testAlternateIconResourcesAreBundledAndLoadable() throws {
+    let bundle = Bundle(for: ApplicationIconService.self)
+
+    for icon in ApplicationIconChoice.allCases {
+      guard let resourceName = icon.resourceName else { continue }
+      let resourceURL = try XCTUnwrap(
+        bundle.url(
+          forResource: resourceName,
+          withExtension: "icns"
+        )
+      )
+      XCTAssertNotNil(NSImage(contentsOf: resourceURL))
+    }
   }
 }

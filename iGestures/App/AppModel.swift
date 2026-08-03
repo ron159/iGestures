@@ -74,6 +74,9 @@ final class AppModel: ObservableObject {
     .system
   @Published private(set) var interfaceLanguage: InterfaceLanguage =
     .system
+  @Published private(set) var applicationIcon: ApplicationIconChoice =
+    .systemDefault
+  @Published private(set) var applicationIconError: String?
   @Published private(set) var languageRestartRequired = false
   @Published private(set) var triggerButton: GestureTriggerButton = .right
   @Published private(set) var secondaryTriggerButton: GestureTriggerButton?
@@ -123,6 +126,7 @@ final class AppModel: ObservableObject {
 
   private let permissionCoordinator: PermissionCoordinator
   private let preferencesStore: AppPreferencesStore
+  private let applicationIconService: any ApplicationIconApplying
   private let loginItemController: LoginItemController
   private let eventTapManager: EventTapManager
   private let mappingStore: MappingStore?
@@ -147,6 +151,7 @@ final class AppModel: ObservableObject {
   init(
     permissionCoordinator: PermissionCoordinator? = nil,
     preferencesStore: AppPreferencesStore? = nil,
+    applicationIconService: (any ApplicationIconApplying)? = nil,
     loginItemController: LoginItemController? = nil,
     eventTapManager: EventTapManager? = nil,
     mappingStore: MappingStore? = nil,
@@ -158,6 +163,9 @@ final class AppModel: ObservableObject {
     let preferencesStore =
       preferencesStore ?? AppPreferencesStore()
     self.preferencesStore = preferencesStore
+    let applicationIconService =
+      applicationIconService ?? ApplicationIconService()
+    self.applicationIconService = applicationIconService
     let bundleIdentifier =
       Bundle.main.bundleIdentifier ?? "com.ron159.igestures.dev"
     let diagnosticLogger = DiagnosticLogger.live(
@@ -176,6 +184,7 @@ final class AppModel: ObservableObject {
       ?? .controlAccentColor
     self.interfaceAppearance = preferencesStore.interfaceAppearance
     self.interfaceLanguage = preferencesStore.interfaceLanguage
+    self.applicationIcon = preferencesStore.applicationIcon
     self.triggerButton = preferencesStore.triggerButton
     self.secondaryTriggerButton =
       preferencesStore.secondaryTriggerButton
@@ -279,6 +288,11 @@ final class AppModel: ObservableObject {
       ?? (try? ScriptLibraryStore.live(
         bundleIdentifier: bundleIdentifier
       ))
+    if !applicationIconService.apply(applicationIcon) {
+      applicationIcon = .systemDefault
+      preferencesStore.setApplicationIcon(.systemDefault)
+      applicationIconService.apply(.systemDefault)
+    }
     overlayController.eventSink.setEnabled(isOverlayEnabled)
     overlayController.setTrailColor(trailColor)
     overlayController.feedbackSink.setEnabled(isFeedbackEnabled)
@@ -662,6 +676,36 @@ final class AppModel: ObservableObject {
   func setInterfaceAppearance(_ appearance: InterfaceAppearance) {
     interfaceAppearance = appearance
     preferencesStore.setInterfaceAppearance(appearance)
+  }
+
+  func applicationIconImage(
+    for icon: ApplicationIconChoice
+  ) -> NSImage? {
+    applicationIconService.image(for: icon)
+  }
+
+  func setApplicationIcon(_ icon: ApplicationIconChoice) {
+    guard icon != applicationIcon else {
+      applicationIconError = nil
+      return
+    }
+    guard applicationIconService.apply(icon) else {
+      applicationIconError = String(
+        localized: "The selected application icon could not be loaded."
+      )
+      return
+    }
+    applicationIcon = icon
+    applicationIconError = nil
+    preferencesStore.setApplicationIcon(icon)
+    diagnosticLogger.record(
+      category: "settings",
+      name: "changed",
+      metadata: [
+        "setting": "application_icon",
+        "value": icon.rawValue,
+      ]
+    )
   }
 
   func setInterfaceLanguage(_ language: InterfaceLanguage) {

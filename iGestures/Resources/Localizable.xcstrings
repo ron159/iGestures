@@ -6240,6 +6240,76 @@
           }
         }
       }
+    },
+    "Application Icon": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用图标"
+          }
+        }
+      }
+    },
+    "Changes the icon shown in the Dock and app switcher immediately.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即更改程序坞和应用切换器中显示的图标。"
+          }
+        }
+      }
+    },
+    "Clever Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "灵动手势"
+          }
+        }
+      }
+    },
+    "Gesture Runner": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势奔跑"
+          }
+        }
+      }
+    },
+    "Purple Mouse": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "紫色鼠标"
+          }
+        }
+      }
+    },
+    "The selected application icon could not be loaded.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载所选应用图标。"
+          }
+        }
+      }
+    },
+    "Warm Greeting": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "温暖问候"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

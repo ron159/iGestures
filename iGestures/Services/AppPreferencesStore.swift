@@ -160,6 +160,7 @@ public final class AppPreferencesStore {
     static let trailColor = "general.trail-color"
     static let interfaceAppearance = "general.interface-appearance"
     static let interfaceLanguage = "general.interface-language"
+    static let applicationIcon = "general.application-icon"
     static let triggerButton = "general.trigger-button"
     static let secondaryTriggerButton =
       "general.secondary-trigger-button"
@@ -239,6 +240,16 @@ public final class AppPreferencesStore {
       return .system
     }
     return language
+  }
+
+  public var applicationIcon: ApplicationIconChoice {
+    guard
+      let rawValue = userDefaults.string(forKey: Key.applicationIcon),
+      let icon = ApplicationIconChoice(rawValue: rawValue)
+    else {
+      return .systemDefault
+    }
+    return icon
   }
 
   public var triggerButton: GestureTriggerButton {
@@ -475,6 +486,14 @@ public final class AppPreferencesStore {
     } else {
       userDefaults.removeObject(forKey: "AppleLanguages")
     }
+  }
+
+  public func setApplicationIcon(_ icon: ApplicationIconChoice) {
+    guard icon != .systemDefault else {
+      userDefaults.removeObject(forKey: Key.applicationIcon)
+      return
+    }
+    userDefaults.set(icon.rawValue, forKey: Key.applicationIcon)
   }
 
   public func setTriggerButton(_ triggerButton: GestureTriggerButton) {
