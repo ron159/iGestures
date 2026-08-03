@@ -31,5 +31,10 @@ xcuserdata/
 .idea/
 *~
 
+# Local Codex environment
+.codex/
+script/build_and_run.sh
+:memory:
+
 # Local documentation
 /doc/

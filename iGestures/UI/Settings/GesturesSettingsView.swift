@@ -144,6 +144,107 @@ private final class ScrollIndicatorConfigurationView: NSView {
   }
 }
 
+private struct HorizontalMouseWheelScrollBridge: NSViewRepresentable {
+  func makeCoordinator() -> Coordinator {
+    Coordinator()
+  }
+
+  func makeNSView(context: Context) -> NSView {
+    let view = NSView()
+    context.coordinator.attach(to: view)
+    return view
+  }
+
+  func updateNSView(_ nsView: NSView, context: Context) {
+    context.coordinator.attach(to: nsView)
+  }
+
+  static func dismantleNSView(
+    _ nsView: NSView,
+    coordinator: Coordinator
+  ) {
+    coordinator.stopMonitoring()
+  }
+
+  @MainActor
+  final class Coordinator {
+    private weak var view: NSView?
+    private var eventMonitor: Any?
+
+    func attach(to view: NSView) {
+      self.view = view
+      guard eventMonitor == nil else { return }
+      eventMonitor = NSEvent.addLocalMonitorForEvents(
+        matching: .scrollWheel
+      ) { [weak self] event in
+        self?.handle(event) ?? event
+      }
+    }
+
+    func stopMonitoring() {
+      if let eventMonitor {
+        NSEvent.removeMonitor(eventMonitor)
+      }
+      eventMonitor = nil
+      view = nil
+    }
+
+    private func handle(_ event: NSEvent) -> NSEvent? {
+      guard let view,
+        event.window === view.window,
+        view.bounds.contains(
+          view.convert(event.locationInWindow, from: nil)
+        ),
+        let scrollView = view.enclosingScrollView
+      else {
+        return event
+      }
+
+      let delta =
+        abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
+        ? event.scrollingDeltaX
+        : event.scrollingDeltaY
+      guard delta != 0 else { return event }
+
+      return scroll(
+        scrollView,
+        by: delta,
+        precise: event.hasPreciseScrollingDeltas
+      ) ? nil : event
+    }
+
+    private func scroll(
+      _ scrollView: NSScrollView,
+      by delta: CGFloat,
+      precise: Bool
+    ) -> Bool {
+      guard let documentView = scrollView.documentView else {
+        return false
+      }
+      let clipView = scrollView.contentView
+      let currentX = clipView.bounds.origin.x
+      let maximumX = max(
+        0,
+        documentView.bounds.width - clipView.bounds.width
+      )
+      let multiplier: CGFloat = precise ? 1 : 32
+      let nextX = min(
+        maximumX,
+        max(0, currentX - delta * multiplier)
+      )
+      guard abs(nextX - currentX) > 0.5 else {
+        return false
+      }
+
+      clipView.scroll(
+        to: NSPoint(x: nextX, y: clipView.bounds.origin.y)
+      )
+      scrollView.reflectScrolledClipView(clipView)
+      return true
+    }
+  }
+}
+
 private struct SidebarMaterialBackground: NSViewRepresentable {
   func makeNSView(context: Context) -> NSVisualEffectView {
     let view = NSVisualEffectView()
@@ -1552,7 +1653,8 @@ private struct GestureMappingInspector: View {
   private var gesturePreview: some View {
     VStack(alignment: .leading, spacing: 8) {
       GestureTemplatePreview(
-        template: mapping.templates.first ?? .emptyPreview
+        template: mapping.templates.first ?? .emptyPreview,
+        animatesDrawing: true
       )
       .frame(width: 190, height: 150)
 
@@ -2099,6 +2201,73 @@ private struct GesturePresetLibraryView: View {
 
 struct GestureTemplatePreview: View {
   let template: GestureTemplate
+  let animatesDrawing: Bool
+
+  init(
+    template: GestureTemplate,
+    animatesDrawing: Bool = false
+  ) {
+    self.template = template
+    self.animatesDrawing = animatesDrawing
+  }
+
+  @ViewBuilder
+  var body: some View {
+    if animatesDrawing {
+      AnimatedGestureTemplatePreview(template: template)
+    } else {
+      GestureTemplatePreviewCanvas(
+        template: template,
+        drawingProgress: 1
+      )
+    }
+  }
+}
+
+private struct AnimatedGestureTemplatePreview: View {
+  @Environment(\.accessibilityReduceMotion) private var reducesMotion
+
+  let template: GestureTemplate
+
+  @State private var drawingProgress: CGFloat = 0
+
+  var body: some View {
+    GestureTemplatePreviewCanvas(
+      template: template,
+      drawingProgress: reducesMotion ? 1 : drawingProgress
+    )
+    .task(id: animationKey) {
+      guard !reducesMotion else {
+        drawingProgress = 1
+        return
+      }
+
+      drawingProgress = 0
+      await Task.yield()
+      guard !Task.isCancelled else { return }
+      withAnimation(.linear(duration: 1.1)) {
+        drawingProgress = 1
+      }
+    }
+  }
+
+  private var animationKey: GesturePreviewAnimationKey {
+    GesturePreviewAnimationKey(
+      template: template,
+      reducesMotion: reducesMotion
+    )
+  }
+}
+
+@MainActor
+private struct GestureTemplatePreviewCanvas: View, @MainActor Animatable {
+  let template: GestureTemplate
+  var drawingProgress: CGFloat
+
+  var animatableData: CGFloat {
+    get { drawingProgress }
+    set { drawingProgress = newValue }
+  }
 
   var body: some View {
     Canvas(rendersAsynchronously: true) { context, size in
@@ -2113,7 +2282,7 @@ struct GestureTemplatePreview: View {
         path.addLine(to: point)
       }
       context.stroke(
-        path,
+        path.trimmedPath(from: 0, to: drawingProgress),
         with: .color(.accentColor),
         style: StrokeStyle(
           lineWidth: 3,
@@ -2159,9 +2328,14 @@ struct GestureTemplatePreview: View {
       .secondary.opacity(0.08),
       in: RoundedRectangle(
         cornerRadius: 6
-      ))
+      )
+    )
   }
+}
 
+private struct GesturePreviewAnimationKey: Hashable {
+  let template: GestureTemplate
+  let reducesMotion: Bool
 }
 
 enum GesturePreviewLayout {
@@ -2240,12 +2414,15 @@ struct AppScopeEditor: View {
   @State private var kind: Kind
   @State private var bundleIDs: [String]
 
+  let onClose: (() -> Void)?
   let onSave: (AppScope) -> Void
 
   init(
     scope: AppScope,
+    onClose: (() -> Void)? = nil,
     onSave: @escaping (AppScope) -> Void
   ) {
+    self.onClose = onClose
     self.onSave = onSave
     switch scope {
     case .all:
@@ -2309,11 +2486,11 @@ struct AppScopeEditor: View {
       HStack {
         Spacer()
         Button(String(localized: "Cancel")) {
-          dismiss()
+          close()
         }
         Button(String(localized: "Save")) {
           onSave(scope)
-          dismiss()
+          close()
         }
         .keyboardShortcut(.defaultAction)
         .disabled(kind != .all && bundleIDs.isEmpty)
@@ -2333,6 +2510,14 @@ struct AppScopeEditor: View {
       return .only(values)
     case .allExcept:
       return .allExcept(values)
+    }
+  }
+
+  private func close() {
+    if let onClose {
+      onClose()
+    } else {
+      dismiss()
     }
   }
 
@@ -2557,15 +2742,23 @@ enum GestureActionSummary {
 }
 
 struct GestureActionEditorSheet: View {
+  private enum Page {
+    case editor
+    case library
+  }
+
   @Environment(\.dismiss) private var dismiss
   @State private var action: GestureAction
+  @State private var page: Page = .editor
 
   let model: AppModel
+  let onClose: (() -> Void)?
   let onSave: (GestureAction) -> Void
 
   init(
     action: GestureAction,
     model: AppModel,
+    onClose: (() -> Void)? = nil,
     onSave: @escaping (GestureAction) -> Void
   ) {
     _action = State(
@@ -2573,10 +2766,24 @@ struct GestureActionEditorSheet: View {
         action.performsAction ? action : .window(.leftHalf)
     )
     self.model = model
+    self.onClose = onClose
     self.onSave = onSave
   }
 
   var body: some View {
+    switch page {
+    case .editor:
+      editor
+    case .library:
+      ActionPresetLibraryView(
+        action: $action,
+        model: model,
+        onDone: { page = .editor }
+      )
+    }
+  }
+
+  private var editor: some View {
     VStack(spacing: 0) {
       Text(String(localized: "Action"))
         .font(.title2)
@@ -2588,9 +2795,13 @@ struct GestureActionEditorSheet: View {
       Divider()
 
       ScrollView {
-        GestureActionEditor(action: $action, model: model)
-          .padding(24)
-          .frame(maxWidth: .infinity, alignment: .leading)
+        GestureActionEditor(
+          action: $action,
+          model: model,
+          onBrowseLibrary: { page = .library }
+        )
+        .padding(24)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
 
       Divider()
@@ -2598,11 +2809,11 @@ struct GestureActionEditorSheet: View {
       HStack {
         Spacer()
         Button(String(localized: "Cancel")) {
-          dismiss()
+          close()
         }
         Button(String(localized: "Save")) {
           onSave(action)
-          dismiss()
+          close()
         }
         .keyboardShortcut(.defaultAction)
         .disabled(!action.isValid)
@@ -2619,13 +2830,17 @@ struct GestureActionEditorSheet: View {
       maxHeight: 760
     )
   }
+
+  private func close() {
+    if let onClose {
+      onClose()
+    } else {
+      dismiss()
+    }
+  }
 }
 
 struct GestureActionEditor: View {
-  private struct PresetLibraryPresentation: Identifiable {
-    let id = UUID()
-  }
-
   private enum Kind: String, CaseIterable, Identifiable {
     case keyboardShortcut
     case openURL
@@ -2674,8 +2889,8 @@ struct GestureActionEditor: View {
 
   @Binding var action: GestureAction
   @ObservedObject var model: AppModel
+  let onBrowseLibrary: () -> Void
   @State private var presetSearchText = ""
-  @State private var presetLibraryPresentation: PresetLibraryPresentation?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -2683,9 +2898,7 @@ struct GestureActionEditor: View {
         searchText: $presetSearchText,
         action: $action,
         model: model,
-        onBrowseLibrary: {
-          presetLibraryPresentation = PresetLibraryPresentation()
-        }
+        onBrowseLibrary: onBrowseLibrary
       )
 
       Divider()
@@ -2801,12 +3014,6 @@ struct GestureActionEditor: View {
       case .script:
         ScriptActionEditor(script: script, model: model)
       }
-    }
-    .sheet(item: $presetLibraryPresentation) { _ in
-      ActionPresetLibrarySheet(
-        action: $action,
-        model: model
-      )
     }
   }
 
@@ -3334,7 +3541,7 @@ private struct ActionPresetCompactRow: View {
   }
 }
 
-private struct ActionPresetLibrarySheet: View {
+private struct ActionPresetLibraryView: View {
   private enum Mode: String, CaseIterable, Identifiable {
     case all
     case favorites
@@ -3360,9 +3567,9 @@ private struct ActionPresetLibrarySheet: View {
     }
   }
 
-  @Environment(\.dismiss) private var dismiss
   let action: Binding<GestureAction>?
   @ObservedObject var model: AppModel
+  let onDone: () -> Void
   @State private var searchText = ""
   @State private var selectedCategory: ActionPresetCategory?
   @State private var mode: Mode = .all
@@ -3370,10 +3577,12 @@ private struct ActionPresetLibrarySheet: View {
 
   init(
     action: Binding<GestureAction>? = nil,
-    model: AppModel
+    model: AppModel,
+    onDone: @escaping () -> Void
   ) {
     self.action = action
     self.model = model
+    self.onDone = onDone
     _mode = State(initialValue: action == nil ? .scripts : .all)
   }
 
@@ -3384,7 +3593,7 @@ private struct ActionPresetLibrarySheet: View {
           .font(.title2)
         Spacer()
         Button(String(localized: "Done")) {
-          dismiss()
+          onDone()
         }
       }
 
@@ -3415,6 +3624,7 @@ private struct ActionPresetLibrarySheet: View {
               categoryButton($0, label: $0.label)
             }
           }
+          .background(HorizontalMouseWheelScrollBridge())
         }
 
         if filteredPresets.isEmpty {
@@ -3554,7 +3764,7 @@ private struct ActionPresetLibrarySheet: View {
       }) {
         model.recordActionPresetUse(id: preset.id)
       }
-      dismiss()
+      onDone()
     }
   }
 
@@ -3565,7 +3775,7 @@ private struct ActionPresetLibrarySheet: View {
     return {
       action.wrappedValue = preset.action
       model.recordActionPresetUse(id: preset.id)
-      dismiss()
+      onDone()
     }
   }
 }

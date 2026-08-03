@@ -1,6 +1,12 @@
 import SwiftUI
 
 struct GestureRecorderSheet: View {
+  private enum Page {
+    case recorder
+    case scope
+    case action
+  }
+
   @Environment(\.dismiss) private var dismiss
 
   @ObservedObject var model: AppModel
@@ -10,8 +16,7 @@ struct GestureRecorderSheet: View {
   @State private var appScope: AppScope
   @State private var triggerButton: GestureTriggerButton?
   @State private var deviceScope: InputDeviceScope
-  @State private var isEditingScope = false
-  @State private var isEditingAction = false
+  @State private var page: Page = .recorder
   @State private var isAdvancedOptionsExpanded = false
   @State private var training: GestureTrainingSession
   @State private var points: [GesturePoint] = []
@@ -95,6 +100,27 @@ struct GestureRecorderSheet: View {
   }
 
   var body: some View {
+    switch page {
+    case .recorder:
+      recorder
+    case .scope:
+      AppScopeEditor(
+        scope: appScope,
+        onClose: { page = .recorder },
+        onSave: updateScope
+      )
+    case .action:
+      GestureActionEditorSheet(
+        action:
+          action.performsAction ? action : .window(.leftHalf),
+        model: model,
+        onClose: { page = .recorder },
+        onSave: { action = $0 }
+      )
+    }
+  }
+
+  private var recorder: some View {
     VStack(spacing: 0) {
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
@@ -146,7 +172,7 @@ struct GestureRecorderSheet: View {
                   ? String(localized: "Edit")
                   : String(localized: "Set Action")
               ) {
-                isEditingAction = true
+                page = .action
               }
             }
             .padding(.vertical, 6)
@@ -215,25 +241,15 @@ struct GestureRecorderSheet: View {
       idealHeight: 700,
       maxHeight: 820
     )
-    .sheet(isPresented: $isEditingScope) {
-      AppScopeEditor(scope: appScope) { scope in
-        appScope = scope
-        training.setAppScope(scope)
-        points.removeAll(keepingCapacity: true)
-        feedback = String(
-          localized: "Draw the same gesture three times."
-        )
-      }
-    }
-    .sheet(isPresented: $isEditingAction) {
-      GestureActionEditorSheet(
-        action:
-          action.performsAction ? action : .window(.leftHalf),
-        model: model
-      ) {
-        action = $0
-      }
-    }
+  }
+
+  private func updateScope(_ scope: AppScope) {
+    appScope = scope
+    training.setAppScope(scope)
+    points.removeAll(keepingCapacity: true)
+    feedback = String(
+      localized: "Draw the same gesture three times."
+    )
   }
 
   private var advancedOptions: some View {
@@ -252,7 +268,7 @@ struct GestureRecorderSheet: View {
             Label(applicationName, systemImage: "app")
           } else {
             Button {
-              isEditingScope = true
+              page = .scope
             } label: {
               Text(scopeSummary)
                 .lineLimit(1)
