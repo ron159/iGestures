@@ -1,5 +1,6 @@
 @preconcurrency import CoreGraphics
 import Foundation
+@preconcurrency import IOKit.hid
 import os
 
 public enum EventTapManagerState: Equatable, Sendable {
@@ -82,6 +83,12 @@ public final class EventTapManager: @unchecked Sendable {
   private var suppressedMouseUpButtons: Set<GestureTriggerButton> = []
   private var repeatState: RepeatState?
   private var pendingRepeatRequest: ActionRequest?
+  private var pressedButtons: Set<GestureTriggerButton> = []
+  private var activeMatchContext: GestureMatchContext?
+  private var pendingDirectInteraction: DirectInteraction?
+  private let connectedDeviceLock = NSLock()
+  private var connectedDeviceCache: [String] = []
+  private var connectedDeviceCacheUpdatedAt: TimeInterval = 0
 
   public init(
     frontmostAppProvider: any FrontmostAppProviding =
@@ -133,6 +140,53 @@ public final class EventTapManager: @unchecked Sendable {
     lifecycleLock.lock()
     stateHandler = handler
     lifecycleLock.unlock()
+  }
+
+  public func submitAction(_ request: ActionRequest) {
+    dispatchAction(request)
+  }
+
+  public static func connectedInputDeviceIdentifiers() -> [String] {
+    let manager = IOHIDManagerCreate(
+      kCFAllocatorDefault,
+      IOOptionBits(kIOHIDOptionsTypeNone)
+    )
+    IOHIDManagerSetDeviceMatching(manager, nil)
+    guard let devices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>
+    else {
+      return []
+    }
+    return Array(
+      Set(
+        devices.compactMap { device in
+          guard
+            let vendorID = hidIntegerProperty(
+              device,
+              key: kIOHIDVendorIDKey as CFString
+            ),
+            let productID = hidIntegerProperty(
+              device,
+              key: kIOHIDProductIDKey as CFString
+            )
+          else {
+            return nil
+          }
+          let locationID =
+            hidIntegerProperty(
+              device,
+              key: kIOHIDLocationIDKey as CFString
+            ) ?? 0
+          return "\(vendorID):\(productID):\(locationID)"
+        }
+      )
+    ).sorted()
+  }
+
+  private static func hidIntegerProperty(
+    _ device: IOHIDDevice,
+    key: CFString
+  ) -> Int? {
+    (IOHIDDeviceGetProperty(device, key) as? NSNumber)?.intValue
   }
 
   @discardableResult
@@ -206,6 +260,10 @@ public final class EventTapManager: @unchecked Sendable {
     worker.qualityOfService = .userInteractive
     thread = worker
     lifecycleLock.unlock()
+    storeConnectedDeviceCache(
+      Self.connectedInputDeviceIdentifiers(),
+      updatedAt: ProcessInfo.processInfo.systemUptime
+    )
     notifyState(.starting)
     worker.start()
   }
@@ -248,6 +306,7 @@ public final class EventTapManager: @unchecked Sendable {
         let result = manager.session.cancel(.disabled)
         manager.apply(result.commands, currentEvent: nil)
         manager.releasePendingSecondaryTrigger()
+        manager.releasePendingDirectInteraction()
       }
     }
     CFRunLoopWakeUp(runLoop)
@@ -269,6 +328,7 @@ public final class EventTapManager: @unchecked Sendable {
       let result = session.cancel(.configurationInvalid)
       apply(result.commands, currentEvent: nil)
       releasePendingSecondaryTrigger()
+      releasePendingDirectInteraction()
       mappingSnapshot = snapshot
     }
     CFRunLoopWakeUp(runLoop)
@@ -290,6 +350,7 @@ public final class EventTapManager: @unchecked Sendable {
       let result = session.cancel(.configurationInvalid)
       apply(result.commands, currentEvent: nil)
       releasePendingSecondaryTrigger()
+      releasePendingDirectInteraction()
       inputConfiguration = configuration
       session = GestureSession(
         configuration: .init(
@@ -335,6 +396,7 @@ public final class EventTapManager: @unchecked Sendable {
       let result = session.cancel(.configurationInvalid)
       apply(result.commands, currentEvent: nil)
       releasePendingSecondaryTrigger()
+      releasePendingDirectInteraction()
       exclusionRules = rules
     }
     CFRunLoopWakeUp(runLoop)
@@ -397,6 +459,7 @@ public final class EventTapManager: @unchecked Sendable {
       let result = session.cancel(.applicationTerminating)
       apply(result.commands, currentEvent: nil)
       releasePendingSecondaryTrigger()
+      releasePendingDirectInteraction()
       if let runLoopSource {
         CFRunLoopRemoveSource(
           currentRunLoop,
@@ -429,6 +492,9 @@ public final class EventTapManager: @unchecked Sendable {
   ) -> Unmanaged<CGEvent>? {
     if type == .keyDown || type == .keyUp {
       return handleShortcutEvent(type: type, event: event)
+    }
+    if type == .scrollWheel {
+      return handleScrollWheel(event)
     }
     if type == .mouseMoved,
       activeTriggerButton?.keyboardKeyCode == nil
@@ -468,6 +534,7 @@ public final class EventTapManager: @unchecked Sendable {
       let result = session.cancel(reason)
       apply(result.commands, currentEvent: nil)
       releasePendingSecondaryTrigger()
+      releasePendingDirectInteraction()
       lifecycleLock.lock()
       shortcutCaptureState.releaseSuppressedKeys()
       triggerButtonCaptureState.releaseSuppressedButton()
@@ -499,6 +566,14 @@ public final class EventTapManager: @unchecked Sendable {
     triggerButton: GestureTriggerButton,
     event: CGEvent
   ) -> Unmanaged<CGEvent>? {
+    if phase == .down {
+      pressedButtons.insert(triggerButton)
+    }
+    defer {
+      if phase == .up {
+        pressedButtons.remove(triggerButton)
+      }
+    }
     let inputDevice: GestureInputDevice =
       triggerButton == .trackpad
       ? .trackpad
@@ -517,6 +592,18 @@ public final class EventTapManager: @unchecked Sendable {
         event: event,
         bundleID: bundleID
       )
+    }
+
+    if let directDisposition = handleDirectTriggerEvent(
+      phase: phase,
+      triggerButton: triggerButton,
+      event: event,
+      bundleID: bundleID,
+      inputDevice: inputDevice
+    ) {
+      return directDisposition == .passThrough
+        ? Unmanaged.passUnretained(event)
+        : nil
     }
 
     if phase == .up,
@@ -587,6 +674,11 @@ public final class EventTapManager: @unchecked Sendable {
       y: Float(event.location.y)
     )
     let timestamp = TimeInterval(event.timestamp) / 1_000_000_000
+    let matchContext = makeMatchContext(
+      event: event,
+      inputDevice: inputDevice,
+      variant: .draw
+    )
     let result: GestureSessionResult
 
     switch phase {
@@ -604,7 +696,8 @@ public final class EventTapManager: @unchecked Sendable {
             for: bundleID,
             triggerButton: triggerButton,
             default: inputConfiguration.triggerButton,
-            inputDevice: inputDevice
+            inputDevice: inputDevice,
+            context: matchContext
           ),
         triggerButton: triggerButton,
         sourceUserData: sourceUserData
@@ -617,6 +710,7 @@ public final class EventTapManager: @unchecked Sendable {
         }
         pendingMouseDown = copy
         activeTriggerButton = triggerButton
+        activeMatchContext = matchContext
         if secondaryTriggerIsDown {
           activeSessionUsesSecondaryTrigger = true
           pendingSecondaryMouseDown = nil
@@ -650,6 +744,245 @@ public final class EventTapManager: @unchecked Sendable {
     return result.disposition == .passThrough
       ? Unmanaged.passUnretained(event)
       : nil
+  }
+
+  private func handleDirectTriggerEvent(
+    phase: TriggerEventPhase,
+    triggerButton: GestureTriggerButton,
+    event: CGEvent,
+    bundleID: String?,
+    inputDevice: GestureInputDevice
+  ) -> GestureEventDisposition? {
+    guard triggerButton.keyboardKeyCode == nil,
+      triggerButton != .trackpad
+    else {
+      return nil
+    }
+    if let pendingDirectInteraction,
+      pendingDirectInteraction.triggerButton != triggerButton
+    {
+      return .passThrough
+    }
+    let timestamp = TimeInterval(event.timestamp) / 1_000_000_000
+    switch phase {
+    case .down:
+      guard pendingDirectInteraction == nil else { return .suppress }
+      let clickCount = event.getIntegerValueField(
+        .mouseEventClickState
+      )
+      if clickCount >= 2 {
+        let context = makeMatchContext(
+          event: event,
+          inputDevice: inputDevice,
+          variant: .doubleClick(maximumInterval: 0)
+        )
+        if let request = mappingSnapshot.directActionRequest(
+          for: bundleID,
+          triggerButton: triggerButton,
+          default: inputConfiguration.triggerButton,
+          context: context
+        ), let mouseDown = event.copy() {
+          pendingDirectInteraction = DirectInteraction(
+            triggerButton: triggerButton,
+            startedAt: timestamp,
+            mouseDown: mouseDown,
+            startLocation: GesturePoint(
+              x: Float(event.location.x),
+              y: Float(event.location.y)
+            ),
+            consumed: true
+          )
+          activeTriggerButton = triggerButton
+          dispatchAction(request)
+          return .suppress
+        }
+      }
+
+      let longPressContext = makeMatchContext(
+        event: event,
+        inputDevice: inputDevice,
+        variant: .longPress(minimumDuration: .greatestFiniteMagnitude)
+      )
+      let scrollContext = makeMatchContext(
+        event: event,
+        inputDevice: inputDevice,
+        variant: .scrollWheel(direction: .either)
+      )
+      let hasDeferredDirectAction =
+        mappingSnapshot.hasDirectAction(
+          for: bundleID,
+          triggerButton: triggerButton,
+          default: inputConfiguration.triggerButton,
+          context: longPressContext
+        )
+        || mappingSnapshot.hasDirectAction(
+          for: bundleID,
+          triggerButton: triggerButton,
+          default: inputConfiguration.triggerButton,
+          context: scrollContext
+        )
+      guard hasDeferredDirectAction, let mouseDown = event.copy() else {
+        return nil
+      }
+      pendingDirectInteraction = DirectInteraction(
+        triggerButton: triggerButton,
+        startedAt: timestamp,
+        mouseDown: mouseDown,
+        startLocation: GesturePoint(
+          x: Float(event.location.x),
+          y: Float(event.location.y)
+        ),
+        consumed: false
+      )
+      activeTriggerButton = triggerButton
+      return .suppress
+
+    case .dragged:
+      return pendingDirectInteraction == nil ? nil : .suppress
+
+    case .up:
+      guard let interaction = pendingDirectInteraction else {
+        return nil
+      }
+      pendingDirectInteraction = nil
+      activeTriggerButton = nil
+      let duration = max(0, timestamp - interaction.startedAt)
+      let context = makeMatchContext(
+        event: event,
+        inputDevice: inputDevice,
+        variant: .longPress(minimumDuration: duration)
+      )
+      if let request = mappingSnapshot.directActionRequest(
+        for: bundleID,
+        triggerButton: triggerButton,
+        default: inputConfiguration.triggerButton,
+        context: context
+      ) {
+        dispatchAction(request)
+        return .suppress
+      }
+      if !interaction.consumed {
+        replayDirectClick(interaction, mouseUpEvent: event)
+      }
+      return .suppress
+    }
+  }
+
+  private func handleScrollWheel(
+    _ event: CGEvent
+  ) -> Unmanaged<CGEvent>? {
+    let sourceUserData = event.getIntegerValueField(
+      .eventSourceUserData
+    )
+    guard !EventSourceMarker.isSynthetic(sourceUserData),
+      var interaction = pendingDirectInteraction
+    else {
+      return Unmanaged.passUnretained(event)
+    }
+    let delta = event.getDoubleValueField(
+      .scrollWheelEventDeltaAxis1
+    )
+    guard delta != 0 else {
+      return Unmanaged.passUnretained(event)
+    }
+    let inputDevice: GestureInputDevice = .mouse(identifier: nil)
+    let direction: GestureScrollDirection = delta > 0 ? .up : .down
+    let bundleID = frontmostAppProvider.currentBundleID(at: event.location)
+    let context = makeMatchContext(
+      event: event,
+      inputDevice: inputDevice,
+      variant: .scrollWheel(direction: direction)
+    )
+    guard
+      let request = mappingSnapshot.directActionRequest(
+        for: bundleID,
+        triggerButton: interaction.triggerButton,
+        default: inputConfiguration.triggerButton,
+        context: context
+      )
+    else {
+      return Unmanaged.passUnretained(event)
+    }
+    interaction.consumed = true
+    pendingDirectInteraction = interaction
+    dispatchAction(request)
+    return nil
+  }
+
+  private func makeMatchContext(
+    event: CGEvent,
+    inputDevice: GestureInputDevice,
+    variant: GestureInputVariant
+  ) -> GestureMatchContext {
+    let connectedDeviceIdentifiers = cachedConnectedDeviceIdentifiers()
+    return GestureMatchContext(
+      inputDevice: inputDevice,
+      modifierFlags: event.flags.rawValue,
+      displayID: Self.displayID(at: event.location),
+      connectedDeviceIdentifiers: connectedDeviceIdentifiers,
+      heldButtons: pressedButtons,
+      inputVariant: variant
+    )
+  }
+
+  private func cachedConnectedDeviceIdentifiers() -> [String] {
+    let now = ProcessInfo.processInfo.systemUptime
+    connectedDeviceLock.lock()
+    let identifiers = connectedDeviceCache
+    let shouldRefresh = now - connectedDeviceCacheUpdatedAt >= 2
+    if shouldRefresh {
+      connectedDeviceCacheUpdatedAt = now
+    }
+    connectedDeviceLock.unlock()
+    if shouldRefresh {
+      Task.detached(priority: .utility) { [weak self] in
+        self?.storeConnectedDeviceCache(
+          Self.connectedInputDeviceIdentifiers(),
+          updatedAt: ProcessInfo.processInfo.systemUptime
+        )
+      }
+    }
+    return identifiers
+  }
+
+  private func storeConnectedDeviceCache(
+    _ identifiers: [String],
+    updatedAt: TimeInterval
+  ) {
+    connectedDeviceLock.lock()
+    connectedDeviceCache = identifiers
+    connectedDeviceCacheUpdatedAt = updatedAt
+    connectedDeviceLock.unlock()
+  }
+
+  private static func displayID(at point: CGPoint) -> UInt32? {
+    var displayID: CGDirectDisplayID = 0
+    var count: UInt32 = 0
+    guard
+      CGGetDisplaysWithPoint(point, 1, &displayID, &count) == .success,
+      count == 1
+    else {
+      return nil
+    }
+    return displayID
+  }
+
+  private func replayDirectClick(
+    _ interaction: DirectInteraction,
+    mouseUpEvent: CGEvent
+  ) {
+    guard let replayDown = interaction.mouseDown.copy(),
+      let replayUp = mouseUpEvent.copy()
+    else {
+      return
+    }
+    for replayEvent in [replayDown, replayUp] {
+      replayEvent.setIntegerValueField(
+        .eventSourceUserData,
+        value: EventSourceMarker.syntheticEventUserData
+      )
+      replayEvent.post(tap: .cgSessionEventTap)
+    }
   }
 
   private func handleShortcutEvent(
@@ -887,14 +1220,19 @@ public final class EventTapManager: @unchecked Sendable {
           currentEvent: currentEvent
         )
         activeTriggerButton = nil
+        activeMatchContext = nil
         activeSessionUsesSecondaryTrigger = false
         endSessionSignpost()
       case .recognize(let candidate):
-        let recognizedCandidate = candidate.usingSecondaryTrigger(
-          activeSessionUsesSecondaryTrigger
-        )
+        let recognizedCandidate =
+          candidate
+          .usingMatchContext(
+            activeMatchContext ?? candidate.matchContext
+          )
+          .usingSecondaryTrigger(activeSessionUsesSecondaryTrigger)
         pendingMouseDown = nil
         activeTriggerButton = nil
+        activeMatchContext = nil
         activeSessionUsesSecondaryTrigger = false
         endSessionSignpost()
         enqueueRecognition(recognizedCandidate)
@@ -908,6 +1246,7 @@ public final class EventTapManager: @unchecked Sendable {
         )
         feedbackSink.show(.cancelled)
         activeTriggerButton = nil
+        activeMatchContext = nil
         activeSessionUsesSecondaryTrigger = false
         endSessionSignpost()
       }
@@ -1049,6 +1388,7 @@ public final class EventTapManager: @unchecked Sendable {
         ),
         frontmostBundleID: candidate.frontmostBundleID,
         inputDevice: candidate.inputDevice,
+        matchContext: candidate.matchContext,
         useSecondaryAction: candidate.usesSecondaryTrigger
       )
       os_signpost(
@@ -1303,6 +1643,29 @@ public final class EventTapManager: @unchecked Sendable {
     activeSessionUsesSecondaryTrigger = false
   }
 
+  private func releasePendingDirectInteraction() {
+    guard let interaction = pendingDirectInteraction else { return }
+    pendingDirectInteraction = nil
+    activeTriggerButton = nil
+    activeMatchContext = nil
+    if !interaction.consumed,
+      let mouseUp = CGEvent(
+        mouseEventSource: nil,
+        mouseType: interaction.triggerButton.mouseUpEventType,
+        mouseCursorPosition: CGPoint(
+          x: CGFloat(interaction.startLocation.x),
+          y: CGFloat(interaction.startLocation.y)
+        ),
+        mouseButton:
+          CGMouseButton(
+            rawValue: interaction.triggerButton.buttonNumber
+          ) ?? .right
+      )
+    {
+      replayDirectClick(interaction, mouseUpEvent: mouseUp)
+    }
+  }
+
   private func dispatchAction(_ request: ActionRequest) {
     Task { [actionDispatcher] in
       await actionDispatcher.submit(request)
@@ -1441,6 +1804,8 @@ public final class EventTapManager: @unchecked Sendable {
       "application_menu"
     case .appleShortcut:
       "apple_shortcut"
+    case .namedAction:
+      "named_action"
     case .sequence:
       "sequence"
     case .script:
@@ -1575,6 +1940,7 @@ public final class EventTapManager: @unchecked Sendable {
     .otherMouseDown,
     .otherMouseDragged,
     .otherMouseUp,
+    .scrollWheel,
     .mouseMoved,
     .keyDown,
     .keyUp,
@@ -1589,6 +1955,14 @@ private struct RepeatState {
   let bundleID: String?
   let usesSecondaryTrigger: Bool
   let expiresAt: TimeInterval
+}
+
+private struct DirectInteraction {
+  let triggerButton: GestureTriggerButton
+  let startedAt: TimeInterval
+  let mouseDown: CGEvent
+  let startLocation: GesturePoint
+  var consumed: Bool
 }
 
 enum TriggerEventPhase: Equatable {

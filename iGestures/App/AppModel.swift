@@ -117,6 +117,8 @@ final class AppModel: ObservableObject {
   @Published private(set) var applicationExclusions: Set<ApplicationExclusionRule> = []
   @Published private(set) var gestureApplicationGroups: [GestureApplicationGroup] = []
   @Published private(set) var managedApplicationBundleIdentifiers: [String] = []
+  @Published private(set) var gestureConfigurationSets: [GestureConfigurationSet] = []
+  @Published private(set) var namedGestureActions: [NamedGestureAction] = []
   @Published private(set) var currentApplicationName: String?
   @Published private(set) var currentApplicationBundleIdentifier: String?
   @Published private(set) var updateState: AppUpdateState = .unavailable
@@ -338,6 +340,7 @@ final class AppModel: ObservableObject {
     )
     observeApplicationActivation()
     observeApplicationLifecycle()
+    IGesturesIntentBridge.shared.install(self)
     refreshPermissions()
     reloadMappings()
     reloadScriptLibrary()
@@ -648,6 +651,11 @@ final class AppModel: ObservableObject {
     {
       eventTapManager.start()
     }
+  }
+
+  func setRecognitionEnabled(_ enabled: Bool) {
+    guard isEnabled != enabled else { return }
+    toggleEnabled()
   }
 
   func setOverlayEnabled(_ isEnabled: Bool) {
@@ -1368,6 +1376,192 @@ final class AppModel: ObservableObject {
     }
   }
 
+  func setMappingConfigurationSet(
+    id: UUID,
+    configurationSetID: UUID?
+  ) {
+    mutateLibrary {
+      try $0.setConfigurationSet(id: id, configurationSetID)
+    }
+  }
+
+  func setMappingRequiredChordButtons(
+    id: UUID,
+    buttons: [GestureTriggerButton]
+  ) {
+    mutateLibrary {
+      try $0.setRequiredChordButtons(id: id, buttons)
+    }
+  }
+
+  func setMappingInputVariant(
+    id: UUID,
+    inputVariant: GestureInputVariant
+  ) {
+    mutateLibrary {
+      try $0.setInputVariant(id: id, inputVariant)
+    }
+  }
+
+  func setMappingContextCondition(
+    id: UUID,
+    condition: GestureContextCondition
+  ) {
+    mutateLibrary {
+      try $0.setContextCondition(id: id, condition)
+    }
+  }
+
+  @discardableResult
+  func addGestureConfigurationSet(_ name: String) -> UUID? {
+    let normalized = name.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+    guard !normalized.isEmpty else { return nil }
+    var updated = database
+    let item = GestureConfigurationSet(name: normalized)
+    updated.configurationSets.append(item)
+    apply(updated)
+    return database.configurationSets.contains { $0.id == item.id }
+      ? item.id
+      : nil
+  }
+
+  func updateGestureConfigurationSet(
+    id: UUID,
+    name: String? = nil,
+    isEnabled: Bool? = nil
+  ) {
+    guard
+      let index = database.configurationSets.firstIndex(where: {
+        $0.id == id
+      })
+    else {
+      return
+    }
+    var updated = database
+    if let name {
+      updated.configurationSets[index].name = name.trimmingCharacters(
+        in: .whitespacesAndNewlines
+      )
+    }
+    if let isEnabled {
+      updated.configurationSets[index].isEnabled = isEnabled
+    }
+    apply(updated)
+  }
+
+  @discardableResult
+  func activateGestureConfigurationSet(named name: String) -> Bool {
+    guard
+      let selectedID = database.configurationSets.first(where: {
+        $0.name.compare(
+          name,
+          options: [.caseInsensitive, .diacriticInsensitive]
+        ) == .orderedSame
+      })?.id
+    else {
+      return false
+    }
+    var updated = database
+    for index in updated.configurationSets.indices {
+      updated.configurationSets[index].isEnabled =
+        updated.configurationSets[index].id == selectedID
+    }
+    apply(updated)
+    return database.configurationSets.first { $0.id == selectedID }?
+      .isEnabled == true
+  }
+
+  func deleteGestureConfigurationSet(id: UUID) {
+    var updated = database
+    updated.configurationSets.removeAll { $0.id == id }
+    for index in updated.mappings.indices
+    where updated.mappings[index].configurationSetID == id {
+      updated.mappings[index].configurationSetID = nil
+    }
+    apply(updated)
+  }
+
+  @discardableResult
+  func addNamedGestureAction(
+    name: String,
+    action: GestureAction,
+    allowsAppIntent: Bool = false
+  ) -> UUID? {
+    let normalized = name.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+    guard !normalized.isEmpty, action.performsAction else { return nil }
+    var updated = database
+    let item = NamedGestureAction(
+      name: normalized,
+      action: action,
+      allowsAppIntent: allowsAppIntent
+    )
+    updated.namedActions.append(item)
+    apply(updated)
+    return database.namedActions.contains { $0.id == item.id }
+      ? item.id
+      : nil
+  }
+
+  func updateNamedGestureAction(
+    id: UUID,
+    name: String,
+    action: GestureAction,
+    isEnabled: Bool,
+    allowsAppIntent: Bool
+  ) {
+    guard
+      let index = database.namedActions.firstIndex(where: {
+        $0.id == id
+      })
+    else {
+      return
+    }
+    var updated = database
+    updated.namedActions[index].name = name.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+    updated.namedActions[index].action = action
+    updated.namedActions[index].isEnabled = isEnabled
+    updated.namedActions[index].allowsAppIntent =
+      isEnabled && allowsAppIntent
+    apply(updated)
+  }
+
+  func deleteNamedGestureAction(id: UUID) {
+    guard !databaseReferencesNamedAction(id) else {
+      mappingStoreError = String(
+        localized: "This named action is still used by a gesture."
+      )
+      return
+    }
+    var updated = database
+    updated.namedActions.removeAll { $0.id == id }
+    apply(updated)
+  }
+
+  @discardableResult
+  func runSafeNamedGestureAction(named name: String) -> Bool {
+    guard let item = database.compiledSnapshot.namedAction(named: name),
+      item.isEnabled,
+      item.allowsAppIntent,
+      item.action.isSafeForAppIntent
+    else {
+      return false
+    }
+    eventTapManager.submitAction(
+      ActionRequest(
+        mappingID: item.id,
+        mappingName: item.name,
+        action: item.action
+      )
+    )
+    return true
+  }
+
   @discardableResult
   func addGestureApplicationGroup(_ name: String) -> UUID? {
     let normalized = name.trimmingCharacters(
@@ -1566,6 +1760,10 @@ final class AppModel: ObservableObject {
         applicationGroupID: mapping.applicationGroupID,
         repeatModeEnabled: mapping.repeatModeEnabled,
         deviceScope: mapping.deviceScope,
+        configurationSetID: mapping.configurationSetID,
+        requiredChordButtons: mapping.requiredChordButtons,
+        inputVariant: mapping.inputVariant,
+        contextCondition: mapping.contextCondition,
         isEnabled: false
       )
     )
@@ -1882,6 +2080,42 @@ final class AppModel: ObservableObject {
     }
   }
 
+  func exportGesturePack(
+    name: String,
+    mappingIDs: Set<UUID>,
+    to destinationURL: URL
+  ) {
+    guard let mappingStore else {
+      mappingStoreError = String(
+        localized: "Gesture storage is unavailable."
+      )
+      return
+    }
+    isTransferringMappings = true
+    mappingTransferMessage = nil
+    let pendingSave = persistenceTask
+    Task { @MainActor [weak self] in
+      await pendingSave?.value
+      guard let self else { return }
+      do {
+        try await mappingStore.exportGesturePack(
+          name: name,
+          mappingIDs: mappingIDs,
+          to: destinationURL
+        )
+        mappingStoreError = nil
+        mappingTransferMessage = String(
+          localized: "Gesture pack exported successfully."
+        )
+      } catch {
+        mappingStoreError = String(
+          localized: "Gesture pack could not be exported."
+        )
+      }
+      isTransferringMappings = false
+    }
+  }
+
   private func applyImportedSettings(_ snapshot: AppSettingsSnapshot) {
     let previousLanguage = interfaceLanguage
     preferencesStore.applyConfigurationSnapshot(snapshot)
@@ -2114,6 +2348,8 @@ final class AppModel: ObservableObject {
     gestureApplicationGroups = updatedDatabase.applicationGroups
     managedApplicationBundleIdentifiers =
       updatedDatabase.managedApplicationBundleIdentifiers
+    gestureConfigurationSets = updatedDatabase.configurationSets
+    namedGestureActions = updatedDatabase.namedActions
     mappingCount = mappings.count
     mappingStoreError = nil
     reconcileSecondaryTriggerConflict()
@@ -2210,6 +2446,8 @@ final class AppModel: ObservableObject {
     gestureApplicationGroups = loadedDatabase.applicationGroups
     managedApplicationBundleIdentifiers =
       loadedDatabase.managedApplicationBundleIdentifiers
+    gestureConfigurationSets = loadedDatabase.configurationSets
+    namedGestureActions = loadedDatabase.namedActions
     mappingCount = mappings.count
     mappingStoreError = nil
     reconcileSecondaryTriggerConflict()
@@ -2344,6 +2582,40 @@ final class AppModel: ObservableObject {
       return
     }
     updateFrontmostApplication(application)
+  }
+
+  private func databaseReferencesNamedAction(_ id: UUID) -> Bool {
+    database.mappings.contains {
+      action($0.action, referencesNamedAction: id)
+        || $0.secondaryAction.map {
+          action($0, referencesNamedAction: id)
+        } == true
+    }
+      || database.namedActions.contains {
+        $0.id != id && action($0.action, referencesNamedAction: id)
+      }
+  }
+
+  private func action(
+    _ action: GestureAction,
+    referencesNamedAction id: UUID
+  ) -> Bool {
+    switch action {
+    case .namedAction(let referencedID):
+      return referencedID == id
+    case .sequence(let sequence):
+      if sequence.steps.contains(where: {
+        self.action($0.action, referencesNamedAction: id)
+      }) {
+        return true
+      }
+      guard case .fallback(let fallback) = sequence.failurePolicy else {
+        return false
+      }
+      return self.action(fallback, referencesNamedAction: id)
+    default:
+      return false
+    }
   }
 
   private func updateFrontmostApplication(

@@ -59,7 +59,14 @@ workflow.
   actions, and saved custom presets shared by primary and secondary trigger
   actions.
 - 🎯 **Flexible triggers**: Supports Repeat Mode, trackpad modifier gestures,
+  mouse-button chords, hold-and-scroll, double-click and long-press variants,
   and three recognition sensitivity levels.
+- 📦 **Reusable configurations**: Share selected mappings as
+  `.igesturespack` files, organize gestures into named configuration sets, and
+  reuse named actions across mappings.
+- 🧭 **Bounded automation**: Limit mappings by modifier keys, display, connected
+  input devices, applications, and application groups; App Intents can switch
+  configurations and run only explicitly allowed safe named actions.
 - 🎨 **Immediate feedback**: Multi-display gesture overlays, recognition result
   prompts, and optional haptics.
 - 🛡️ **Reliable and private**: Versioned JSON, atomic writes, and corruption

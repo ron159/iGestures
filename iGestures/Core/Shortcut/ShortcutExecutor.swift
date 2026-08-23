@@ -213,6 +213,8 @@ public struct SystemGestureActionExecutor: ActionExecuting {
         executableURL: URL(fileURLWithPath: "/usr/bin/shortcuts"),
         arguments: ["run", name]
       )
+    case .namedAction:
+      return .failed(.invalidAction)
     case .sequence(let sequence):
       guard action.isValid else {
         return .failed(.invalidAction)

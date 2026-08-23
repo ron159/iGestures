@@ -110,13 +110,20 @@ public struct GestureRecognizer: Sendable {
     mappings: [GestureMapping],
     frontmostBundleID: String?,
     inputDevice: GestureInputDevice? = nil,
+    matchContext: GestureMatchContext? = nil,
     useSecondaryAction: Bool = false
   ) -> Decision {
     let candidates = mappings.compactMap { mapping -> Candidate? in
       guard mapping.isEnabled,
         mapping.action.isValid,
         mapping.appScope.includes(bundleID: frontmostBundleID),
-        inputDevice.map(mapping.deviceScope.includes) ?? true
+        inputDevice.map(mapping.deviceScope.includes) ?? true,
+        matchContext.map(mapping.contextCondition.matches) ?? true,
+        matchContext.map({ context in
+          Set(mapping.requiredChordButtons).isSubset(
+            of: context.heldButtons
+          ) && mapping.inputVariant == .draw
+        }) ?? true
       else {
         return nil
       }

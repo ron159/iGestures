@@ -8,6 +8,10 @@ public struct MappingStoreLimits: Equatable, Sendable {
   public let maximumNameLength: Int
   public let maximumBundleIDsPerScope: Int
   public let maximumBundleIDLength: Int
+  public let maximumConfigurationSetCount: Int
+  public let maximumNamedActionCount: Int
+  public let maximumChordButtonCount: Int
+  public let maximumContextValueCount: Int
 
   public init(
     maximumFileSize: Int = 5 * 1_024 * 1_024,
@@ -16,7 +20,11 @@ public struct MappingStoreLimits: Equatable, Sendable {
     requiredPointsPerTemplate: Int = 64,
     maximumNameLength: Int = 200,
     maximumBundleIDsPerScope: Int = 100,
-    maximumBundleIDLength: Int = 255
+    maximumBundleIDLength: Int = 255,
+    maximumConfigurationSetCount: Int = 50,
+    maximumNamedActionCount: Int = 100,
+    maximumChordButtonCount: Int = 4,
+    maximumContextValueCount: Int = 20
   ) {
     self.maximumFileSize = max(1, maximumFileSize)
     self.maximumMappingCount = max(1, maximumMappingCount)
@@ -34,6 +42,13 @@ public struct MappingStoreLimits: Equatable, Sendable {
       maximumBundleIDsPerScope
     )
     self.maximumBundleIDLength = max(1, maximumBundleIDLength)
+    self.maximumConfigurationSetCount = max(
+      1,
+      maximumConfigurationSetCount
+    )
+    self.maximumNamedActionCount = max(1, maximumNamedActionCount)
+    self.maximumChordButtonCount = max(1, maximumChordButtonCount)
+    self.maximumContextValueCount = max(1, maximumContextValueCount)
   }
 }
 
@@ -51,6 +66,11 @@ public enum MappingStoreError: Error, Equatable, Sendable {
   case tooManyBundleIDs(limit: Int)
   case invalidBundleID
   case invalidApplicationGroup
+  case invalidConfigurationSet
+  case invalidNamedAction
+  case cyclicNamedAction
+  case invalidInputVariant
+  case invalidContextCondition
   case invalidData
   case recoveryFailed
   case fileSystemFailure
@@ -64,6 +84,10 @@ public enum MappingImportMode: String, CaseIterable, Sendable {
 public enum MappingImportConflict: Equatable, Sendable {
   case changedStableID(UUID)
   case similarGesture(existingID: UUID, importedID: UUID)
+  case changedConfigurationSetID(UUID)
+  case changedNamedActionID(UUID)
+  case configurationSetName(String)
+  case namedActionName(String)
 }
 
 public struct MappingImportPreview: Equatable, Sendable {
@@ -75,6 +99,9 @@ public struct MappingImportPreview: Equatable, Sendable {
   public let conflicts: [MappingImportConflict]
   public let scriptsRequiringConfirmation: [AutomationScript]
   public let includesSettings: Bool
+  public let importedConfigurationSetCount: Int
+  public let importedNamedActionCount: Int
+  public let packName: String?
 
   public init(
     schemaVersion: Int,
@@ -84,7 +111,10 @@ public struct MappingImportPreview: Equatable, Sendable {
     actionTypes: [String],
     conflicts: [MappingImportConflict],
     scriptsRequiringConfirmation: [AutomationScript],
-    includesSettings: Bool = false
+    includesSettings: Bool = false,
+    importedConfigurationSetCount: Int = 0,
+    importedNamedActionCount: Int = 0,
+    packName: String? = nil
   ) {
     self.schemaVersion = schemaVersion
     self.importedMappingCount = importedMappingCount
@@ -94,6 +124,23 @@ public struct MappingImportPreview: Equatable, Sendable {
     self.conflicts = conflicts
     self.scriptsRequiringConfirmation = scriptsRequiringConfirmation
     self.includesSettings = includesSettings
+    self.importedConfigurationSetCount = importedConfigurationSetCount
+    self.importedNamedActionCount = importedNamedActionCount
+    self.packName = packName
+  }
+}
+
+public struct IGesturesGesturePack: Codable, Equatable, Sendable {
+  public static let currentFormatVersion = 1
+
+  public let formatVersion: Int
+  public let name: String
+  public let database: GestureDatabase
+
+  public init(name: String, database: GestureDatabase) {
+    self.formatVersion = Self.currentFormatVersion
+    self.name = name
+    self.database = database
   }
 }
 
@@ -143,6 +190,7 @@ private struct ConfigurationImportUndoArchive:
 private struct DecodedImportConfiguration {
   let gestureDatabase: GestureDatabase
   let settings: AppSettingsSnapshot?
+  let packName: String?
 }
 
 public actor MappingStore {
@@ -273,6 +321,71 @@ public actor MappingStore {
     )
   }
 
+  public func exportGesturePack(
+    name: String,
+    mappingIDs: Set<UUID>
+  ) throws -> Data {
+    let normalizedName = name.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+    guard !normalizedName.isEmpty,
+      normalizedName.utf8.count <= limits.maximumNameLength,
+      !mappingIDs.isEmpty
+    else {
+      throw MappingStoreError.invalidData
+    }
+    let selectedMappings = database.mappings.filter {
+      mappingIDs.contains($0.id)
+    }
+    guard selectedMappings.count == mappingIDs.count else {
+      throw MappingStoreError.invalidData
+    }
+    let configurationSetIDs = Set(
+      selectedMappings.compactMap(\.configurationSetID)
+    )
+    let namedActionIDs = referencedNamedActionClosure(
+      for: selectedMappings,
+      namedActions: database.namedActions
+    )
+    let applicationGroupIDs = Set(
+      selectedMappings.compactMap(\.applicationGroupID)
+    )
+    let packDatabase = GestureDatabase(
+      mappings: selectedMappings.enumerated().map { index, mapping in
+        var normalized = mapping
+        normalized.priority = index
+        return normalized
+      },
+      applicationGroups: database.applicationGroups.filter {
+        applicationGroupIDs.contains($0.id)
+      },
+      managedApplicationBundleIdentifiers:
+        normalizedBundleIdentifiers(
+          selectedMappings.flatMap { mapping -> [String] in
+            switch mapping.appScope {
+            case .all:
+              return []
+            case .only(let values), .allExcept(let values):
+              return values
+            }
+          }
+        ),
+      configurationSets: database.configurationSets.filter {
+        configurationSetIDs.contains($0.id)
+      },
+      namedActions: database.namedActions.filter {
+        namedActionIDs.contains($0.id)
+      }
+    )
+    try validate(packDatabase)
+    return try encode(
+      IGesturesGesturePack(
+        name: normalizedName,
+        database: packDatabase
+      )
+    )
+  }
+
   public func importData(from sourceURL: URL) throws -> GestureDatabase {
     try importData(from: sourceURL, mode: .merge)
   }
@@ -287,7 +400,8 @@ public actor MappingStore {
     return makeImportPlan(
       imported.gestureDatabase,
       mode: mode,
-      includesSettings: imported.settings != nil
+      includesSettings: imported.settings != nil,
+      packName: imported.packName
     ).preview
   }
 
@@ -300,7 +414,8 @@ public actor MappingStore {
     )
     let plan = makeImportPlan(
       imported.gestureDatabase,
-      mode: mode
+      mode: mode,
+      packName: imported.packName
     )
     try ensureDirectoryExists()
     try encode(database).write(to: importUndoURL, options: .atomic)
@@ -324,7 +439,8 @@ public actor MappingStore {
     let plan = makeImportPlan(
       imported.gestureDatabase,
       mode: mode,
-      includesSettings: imported.settings != nil
+      includesSettings: imported.settings != nil,
+      packName: imported.packName
     )
     let undoArchive = ConfigurationImportUndoArchive(
       gestureDatabase: database,
@@ -408,6 +524,22 @@ public actor MappingStore {
     }
   }
 
+  public func exportGesturePack(
+    name: String,
+    mappingIDs: Set<UUID>,
+    to destinationURL: URL
+  ) throws {
+    let data = try exportGesturePack(
+      name: name,
+      mappingIDs: mappingIDs
+    )
+    do {
+      try data.write(to: destinationURL, options: .atomic)
+    } catch {
+      throw MappingStoreError.fileSystemFailure
+    }
+  }
+
   private func encode<T: Encodable>(_ value: T) throws -> Data {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [
@@ -457,6 +589,25 @@ public actor MappingStore {
         limit: limits.maximumFileSize
       )
     }
+    if let pack = try? JSONDecoder().decode(
+      IGesturesGesturePack.self,
+      from: data
+    ) {
+      guard
+        pack.formatVersion == IGesturesGesturePack.currentFormatVersion,
+        !pack.name.trimmingCharacters(
+          in: .whitespacesAndNewlines
+        ).isEmpty
+      else {
+        throw MappingStoreError.invalidData
+      }
+      try validate(pack.database)
+      return DecodedImportConfiguration(
+        gestureDatabase: pack.database,
+        settings: nil,
+        packName: pack.name
+      )
+    }
     if let archive = try? JSONDecoder().decode(
       IGesturesConfigurationArchive.self,
       from: data
@@ -470,19 +621,22 @@ public actor MappingStore {
       try validate(archive.gestureDatabase)
       return DecodedImportConfiguration(
         gestureDatabase: archive.gestureDatabase,
-        settings: archive.settings
+        settings: archive.settings,
+        packName: nil
       )
     }
     return DecodedImportConfiguration(
       gestureDatabase: try decodeAndValidate(data),
-      settings: nil
+      settings: nil,
+      packName: nil
     )
   }
 
   private func makeImportPlan(
     _ imported: GestureDatabase,
     mode: MappingImportMode,
-    includesSettings: Bool = false
+    includesSettings: Bool = false,
+    packName: String? = nil
   ) -> (
     database: GestureDatabase,
     preview: MappingImportPreview
@@ -492,19 +646,63 @@ public actor MappingStore {
     )
     var conflicts: [MappingImportConflict] = []
     var additions: [GestureMapping] = []
-    let importedScripts = imported.mappings.flatMap {
-      $0.action.scripts + ($0.secondaryAction?.scripts ?? [])
+    let importedNamedActionsByID = Dictionary(
+      uniqueKeysWithValues: imported.namedActions.map { ($0.id, $0) }
+    )
+    let discoveredScripts =
+      imported.mappings.flatMap {
+        scripts(
+          in: $0.action,
+          namedActionsByID: importedNamedActionsByID,
+          resolving: []
+        )
+          + scripts(
+            in: $0.secondaryAction ?? .none,
+            namedActionsByID: importedNamedActionsByID,
+            resolving: []
+          )
+      }
+      + imported.namedActions.flatMap {
+        scripts(
+          in: $0.action,
+          namedActionsByID: importedNamedActionsByID,
+          resolving: []
+        )
+      }
+    var seenScripts = Set<AutomationScript>()
+    let importedScripts = discoveredScripts.filter {
+      seenScripts.insert($0).inserted
     }
     let safeImportedMappings = imported.mappings.map { mapping in
       let containsScripts =
-        !mapping.action.scripts.isEmpty
-        || !(mapping.secondaryAction?.scripts.isEmpty ?? true)
+        !scripts(
+          in: mapping.action,
+          namedActionsByID: importedNamedActionsByID,
+          resolving: []
+        ).isEmpty
+        || !scripts(
+          in: mapping.secondaryAction ?? .none,
+          namedActionsByID: importedNamedActionsByID,
+          resolving: []
+        ).isEmpty
       guard containsScripts else { return mapping }
       var safe = mapping
       safe.action = safe.action.disablingScripts()
       safe.secondaryAction =
         safe.secondaryAction?.disablingScripts()
       safe.isEnabled = false
+      return safe
+    }
+    let safeImportedNamedActions = imported.namedActions.map { item in
+      var safe = item
+      let containsScripts = !scripts(
+        in: item.action,
+        namedActionsByID: importedNamedActionsByID,
+        resolving: []
+      ).isEmpty
+      safe.action = safe.action.disablingScripts()
+      safe.isEnabled = safe.isEnabled && !containsScripts
+      safe.allowsAppIntent = safe.allowsAppIntent && !containsScripts
       return safe
     }
 
@@ -542,6 +740,8 @@ public actor MappingStore {
     }
     let plannedGroups: [GestureApplicationGroup]
     let plannedApplications: [String]
+    let plannedConfigurationSets: [GestureConfigurationSet]
+    let plannedNamedActions: [NamedGestureAction]
     switch mode {
     case .merge:
       let existingGroupIDs = Set(database.applicationGroups.map(\.id))
@@ -555,9 +755,74 @@ public actor MappingStore {
           + imported.managedApplicationBundleIdentifiers
           + plannedGroups.flatMap(\.bundleIdentifiers)
       )
+      let existingConfigurationSetsByID = Dictionary(
+        uniqueKeysWithValues: database.configurationSets.map {
+          ($0.id, $0)
+        }
+      )
+      for item in imported.configurationSets
+      where existingConfigurationSetsByID[item.id] != nil
+        && existingConfigurationSetsByID[item.id] != item
+      {
+        conflicts.append(.changedConfigurationSetID(item.id))
+      }
+      var configurationSetNames = Set(
+        database.configurationSets.map {
+          normalizedComparableName($0.name)
+        }
+      )
+      var additionalConfigurationSets: [GestureConfigurationSet] = []
+      for var item in imported.configurationSets
+      where existingConfigurationSetsByID[item.id] == nil {
+        if configurationSetNames.contains(
+          normalizedComparableName(item.name)
+        ) {
+          conflicts.append(.configurationSetName(item.name))
+          item.name = uniqueImportedName(
+            item.name,
+            existingNames: configurationSetNames
+          )
+        }
+        configurationSetNames.insert(normalizedComparableName(item.name))
+        additionalConfigurationSets.append(item)
+      }
+      plannedConfigurationSets =
+        database.configurationSets + additionalConfigurationSets
+      let existingNamedActionsByID = Dictionary(
+        uniqueKeysWithValues: database.namedActions.map { ($0.id, $0) }
+      )
+      for item in safeImportedNamedActions
+      where existingNamedActionsByID[item.id] != nil
+        && existingNamedActionsByID[item.id] != item
+      {
+        conflicts.append(.changedNamedActionID(item.id))
+      }
+      var namedActionNames = Set(
+        database.namedActions.map {
+          normalizedComparableName($0.name)
+        }
+      )
+      var additionalNamedActions: [NamedGestureAction] = []
+      for var item in safeImportedNamedActions
+      where existingNamedActionsByID[item.id] == nil {
+        if namedActionNames.contains(
+          normalizedComparableName(item.name)
+        ) {
+          conflicts.append(.namedActionName(item.name))
+          item.name = uniqueImportedName(
+            item.name,
+            existingNames: namedActionNames
+          )
+        }
+        namedActionNames.insert(normalizedComparableName(item.name))
+        additionalNamedActions.append(item)
+      }
+      plannedNamedActions = database.namedActions + additionalNamedActions
     case .replace:
       plannedGroups = imported.applicationGroups
       plannedApplications = imported.managedApplicationBundleIdentifiers
+      plannedConfigurationSets = imported.configurationSets
+      plannedNamedActions = safeImportedNamedActions
     }
     synchronizeGroupScopes(
       in: &normalized,
@@ -566,7 +831,9 @@ public actor MappingStore {
     let plannedDatabase = GestureDatabase(
       mappings: normalized,
       applicationGroups: plannedGroups,
-      managedApplicationBundleIdentifiers: plannedApplications
+      managedApplicationBundleIdentifiers: plannedApplications,
+      configurationSets: plannedConfigurationSets,
+      namedActions: plannedNamedActions
     )
     let preview = MappingImportPreview(
       schemaVersion: imported.schemaVersion,
@@ -589,7 +856,10 @@ public actor MappingStore {
       ).sorted(),
       conflicts: conflicts,
       scriptsRequiringConfirmation: importedScripts,
-      includesSettings: includesSettings
+      includesSettings: includesSettings,
+      importedConfigurationSetCount: imported.configurationSets.count,
+      importedNamedActionCount: imported.namedActions.count,
+      packName: packName
     )
     return (plannedDatabase, preview)
   }
@@ -602,7 +872,11 @@ public actor MappingStore {
       guard
         existing.appScope.competes(with: imported.appScope),
         existing.applicationGroupID == imported.applicationGroupID,
-        existing.triggerButton == imported.triggerButton
+        existing.triggerButton == imported.triggerButton,
+        existing.requiredChordButtons == imported.requiredChordButtons,
+        existing.inputVariant == imported.inputVariant,
+        existing.contextCondition == imported.contextCondition,
+        existing.configurationSetID == imported.configurationSetID
       else {
         return false
       }
@@ -641,10 +915,86 @@ public actor MappingStore {
       "applicationMenu"
     case .appleShortcut:
       "appleShortcut"
+    case .namedAction:
+      "namedAction"
     case .sequence:
       "sequence"
     case .script:
       "script"
+    }
+  }
+
+  private func referencedNamedActionClosure(
+    for mappings: [GestureMapping],
+    namedActions: [NamedGestureAction]
+  ) -> Set<UUID> {
+    let namedActionsByID = Dictionary(
+      uniqueKeysWithValues: namedActions.map { ($0.id, $0) }
+    )
+    var pending = Array(
+      mappings.reduce(into: Set<UUID>()) { result, mapping in
+        result.formUnion(referencedNamedActionIDs(in: mapping.action))
+        if let secondaryAction = mapping.secondaryAction {
+          result.formUnion(
+            referencedNamedActionIDs(in: secondaryAction)
+          )
+        }
+      }
+    )
+    var result = Set<UUID>()
+    while let id = pending.popLast() {
+      guard result.insert(id).inserted,
+        let namedAction = namedActionsByID[id]
+      else {
+        continue
+      }
+      pending.append(
+        contentsOf: referencedNamedActionIDs(in: namedAction.action)
+      )
+    }
+    return result
+  }
+
+  private func scripts(
+    in action: GestureAction,
+    namedActionsByID: [UUID: NamedGestureAction],
+    resolving: Set<UUID>
+  ) -> [AutomationScript] {
+    switch action {
+    case .namedAction(let id):
+      guard !resolving.contains(id),
+        let namedAction = namedActionsByID[id]
+      else {
+        return []
+      }
+      var nextResolving = resolving
+      nextResolving.insert(id)
+      return scripts(
+        in: namedAction.action,
+        namedActionsByID: namedActionsByID,
+        resolving: nextResolving
+      )
+    case .sequence(let sequence):
+      let stepScripts = sequence.steps.flatMap {
+        scripts(
+          in: $0.action,
+          namedActionsByID: namedActionsByID,
+          resolving: resolving
+        )
+      }
+      guard case .fallback(let fallback) = sequence.failurePolicy else {
+        return stepScripts
+      }
+      return stepScripts
+        + scripts(
+          in: fallback,
+          namedActionsByID: namedActionsByID,
+          resolving: resolving
+        )
+    case .script(let script):
+      return [script]
+    default:
+      return []
     }
   }
 
@@ -694,6 +1044,79 @@ public actor MappingStore {
       throw MappingStoreError.duplicateMappingID
     }
 
+    guard
+      database.configurationSets.count
+        <= limits.maximumConfigurationSetCount,
+      Set(database.configurationSets.map(\.id)).count
+        == database.configurationSets.count,
+      Set(
+        database.configurationSets.map {
+          $0.name.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: .current
+          )
+        }
+      ).count == database.configurationSets.count,
+      database.configurationSets.allSatisfy({
+        let name = $0.name.trimmingCharacters(
+          in: .whitespacesAndNewlines
+        )
+        return !name.isEmpty
+          && name.utf8.count <= limits.maximumNameLength
+      })
+    else {
+      throw MappingStoreError.invalidConfigurationSet
+    }
+
+    guard
+      database.namedActions.count <= limits.maximumNamedActionCount,
+      Set(database.namedActions.map(\.id)).count
+        == database.namedActions.count,
+      Set(
+        database.namedActions.map {
+          $0.name.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: .current
+          )
+        }
+      ).count == database.namedActions.count,
+      database.namedActions.allSatisfy({
+        let name = $0.name.trimmingCharacters(
+          in: .whitespacesAndNewlines
+        )
+        return !name.isEmpty
+          && name.utf8.count <= limits.maximumNameLength
+          && $0.action.performsAction
+      })
+    else {
+      throw MappingStoreError.invalidNamedAction
+    }
+    let namedActionsByID = Dictionary(
+      uniqueKeysWithValues: database.namedActions.map { ($0.id, $0) }
+    )
+    for namedAction in database.namedActions {
+      try validate(
+        namedAction.action,
+        isEnabled: namedAction.isEnabled,
+        namedActionsByID: namedActionsByID
+      )
+      try validateNamedActionGraph(
+        namedAction.id,
+        namedActionsByID: namedActionsByID,
+        resolving: []
+      )
+    }
+    let compiledNamedActions = database.compiledSnapshot.namedActions
+    guard
+      compiledNamedActions.allSatisfy({
+        !$0.allowsAppIntent
+          || ($0.isEnabled && $0.action.isSafeForAppIntent)
+      })
+    else {
+      throw MappingStoreError.invalidNamedAction
+    }
+    let configurationSetIDs = Set(database.configurationSets.map(\.id))
+
     for (index, mapping) in database.mappings.enumerated() {
       guard
         !mapping.name.trimmingCharacters(
@@ -714,12 +1137,63 @@ public actor MappingStore {
       {
         throw MappingStoreError.invalidMappingName
       }
-      try validate(mapping.action, isEnabled: mapping.isEnabled)
+      try validate(
+        mapping.action,
+        isEnabled: mapping.isEnabled,
+        namedActionsByID: namedActionsByID
+      )
       if let secondaryAction = mapping.secondaryAction {
         try validate(
           secondaryAction,
-          isEnabled: mapping.isEnabled
+          isEnabled: mapping.isEnabled,
+          namedActionsByID: namedActionsByID
         )
+      }
+      guard
+        mapping.configurationSetID.map(
+          configurationSetIDs.contains
+        ) ?? true
+      else {
+        throw MappingStoreError.invalidConfigurationSet
+      }
+      let chordButtons = mapping.requiredChordButtons
+      guard chordButtons.count <= limits.maximumChordButtonCount,
+        Set(chordButtons).count == chordButtons.count,
+        !chordButtons.contains(mapping.triggerButton ?? .right),
+        chordButtons.allSatisfy({
+          $0.keyboardKeyCode == nil && $0 != .trackpad
+        }),
+        mapping.inputVariant.isValid
+      else {
+        throw MappingStoreError.invalidInputVariant
+      }
+      let condition = mapping.contextCondition
+      let normalizedRequired =
+        ShortcutRecordingSession.normalizedModifiers(
+          condition.requiredModifiers
+        )
+      let normalizedForbidden =
+        ShortcutRecordingSession.normalizedModifiers(
+          condition.forbiddenModifiers
+        )
+      guard condition.requiredModifiers == normalizedRequired,
+        condition.forbiddenModifiers == normalizedForbidden,
+        normalizedRequired & normalizedForbidden == 0,
+        condition.displayIDs.count <= limits.maximumContextValueCount,
+        Set(condition.displayIDs).count == condition.displayIDs.count,
+        condition.connectedDeviceIdentifiers.count
+          <= limits.maximumContextValueCount,
+        Set(condition.connectedDeviceIdentifiers).count
+          == condition.connectedDeviceIdentifiers.count,
+        condition.connectedDeviceIdentifiers.allSatisfy({
+          let value = $0.trimmingCharacters(
+            in: .whitespacesAndNewlines
+          )
+          return !value.isEmpty
+            && value.utf8.count <= limits.maximumBundleIDLength
+        })
+      else {
+        throw MappingStoreError.invalidContextCondition
       }
       guard !mapping.templates.isEmpty,
         mapping.templates.count <= limits.maximumTemplatesPerMapping
@@ -804,7 +1278,8 @@ public actor MappingStore {
 
   private nonisolated func validate(
     _ action: GestureAction,
-    isEnabled: Bool
+    isEnabled: Bool,
+    namedActionsByID: [UUID: NamedGestureAction]
   ) throws {
     if case .keyboardShortcut(let shortcut) = action {
       let isCanonicalEmpty =
@@ -822,6 +1297,11 @@ public actor MappingStore {
       }
       return
     }
+    for id in referencedNamedActionIDs(in: action) {
+      guard namedActionsByID[id] != nil else {
+        throw MappingStoreError.invalidNamedAction
+      }
+    }
     guard
       action.isValid
         || (!isEnabled
@@ -829,6 +1309,53 @@ public actor MappingStore {
           && action.isValid(allowingUnconfirmedScripts: true))
     else {
       throw MappingStoreError.invalidAction
+    }
+  }
+
+  private nonisolated func referencedNamedActionIDs(
+    in action: GestureAction
+  ) -> Set<UUID> {
+    switch action {
+    case .namedAction(let id):
+      return [id]
+    case .sequence(let sequence):
+      var result = Set(
+        sequence.steps.flatMap {
+          referencedNamedActionIDs(in: $0.action)
+        }
+      )
+      if case .fallback(let fallback) = sequence.failurePolicy {
+        result.formUnion(referencedNamedActionIDs(in: fallback))
+      }
+      return result
+    default:
+      return []
+    }
+  }
+
+  private nonisolated func validateNamedActionGraph(
+    _ id: UUID,
+    namedActionsByID: [UUID: NamedGestureAction],
+    resolving: Set<UUID>
+  ) throws {
+    guard !resolving.contains(id),
+      let namedAction = namedActionsByID[id]
+    else {
+      throw MappingStoreError.cyclicNamedAction
+    }
+    var nextResolving = resolving
+    nextResolving.insert(id)
+    for referencedID in referencedNamedActionIDs(
+      in: namedAction.action
+    ) {
+      guard namedActionsByID[referencedID] != nil else {
+        throw MappingStoreError.invalidNamedAction
+      }
+      try validateNamedActionGraph(
+        referencedID,
+        namedActionsByID: namedActionsByID,
+        resolving: nextResolving
+      )
     }
   }
 
@@ -891,6 +1418,27 @@ public actor MappingStore {
         }.filter { !$0.isEmpty }
       )
     ).sorted()
+  }
+
+  private func normalizedComparableName(_ name: String) -> String {
+    name.folding(
+      options: [.caseInsensitive, .diacriticInsensitive],
+      locale: .current
+    )
+  }
+
+  private func uniqueImportedName(
+    _ name: String,
+    existingNames: Set<String>
+  ) -> String {
+    let base = String(name.prefix(max(1, limits.maximumNameLength - 24)))
+    var candidate = "\(base) (Imported)"
+    var suffix = 2
+    while existingNames.contains(normalizedComparableName(candidate)) {
+      candidate = "\(base) (Imported \(suffix))"
+      suffix += 1
+    }
+    return candidate
   }
 
   private func writePrimary(

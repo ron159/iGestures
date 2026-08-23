@@ -120,6 +120,7 @@ public struct GestureCandidate: Equatable, Sendable {
   public let frontmostBundleID: String?
   public let triggerButton: GestureTriggerButton
   public let inputDevice: GestureInputDevice
+  public let matchContext: GestureMatchContext
   public let duration: TimeInterval
   public let usesSecondaryTrigger: Bool
 
@@ -129,12 +130,15 @@ public struct GestureCandidate: Equatable, Sendable {
     triggerButton: GestureTriggerButton = .right,
     inputDevice: GestureInputDevice = .mouse(identifier: nil),
     duration: TimeInterval,
-    usesSecondaryTrigger: Bool = false
+    usesSecondaryTrigger: Bool = false,
+    matchContext: GestureMatchContext? = nil
   ) {
     self.points = points
     self.frontmostBundleID = frontmostBundleID
     self.triggerButton = triggerButton
     self.inputDevice = inputDevice
+    self.matchContext =
+      matchContext ?? GestureMatchContext(inputDevice: inputDevice)
     self.duration = duration
     self.usesSecondaryTrigger = usesSecondaryTrigger
   }
@@ -148,7 +152,22 @@ public struct GestureCandidate: Equatable, Sendable {
       triggerButton: triggerButton,
       inputDevice: inputDevice,
       duration: duration,
-      usesSecondaryTrigger: usesSecondaryTrigger
+      usesSecondaryTrigger: usesSecondaryTrigger,
+      matchContext: matchContext
+    )
+  }
+
+  public func usingMatchContext(
+    _ matchContext: GestureMatchContext
+  ) -> GestureCandidate {
+    GestureCandidate(
+      points: points,
+      frontmostBundleID: frontmostBundleID,
+      triggerButton: triggerButton,
+      inputDevice: inputDevice,
+      duration: duration,
+      usesSecondaryTrigger: usesSecondaryTrigger,
+      matchContext: matchContext
     )
   }
 }

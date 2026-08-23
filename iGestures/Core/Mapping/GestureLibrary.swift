@@ -11,6 +11,10 @@ public struct GestureMappingDraft: Sendable {
   public var applicationGroupID: UUID?
   public var repeatModeEnabled: Bool
   public var deviceScope: InputDeviceScope
+  public var configurationSetID: UUID?
+  public var requiredChordButtons: [GestureTriggerButton]
+  public var inputVariant: GestureInputVariant
+  public var contextCondition: GestureContextCondition
   public var isEnabled: Bool
 
   public init(
@@ -24,6 +28,10 @@ public struct GestureMappingDraft: Sendable {
     applicationGroupID: UUID? = nil,
     repeatModeEnabled: Bool = false,
     deviceScope: InputDeviceScope = .any,
+    configurationSetID: UUID? = nil,
+    requiredChordButtons: [GestureTriggerButton] = [],
+    inputVariant: GestureInputVariant = .draw,
+    contextCondition: GestureContextCondition = .any,
     isEnabled: Bool = true
   ) {
     self.name = name
@@ -36,6 +44,10 @@ public struct GestureMappingDraft: Sendable {
     self.applicationGroupID = applicationGroupID
     self.repeatModeEnabled = repeatModeEnabled
     self.deviceScope = deviceScope
+    self.configurationSetID = configurationSetID
+    self.requiredChordButtons = requiredChordButtons
+    self.inputVariant = inputVariant
+    self.contextCondition = contextCondition
     self.isEnabled = isEnabled
   }
 
@@ -50,6 +62,10 @@ public struct GestureMappingDraft: Sendable {
     applicationGroupID: UUID? = nil,
     repeatModeEnabled: Bool = false,
     deviceScope: InputDeviceScope = .any,
+    configurationSetID: UUID? = nil,
+    requiredChordButtons: [GestureTriggerButton] = [],
+    inputVariant: GestureInputVariant = .draw,
+    contextCondition: GestureContextCondition = .any,
     isEnabled: Bool = true
   ) {
     self.init(
@@ -63,6 +79,10 @@ public struct GestureMappingDraft: Sendable {
       applicationGroupID: applicationGroupID,
       repeatModeEnabled: repeatModeEnabled,
       deviceScope: deviceScope,
+      configurationSetID: configurationSetID,
+      requiredChordButtons: requiredChordButtons,
+      inputVariant: inputVariant,
+      contextCondition: contextCondition,
       isEnabled: isEnabled
     )
   }
@@ -101,6 +121,10 @@ public struct GestureLibrary: Sendable {
         applicationGroupID: draft.applicationGroupID,
         repeatModeEnabled: draft.repeatModeEnabled,
         deviceScope: draft.deviceScope,
+        configurationSetID: draft.configurationSetID,
+        requiredChordButtons: draft.requiredChordButtons,
+        inputVariant: draft.inputVariant,
+        contextCondition: draft.contextCondition,
         priority: database.mappings.count
       )
     )
@@ -131,6 +155,10 @@ public struct GestureLibrary: Sendable {
       $0.applicationGroupID = draft.applicationGroupID
       $0.repeatModeEnabled = draft.repeatModeEnabled
       $0.deviceScope = draft.deviceScope
+      $0.configurationSetID = draft.configurationSetID
+      $0.requiredChordButtons = draft.requiredChordButtons
+      $0.inputVariant = draft.inputVariant
+      $0.contextCondition = draft.contextCondition
       $0.isEnabled =
         draft.isEnabled
         && draft.action.isValid
@@ -246,6 +274,42 @@ public struct GestureLibrary: Sendable {
   ) throws {
     try update(id: id) {
       $0.deviceScope = scope
+    }
+  }
+
+  public mutating func setConfigurationSet(
+    id: UUID,
+    _ configurationSetID: UUID?
+  ) throws {
+    try update(id: id) {
+      $0.configurationSetID = configurationSetID
+    }
+  }
+
+  public mutating func setRequiredChordButtons(
+    id: UUID,
+    _ buttons: [GestureTriggerButton]
+  ) throws {
+    try update(id: id) {
+      $0.requiredChordButtons = buttons
+    }
+  }
+
+  public mutating func setInputVariant(
+    id: UUID,
+    _ inputVariant: GestureInputVariant
+  ) throws {
+    try update(id: id) {
+      $0.inputVariant = inputVariant
+    }
+  }
+
+  public mutating func setContextCondition(
+    id: UUID,
+    _ condition: GestureContextCondition
+  ) throws {
+    try update(id: id) {
+      $0.contextCondition = condition
     }
   }
 

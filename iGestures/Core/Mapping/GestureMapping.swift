@@ -225,6 +225,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
   case typeText(String)
   case applicationMenu(ApplicationMenuAction)
   case appleShortcut(name: String)
+  case namedAction(UUID)
   case sequence(GestureActionSequence)
   case script(AutomationScript)
 
@@ -240,6 +241,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
     case text
     case menuAction
     case name
+    case namedActionID
     case sequence
     case script
   }
@@ -256,6 +258,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
     case typeText
     case applicationMenu
     case appleShortcut
+    case namedAction
     case sequence
     case script
   }
@@ -322,6 +325,10 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
     case .appleShortcut:
       self = .appleShortcut(
         name: try container.decode(String.self, forKey: .name)
+      )
+    case .namedAction:
+      self = .namedAction(
+        try container.decode(UUID.self, forKey: .namedActionID)
       )
     case .sequence:
       self = .sequence(
@@ -390,6 +397,9 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
         forKey: .type
       )
       try container.encode(name, forKey: .name)
+    case .namedAction(let id):
+      try container.encode(ActionType.namedAction, forKey: .type)
+      try container.encode(id, forKey: .namedActionID)
     case .sequence(let sequence):
       try container.encode(ActionType.sequence, forKey: .type)
       try container.encode(sequence, forKey: .sequence)
@@ -455,6 +465,8 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
       return !name.trimmingCharacters(
         in: .whitespacesAndNewlines
       ).isEmpty
+    case .namedAction:
+      return true
     case .sequence(let sequence):
       let fallbackIsValid: Bool
       switch sequence.failurePolicy {
@@ -513,7 +525,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
       return [script]
     case .none, .keyboardShortcut, .openURL, .openPath, .launchApplication,
       .system, .window, .customWindow, .typeText, .applicationMenu,
-      .appleShortcut:
+      .appleShortcut, .namedAction:
       return []
     }
   }
@@ -538,7 +550,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
       return .sequence(sequence)
     case .none, .keyboardShortcut, .openURL, .openPath, .launchApplication,
       .system, .window, .customWindow, .typeText, .applicationMenu,
-      .appleShortcut:
+      .appleShortcut, .namedAction:
       return self
     }
   }
@@ -548,6 +560,34 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
   ) -> [AutomationScript] {
     guard case .fallback(let action) = policy else { return [] }
     return action.scripts
+  }
+
+  public var isSafeForAppIntent: Bool {
+    isSafeForAppIntent(depth: 0)
+  }
+
+  private func isSafeForAppIntent(depth: Int) -> Bool {
+    guard depth <= 20 else { return false }
+    switch self {
+    case .openURL, .launchApplication, .system, .window, .customWindow:
+      return isValid
+    case .sequence(let sequence):
+      let fallbackIsSafe: Bool
+      switch sequence.failurePolicy {
+      case .stop, .continue:
+        fallbackIsSafe = true
+      case .fallback(let fallback):
+        fallbackIsSafe = fallback.isSafeForAppIntent(depth: depth + 1)
+      }
+      return fallbackIsSafe
+        && !sequence.steps.isEmpty
+        && sequence.steps.allSatisfy {
+          $0.action.isSafeForAppIntent(depth: depth + 1)
+        }
+    case .none, .keyboardShortcut, .openPath, .typeText,
+      .applicationMenu, .appleShortcut, .namedAction, .script:
+      return false
+    }
   }
 }
 
@@ -785,6 +825,171 @@ public enum AppScope: Codable, Hashable, Sendable {
   }
 }
 
+public enum GestureScrollDirection:
+  String,
+  Codable,
+  CaseIterable,
+  Sendable
+{
+  case up
+  case down
+  case either
+}
+
+public enum GestureInputVariant: Codable, Hashable, Sendable {
+  case draw
+  case doubleClick(maximumInterval: TimeInterval)
+  case longPress(minimumDuration: TimeInterval)
+  case scrollWheel(direction: GestureScrollDirection)
+
+  private enum CodingKeys: String, CodingKey {
+    case type
+    case duration
+    case direction
+  }
+
+  private enum VariantType: String, Codable {
+    case draw
+    case doubleClick
+    case longPress
+    case scrollWheel
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    switch try container.decode(VariantType.self, forKey: .type) {
+    case .draw:
+      self = .draw
+    case .doubleClick:
+      self = .doubleClick(
+        maximumInterval: try container.decode(
+          TimeInterval.self,
+          forKey: .duration
+        )
+      )
+    case .longPress:
+      self = .longPress(
+        minimumDuration: try container.decode(
+          TimeInterval.self,
+          forKey: .duration
+        )
+      )
+    case .scrollWheel:
+      self = .scrollWheel(
+        direction: try container.decode(
+          GestureScrollDirection.self,
+          forKey: .direction
+        )
+      )
+    }
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    switch self {
+    case .draw:
+      try container.encode(VariantType.draw, forKey: .type)
+    case .doubleClick(let maximumInterval):
+      try container.encode(VariantType.doubleClick, forKey: .type)
+      try container.encode(maximumInterval, forKey: .duration)
+    case .longPress(let minimumDuration):
+      try container.encode(VariantType.longPress, forKey: .type)
+      try container.encode(minimumDuration, forKey: .duration)
+    case .scrollWheel(let direction):
+      try container.encode(VariantType.scrollWheel, forKey: .type)
+      try container.encode(direction, forKey: .direction)
+    }
+  }
+
+  public var isValid: Bool {
+    switch self {
+    case .draw, .scrollWheel:
+      return true
+    case .doubleClick(let maximumInterval):
+      return maximumInterval.isFinite && (0.15...1).contains(maximumInterval)
+    case .longPress(let minimumDuration):
+      return minimumDuration.isFinite && (0.25...3).contains(minimumDuration)
+    }
+  }
+
+  public var requiresDrawnGesture: Bool {
+    self == .draw
+  }
+}
+
+public struct GestureContextCondition: Codable, Hashable, Sendable {
+  public var requiredModifiers: UInt64
+  public var forbiddenModifiers: UInt64
+  public var displayIDs: [UInt32]
+  public var connectedDeviceIdentifiers: [String]
+
+  public init(
+    requiredModifiers: UInt64 = 0,
+    forbiddenModifiers: UInt64 = 0,
+    displayIDs: [UInt32] = [],
+    connectedDeviceIdentifiers: [String] = []
+  ) {
+    self.requiredModifiers =
+      ShortcutRecordingSession.normalizedModifiers(requiredModifiers)
+    self.forbiddenModifiers =
+      ShortcutRecordingSession.normalizedModifiers(forbiddenModifiers)
+    self.displayIDs = displayIDs
+    self.connectedDeviceIdentifiers = connectedDeviceIdentifiers
+  }
+
+  public static let any = GestureContextCondition()
+
+  public func matches(_ context: GestureMatchContext) -> Bool {
+    let modifiers = ShortcutRecordingSession.normalizedModifiers(
+      context.modifierFlags
+    )
+    guard modifiers & requiredModifiers == requiredModifiers,
+      modifiers & forbiddenModifiers == 0
+    else {
+      return false
+    }
+    if !displayIDs.isEmpty {
+      guard let displayID = context.displayID,
+        displayIDs.contains(displayID)
+      else {
+        return false
+      }
+    }
+    if !connectedDeviceIdentifiers.isEmpty {
+      let connected = Set(context.connectedDeviceIdentifiers)
+      guard Set(connectedDeviceIdentifiers).isSubset(of: connected) else {
+        return false
+      }
+    }
+    return true
+  }
+}
+
+public struct GestureMatchContext: Equatable, Sendable {
+  public let inputDevice: GestureInputDevice
+  public let modifierFlags: UInt64
+  public let displayID: UInt32?
+  public let connectedDeviceIdentifiers: [String]
+  public let heldButtons: Set<GestureTriggerButton>
+  public let inputVariant: GestureInputVariant
+
+  public init(
+    inputDevice: GestureInputDevice = .mouse(identifier: nil),
+    modifierFlags: UInt64 = 0,
+    displayID: UInt32? = nil,
+    connectedDeviceIdentifiers: [String] = [],
+    heldButtons: Set<GestureTriggerButton> = [],
+    inputVariant: GestureInputVariant = .draw
+  ) {
+    self.inputDevice = inputDevice
+    self.modifierFlags = modifierFlags
+    self.displayID = displayID
+    self.connectedDeviceIdentifiers = connectedDeviceIdentifiers
+    self.heldButtons = heldButtons
+    self.inputVariant = inputVariant
+  }
+}
+
 public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
   public let id: UUID
   public var name: String
@@ -798,6 +1003,10 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
   public var applicationGroupID: UUID?
   public var repeatModeEnabled: Bool
   public var deviceScope: InputDeviceScope
+  public var configurationSetID: UUID?
+  public var requiredChordButtons: [GestureTriggerButton]
+  public var inputVariant: GestureInputVariant
+  public var contextCondition: GestureContextCondition
   public var priority: Int
 
   private enum CodingKeys: String, CodingKey {
@@ -814,6 +1023,10 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     case applicationGroupID
     case repeatModeEnabled
     case deviceScope
+    case configurationSetID
+    case requiredChordButtons
+    case inputVariant
+    case contextCondition
     case priority
   }
 
@@ -830,6 +1043,10 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     applicationGroupID: UUID? = nil,
     repeatModeEnabled: Bool = false,
     deviceScope: InputDeviceScope = .any,
+    configurationSetID: UUID? = nil,
+    requiredChordButtons: [GestureTriggerButton] = [],
+    inputVariant: GestureInputVariant = .draw,
+    contextCondition: GestureContextCondition = .any,
     priority: Int = 0
   ) {
     self.id = id
@@ -844,6 +1061,10 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     self.applicationGroupID = applicationGroupID
     self.repeatModeEnabled = repeatModeEnabled
     self.deviceScope = deviceScope
+    self.configurationSetID = configurationSetID
+    self.requiredChordButtons = requiredChordButtons
+    self.inputVariant = inputVariant
+    self.contextCondition = contextCondition
     self.priority = priority
   }
 
@@ -860,6 +1081,10 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
     applicationGroupID: UUID? = nil,
     repeatModeEnabled: Bool = false,
     deviceScope: InputDeviceScope = .any,
+    configurationSetID: UUID? = nil,
+    requiredChordButtons: [GestureTriggerButton] = [],
+    inputVariant: GestureInputVariant = .draw,
+    contextCondition: GestureContextCondition = .any,
     priority: Int = 0
   ) {
     self.init(
@@ -875,6 +1100,10 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
       applicationGroupID: applicationGroupID,
       repeatModeEnabled: repeatModeEnabled,
       deviceScope: deviceScope,
+      configurationSetID: configurationSetID,
+      requiredChordButtons: requiredChordButtons,
+      inputVariant: inputVariant,
+      contextCondition: contextCondition,
       priority: priority
     )
   }
@@ -928,6 +1157,25 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
         InputDeviceScope.self,
         forKey: .deviceScope
       ) ?? .any
+    configurationSetID = try container.decodeIfPresent(
+      UUID.self,
+      forKey: .configurationSetID
+    )
+    requiredChordButtons =
+      try container.decodeIfPresent(
+        [GestureTriggerButton].self,
+        forKey: .requiredChordButtons
+      ) ?? []
+    inputVariant =
+      try container.decodeIfPresent(
+        GestureInputVariant.self,
+        forKey: .inputVariant
+      ) ?? .draw
+    contextCondition =
+      try container.decodeIfPresent(
+        GestureContextCondition.self,
+        forKey: .contextCondition
+      ) ?? .any
     priority = try container.decode(Int.self, forKey: .priority)
   }
 
@@ -957,6 +1205,16 @@ public struct GestureMapping: Codable, Hashable, Identifiable, Sendable {
       forKey: .repeatModeEnabled
     )
     try container.encode(deviceScope, forKey: .deviceScope)
+    try container.encodeIfPresent(
+      configurationSetID,
+      forKey: .configurationSetID
+    )
+    try container.encode(
+      requiredChordButtons,
+      forKey: .requiredChordButtons
+    )
+    try container.encode(inputVariant, forKey: .inputVariant)
+    try container.encode(contextCondition, forKey: .contextCondition)
     try container.encode(priority, forKey: .priority)
   }
 

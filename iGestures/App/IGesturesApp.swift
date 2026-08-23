@@ -1,3 +1,4 @@
+import AppIntents
 import AppKit
 import SwiftUI
 
@@ -229,6 +230,143 @@ private enum MenuBarTemplateImage {
     image.size = NSSize(width: 22, height: 18)
     image.isTemplate = true
     return image
+  }
+}
+
+@MainActor
+final class IGesturesIntentBridge {
+  static let shared = IGesturesIntentBridge()
+
+  private weak var model: AppModel?
+
+  private init() {}
+
+  func install(_ model: AppModel) {
+    self.model = model
+  }
+
+  func setRecognitionEnabled(_ enabled: Bool) -> Bool {
+    guard let model else { return false }
+    model.setRecognitionEnabled(enabled)
+    return model.isEnabled == enabled
+  }
+
+  func activateConfigurationSet(named name: String) -> Bool {
+    model?.activateGestureConfigurationSet(named: name) == true
+  }
+
+  func runNamedAction(named name: String) -> Bool {
+    model?.runSafeNamedGestureAction(named: name) == true
+  }
+}
+
+private enum IGesturesIntentError: LocalizedError {
+  case appUnavailable
+  case configurationSetNotFound
+  case namedActionNotAllowed
+
+  var errorDescription: String? {
+    switch self {
+    case .appUnavailable:
+      String(localized: "iGestures is not ready.")
+    case .configurationSetNotFound:
+      String(localized: "The configuration set was not found.")
+    case .namedActionNotAllowed:
+      String(
+        localized:
+          "The named action was not found or is not allowed for App Intents."
+      )
+    }
+  }
+}
+
+struct SetGestureRecognitionIntent: AppIntent {
+  static let title: LocalizedStringResource =
+    "Set Gesture Recognition"
+  static let description = IntentDescription(
+    "Enable or disable iGestures recognition."
+  )
+
+  @Parameter(title: "Enabled")
+  var enabled: Bool
+
+  @MainActor
+  func perform() async throws -> some IntentResult & ProvidesDialog {
+    guard IGesturesIntentBridge.shared.setRecognitionEnabled(enabled)
+    else {
+      throw IGesturesIntentError.appUnavailable
+    }
+    return .result(
+      dialog:
+        enabled
+        ? "Gesture recognition is enabled."
+        : "Gesture recognition is disabled."
+    )
+  }
+}
+
+struct SwitchGestureConfigurationSetIntent: AppIntent {
+  static let title: LocalizedStringResource =
+    "Switch Gesture Configuration"
+  static let description = IntentDescription(
+    "Activate one named iGestures configuration set."
+  )
+
+  @Parameter(title: "Configuration Set")
+  var configurationSetName: String
+
+  @MainActor
+  func perform() async throws -> some IntentResult & ProvidesDialog {
+    guard
+      IGesturesIntentBridge.shared.activateConfigurationSet(
+        named: configurationSetName
+      )
+    else {
+      throw IGesturesIntentError.configurationSetNotFound
+    }
+    return .result(dialog: "Gesture configuration switched.")
+  }
+}
+
+struct RunSafeNamedGestureActionIntent: AppIntent {
+  static let title: LocalizedStringResource = "Run Named Gesture Action"
+  static let description = IntentDescription(
+    "Run an iGestures named action that was explicitly allowed for App Intents."
+  )
+
+  @Parameter(title: "Named Action")
+  var actionName: String
+
+  @MainActor
+  func perform() async throws -> some IntentResult & ProvidesDialog {
+    guard IGesturesIntentBridge.shared.runNamedAction(named: actionName)
+    else {
+      throw IGesturesIntentError.namedActionNotAllowed
+    }
+    return .result(dialog: "Named gesture action started.")
+  }
+}
+
+struct IGesturesAppShortcuts: AppShortcutsProvider {
+  static var appShortcuts: [AppShortcut] {
+    AppShortcut(
+      intent: SetGestureRecognitionIntent(),
+      phrases: ["Set gesture recognition in \(.applicationName)"],
+      shortTitle: "Gesture Recognition",
+      systemImageName: "hand.draw"
+    )
+    AppShortcut(
+      intent: SwitchGestureConfigurationSetIntent(),
+      phrases: ["Switch gesture configuration in \(.applicationName)"],
+      shortTitle: "Switch Configuration",
+      systemImageName: "square.stack.3d.up"
+    )
+    AppShortcut(
+      intent: RunSafeNamedGestureActionIntent(),
+      phrases: ["Run a named gesture action in \(.applicationName)"],
+      shortTitle: "Run Named Action",
+      systemImageName: "bolt.shield"
+    )
   }
 }
 

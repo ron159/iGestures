@@ -1,6 +1,646 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%d Conditions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d 个条件"
+          }
+        }
+      }
+    },
+    "Activate": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "激活"
+          }
+        }
+      }
+    },
+    "Activating a set enables it and disables the other named sets. Unassigned gestures stay active.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "激活一个配置集会启用它并停用其他命名配置集。未分配的手势始终保持可用。"
+          }
+        }
+      }
+    },
+    "Activate one named iGestures configuration set.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "激活一个已命名的 iGestures 配置集。"
+          }
+        }
+      }
+    },
+    "Activation Variant": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触发变体"
+          }
+        }
+      }
+    },
+    "Allow this safe action in App Intents": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许 App Intents 调用此安全动作"
+          }
+        }
+      }
+    },
+    "Always Active": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "始终启用"
+          }
+        }
+      }
+    },
+    "Any Context": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任意上下文"
+          }
+        }
+      }
+    },
+    "Application and application-group bounds remain configured through Application Scope. General expressions, window text, and scripts are not evaluated as conditions.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用及应用组边界仍通过“应用范围”配置。条件不会计算通用表达式、窗口文本或脚本。"
+          }
+        }
+      }
+    },
+    "Button Combination": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按钮组合"
+          }
+        }
+      }
+    },
+    "Choose an iGestures configuration or .igesturespack to import.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要导入的 iGestures 配置或 .igesturespack 文件。"
+          }
+        }
+      }
+    },
+    "Choose where to export the selected gestures and their referenced configuration sets and named actions.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择导出位置。所选手势引用的配置集和命名动作也会一并导出。"
+          }
+        }
+      }
+    },
+    "Configuration Set": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置集"
+          }
+        }
+      }
+    },
+    "Configuration Set Name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置集名称"
+          }
+        }
+      }
+    },
+    "Configuration Sets": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置集"
+          }
+        }
+      }
+    },
+    "Connected Input Devices": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接的输入设备"
+          }
+        }
+      }
+    },
+    "Context Conditions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上下文条件"
+          }
+        }
+      }
+    },
+    "Create named sets such as Work, Home, or Presentation, then assign gestures to them.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建“工作”“家庭”或“演示”等命名配置集，然后将手势分配给它们。"
+          }
+        }
+      }
+    },
+    "Create one reusable action, then reference it from multiple gestures.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建可复用的命名动作，然后让多个手势引用它。"
+          }
+        }
+      }
+    },
+    "Current Display": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前显示器"
+          }
+        }
+      }
+    },
+    "Display IDs separated by commas": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用逗号分隔显示器 ID"
+          }
+        }
+      }
+    },
+    "Double Click": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双击"
+          }
+        }
+      }
+    },
+    "Draw Gesture": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "绘制手势"
+          }
+        }
+      }
+    },
+    "Edit Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑动作"
+          }
+        }
+      }
+    },
+    "Enable or disable iGestures recognition.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用或停用 iGestures 识别。"
+          }
+        }
+      }
+    },
+    "Enter one connected-device identifier per line. Leave empty for any connected device.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每行输入一个已连接设备标识符。留空表示任意已连接设备。"
+          }
+        }
+      }
+    },
+    "Export Gesture Pack": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出手势包"
+          }
+        }
+      }
+    },
+    "Export Selected as Gesture Pack…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将所选手势导出为手势包…"
+          }
+        }
+      }
+    },
+    "Forbidden": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "禁止"
+          }
+        }
+      }
+    },
+    "Gesture configuration switched.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势配置已切换。"
+          }
+        }
+      }
+    },
+    "Gesture Pack": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势包"
+          }
+        }
+      }
+    },
+    "Gesture Pack Name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势包名称"
+          }
+        }
+      }
+    },
+    "Gesture pack could not be exported.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法导出手势包。"
+          }
+        }
+      }
+    },
+    "Gesture pack exported successfully.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势包已成功导出。"
+          }
+        }
+      }
+    },
+    "Gesture recognition is disabled.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势识别已停用。"
+          }
+        }
+      }
+    },
+    "Gesture recognition is enabled.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势识别已启用。"
+          }
+        }
+      }
+    },
+    "Hold Button + Scroll Down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住按钮并向下滚动"
+          }
+        }
+      }
+    },
+    "Hold Button + Scroll Either Way": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住按钮并滚动"
+          }
+        }
+      }
+    },
+    "Hold Button + Scroll Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住按钮并向上滚动"
+          }
+        }
+      }
+    },
+    "Insert Connected Device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插入已连接设备"
+          }
+        }
+      }
+    },
+    "Leave empty for any display. Conditions compare immutable numeric display IDs.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留空表示任意显示器。条件使用不可变的数字显示器 ID 进行比较。"
+          }
+        }
+      }
+    },
+    "Long Press": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "长按"
+          }
+        }
+      }
+    },
+    "Manage Configuration Sets…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理配置集…"
+          }
+        }
+      }
+    },
+    "Manage Named Actions…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理命名动作…"
+          }
+        }
+      }
+    },
+    "Modifier Keys": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修饰键"
+          }
+        }
+      }
+    },
+    "Named Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命名动作"
+          }
+        }
+      }
+    },
+    "Named Action %d": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命名动作 %d"
+          }
+        }
+      }
+    },
+    "Named Actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命名动作"
+          }
+        }
+      }
+    },
+    "Named actions are expanded into the immutable recognition snapshot. Cycles are rejected.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命名动作会展开到不可变的识别快照中，并拒绝循环引用。"
+          }
+        }
+      }
+    },
+    "Named gesture action started.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命名手势动作已开始。"
+          }
+        }
+      }
+    },
+    "New Configuration Set": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建配置集"
+          }
+        }
+      }
+    },
+    "No Configuration Sets": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无配置集"
+          }
+        }
+      }
+    },
+    "No Named Actions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无命名动作"
+          }
+        }
+      }
+    },
+    "Required": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "必须"
+          }
+        }
+      }
+    },
+    "Run an iGestures named action that was explicitly allowed for App Intents.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行明确允许 App Intents 调用的 iGestures 命名动作。"
+          }
+        }
+      }
+    },
+    "Run Named Gesture Action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行命名手势动作"
+          }
+        }
+      }
+    },
+    "Scripts, typed text, file paths, keyboard injection, application menus, and Apple Shortcuts are never exposed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本、输入文本、文件路径、键盘注入、应用菜单和 Apple 快捷指令不会开放给 App Intents。"
+          }
+        }
+      }
+    },
+    "Set Gesture Recognition": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置手势识别"
+          }
+        }
+      }
+    },
+    "Switch Gesture Configuration": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换手势配置"
+          }
+        }
+      }
+    },
+    "The configuration set was not found.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到该配置集。"
+          }
+        }
+      }
+    },
+    "The named action was not found or is not allowed for App Intents.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到该命名动作，或它未获准用于 App Intents。"
+          }
+        }
+      }
+    },
+    "This named action is still used by a gesture.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仍有手势在使用此命名动作。"
+          }
+        }
+      }
+    },
+    "Use Current Display": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用当前显示器"
+          }
+        }
+      }
+    },
+    "iGestures is not ready.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iGestures 尚未就绪。"
+          }
+        }
+      }
+    },
     "Accessibility Control": {
       "localizations": {
         "zh-Hans": {
