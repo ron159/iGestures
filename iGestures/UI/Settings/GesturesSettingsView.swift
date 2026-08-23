@@ -2,6 +2,13 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+extension UTType {
+  static let iGesturesPack = UTType(
+    exportedAs: "com.ron159.igestures.gesture-pack",
+    conformingTo: .json
+  )
+}
+
 enum SettingsAlignedControlMetrics {
   static let labelWidth: CGFloat = 166
   static let controlWidth: CGFloat = 190
@@ -272,6 +279,8 @@ struct GesturesSettingsView: View {
   @State private var groupPendingDeletion: GestureApplicationGroup?
   @State private var mappingIDsPendingDeletion: Set<UUID> = []
   @State private var searchText = ""
+  @State private var isNamingGesturePack = false
+  @State private var gesturePackName = ""
 
   var body: some View {
     GeometryReader { geometry in
@@ -401,6 +410,25 @@ struct GesturesSettingsView: View {
         model.deleteMappings(ids: ids)
       }
       Button(String(localized: "Cancel"), role: .cancel) {}
+    }
+    .alert(
+      String(localized: "Export Gesture Pack"),
+      isPresented: $isNamingGesturePack
+    ) {
+      TextField(
+        String(localized: "Gesture Pack Name"),
+        text: $gesturePackName
+      )
+      Button(String(localized: "Cancel"), role: .cancel) {}
+      Button(String(localized: "Export")) {
+        chooseGesturePackDestination()
+      }
+      .disabled(
+        gesturePackName.trimmingCharacters(
+          in: .whitespacesAndNewlines
+        ).isEmpty
+          || selectedMappingIDs.isEmpty
+      )
     }
   }
 
@@ -659,6 +687,11 @@ struct GesturesSettingsView: View {
           )
         }
         .disabled(!selectedMappings.contains { $0.isEnabled })
+        Button(String(localized: "Export Selected as Gesture Pack…")) {
+          gesturePackName = targetTitle
+          isNamingGesturePack = true
+        }
+        .disabled(selectedMappingIDs.isEmpty)
         Divider()
         Button(
           String(localized: "Delete Selected Gestures"),
@@ -1452,6 +1485,34 @@ struct GesturesSettingsView: View {
     )
   }
 
+  private func chooseGesturePackDestination() {
+    let normalizedName = gesturePackName.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+    guard !normalizedName.isEmpty, !selectedMappingIDs.isEmpty else {
+      return
+    }
+    let panel = NSSavePanel()
+    panel.allowedContentTypes = [.iGesturesPack]
+    let fileName = normalizedName.replacingOccurrences(
+      of: "/",
+      with: "-"
+    )
+    panel.nameFieldStringValue = "\(fileName).igesturespack"
+    panel.message = String(
+      localized:
+        "Choose where to export the selected gestures and their referenced configuration sets and named actions."
+    )
+    guard panel.runModal() == .OK, let url = panel.url else {
+      return
+    }
+    model.exportGesturePack(
+      name: normalizedName,
+      mappingIDs: selectedMappingIDs,
+      to: url
+    )
+  }
+
 }
 
 private struct GestureLibraryRow: View {
@@ -1546,6 +1607,7 @@ private struct GestureMappingInspector: View {
   @State private var scopeEditorPresentation: ScopeEditorPresentation?
   @State private var isRetraining = false
   @State private var isConfirmingDeletion = false
+  @State private var isEditingContext = false
 
   init(
     model: AppModel,
@@ -1628,6 +1690,16 @@ private struct GestureMappingInspector: View {
         )
       }
     }
+    .sheet(isPresented: $isEditingContext) {
+      GestureContextConditionEditor(
+        condition: mapping.contextCondition
+      ) {
+        model.setMappingContextCondition(
+          id: mapping.id,
+          condition: $0
+        )
+      }
+    }
     .confirmationDialog(
       String(localized: "Delete this gesture?"),
       isPresented: $isConfirmingDeletion
@@ -1648,6 +1720,7 @@ private struct GestureMappingInspector: View {
     scopeEditorPresentation = nil
     isRetraining = false
     isConfirmingDeletion = false
+    isEditingContext = false
   }
 
   private var gesturePreview: some View {
@@ -1685,6 +1758,25 @@ private struct GestureMappingInspector: View {
       GridRow(alignment: .top) {
         mappingFieldLabel(String(localized: "Trigger"))
         mappingTriggerControls
+      }
+      GridRow {
+        mappingFieldLabel(String(localized: "Configuration Set"))
+        mappingConfigurationSetMenu
+      }
+      GridRow {
+        mappingFieldLabel(String(localized: "Activation Variant"))
+        mappingInputVariantMenu
+      }
+      GridRow {
+        mappingFieldLabel(String(localized: "Button Combination"))
+        mappingChordMenu
+      }
+      GridRow {
+        mappingFieldLabel(String(localized: "Context Conditions"))
+        Button(mappingContextSummary) {
+          isEditingContext = true
+        }
+        .buttonStyle(.bordered)
       }
       GridRow {
         mappingFieldLabel(String(localized: "Input Device"))
@@ -1810,6 +1902,142 @@ private struct GestureMappingInspector: View {
       }
     }
     .frame(width: 170, alignment: .leading)
+  }
+
+  private var mappingConfigurationSetMenu: some View {
+    SettingsAlignedSelectionMenu(
+      title:
+        mapping.configurationSetID.flatMap { id in
+          model.gestureConfigurationSets.first { $0.id == id }?.name
+        } ?? String(localized: "Always Active"),
+      selection: mapping.configurationSetID,
+      options: [(String(localized: "Always Active"), nil)]
+        + model.gestureConfigurationSets.map { ($0.name, $0.id) }
+    ) { id in
+      model.setMappingConfigurationSet(
+        id: mapping.id,
+        configurationSetID: id
+      )
+    }
+  }
+
+  private var mappingInputVariantMenu: some View {
+    SettingsAlignedSelectionMenu(
+      title: inputVariantName(mapping.inputVariant),
+      selection: mapping.inputVariant,
+      options: [
+        (String(localized: "Draw Gesture"), .draw),
+        (
+          String(localized: "Double Click"),
+          .doubleClick(maximumInterval: 0.5)
+        ),
+        (
+          String(localized: "Long Press"),
+          .longPress(minimumDuration: 0.6)
+        ),
+        (
+          String(localized: "Hold Button + Scroll Up"),
+          .scrollWheel(direction: .up)
+        ),
+        (
+          String(localized: "Hold Button + Scroll Down"),
+          .scrollWheel(direction: .down)
+        ),
+        (
+          String(localized: "Hold Button + Scroll Either Way"),
+          .scrollWheel(direction: .either)
+        ),
+      ]
+    ) { variant in
+      model.setMappingInputVariant(
+        id: mapping.id,
+        inputVariant: variant
+      )
+    }
+  }
+
+  private var mappingChordMenu: some View {
+    Menu {
+      let primary = mapping.triggerButton ?? model.triggerButton
+      ForEach(
+        [
+          GestureTriggerButton.left,
+          .right,
+          .middle,
+          .button4,
+          .button5,
+        ].filter { $0 != primary },
+        id: \.id
+      ) { button in
+        Button {
+          var buttons = mapping.requiredChordButtons
+          if let index = buttons.firstIndex(of: button) {
+            buttons.remove(at: index)
+          } else {
+            buttons.append(button)
+          }
+          model.setMappingRequiredChordButtons(
+            id: mapping.id,
+            buttons: buttons
+          )
+        } label: {
+          if mapping.requiredChordButtons.contains(button) {
+            Label(triggerButtonName(button), systemImage: "checkmark")
+          } else {
+            Text(triggerButtonName(button))
+          }
+        }
+      }
+    } label: {
+      Text(
+        mapping.requiredChordButtons.isEmpty
+          ? String(localized: "None")
+          : mapping.requiredChordButtons.map(triggerButtonName)
+            .joined(separator: " + ")
+      )
+      .frame(
+        width: SettingsAlignedControlMetrics.labelWidth,
+        alignment: .leading
+      )
+    }
+    .menuStyle(.button)
+  }
+
+  private var mappingContextSummary: String {
+    let condition = mapping.contextCondition
+    var count = 0
+    if condition.requiredModifiers != 0
+      || condition.forbiddenModifiers != 0
+    {
+      count += 1
+    }
+    if !condition.displayIDs.isEmpty { count += 1 }
+    if !condition.connectedDeviceIdentifiers.isEmpty { count += 1 }
+    return count == 0
+      ? String(localized: "Any Context")
+      : String(
+        format: String(localized: "%d Conditions"),
+        count
+      )
+  }
+
+  private func inputVariantName(
+    _ variant: GestureInputVariant
+  ) -> String {
+    switch variant {
+    case .draw:
+      String(localized: "Draw Gesture")
+    case .doubleClick:
+      String(localized: "Double Click")
+    case .longPress:
+      String(localized: "Long Press")
+    case .scrollWheel(.up):
+      String(localized: "Hold Button + Scroll Up")
+    case .scrollWheel(.down):
+      String(localized: "Hold Button + Scroll Down")
+    case .scrollWheel(.either):
+      String(localized: "Hold Button + Scroll Either Way")
+    }
   }
 
   private var mappingDevicePicker: some View {
@@ -2094,6 +2322,231 @@ private func scopeSummary(_ scope: AppScope) -> String {
       format: String(localized: "Except %d Apps"),
       bundleIDs.count
     )
+  }
+}
+
+private struct GestureContextConditionEditor: View {
+  private enum ModifierMode: String, CaseIterable, Identifiable {
+    case any
+    case required
+    case forbidden
+
+    var id: Self { self }
+
+    var label: String {
+      switch self {
+      case .any:
+        String(localized: "Any")
+      case .required:
+        String(localized: "Required")
+      case .forbidden:
+        String(localized: "Forbidden")
+      }
+    }
+  }
+
+  @Environment(\.dismiss) private var dismiss
+  @State private var condition: GestureContextCondition
+  @State private var displayIDsText: String
+  @State private var connectedDeviceIDsText: String
+  let onSave: (GestureContextCondition) -> Void
+
+  init(
+    condition: GestureContextCondition,
+    onSave: @escaping (GestureContextCondition) -> Void
+  ) {
+    _condition = State(initialValue: condition)
+    _displayIDsText = State(
+      initialValue: condition.displayIDs.map(String.init).joined(
+        separator: ", "
+      )
+    )
+    _connectedDeviceIDsText = State(
+      initialValue: condition.connectedDeviceIdentifiers.joined(
+        separator: "\n"
+      )
+    )
+    self.onSave = onSave
+  }
+
+  var body: some View {
+    VStack(spacing: 0) {
+      Text(String(localized: "Context Conditions"))
+        .font(.title2.bold())
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+
+      Divider()
+
+      Form {
+        Section(String(localized: "Modifier Keys")) {
+          ForEach(Array(modifiers.enumerated()), id: \.offset) {
+            _, item in
+            Picker(
+              item.name,
+              selection: modifierMode(for: item.mask)
+            ) {
+              ForEach(ModifierMode.allCases) { mode in
+                Text(mode.label).tag(mode)
+              }
+            }
+            .pickerStyle(.segmented)
+          }
+        }
+
+        Section(String(localized: "Current Display")) {
+          TextField(
+            String(localized: "Display IDs separated by commas"),
+            text: $displayIDsText
+          )
+          HStack {
+            Text(
+              String(
+                localized:
+                  "Leave empty for any display. Conditions compare immutable numeric display IDs."
+              )
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            Spacer()
+            Button(String(localized: "Use Current Display")) {
+              if let identifier = currentDisplayID {
+                displayIDsText = String(identifier)
+              }
+            }
+          }
+        }
+
+        Section(String(localized: "Connected Input Devices")) {
+          let connectedIdentifiers =
+            EventTapManager.connectedInputDeviceIdentifiers()
+          TextEditor(text: $connectedDeviceIDsText)
+            .frame(height: 72)
+            .border(.secondary.opacity(0.25))
+          Text(
+            String(
+              localized:
+                "Enter one connected-device identifier per line. Leave empty for any connected device."
+            )
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          if !connectedIdentifiers.isEmpty {
+            Menu(String(localized: "Insert Connected Device")) {
+              ForEach(
+                connectedIdentifiers,
+                id: \.self
+              ) { identifier in
+                Button(identifier) {
+                  var identifiers = parsedDeviceIdentifiers
+                  if !identifiers.contains(identifier) {
+                    identifiers.append(identifier)
+                  }
+                  connectedDeviceIDsText = identifiers.joined(
+                    separator: "\n"
+                  )
+                }
+              }
+            }
+          }
+        }
+
+        Section {
+          Text(
+            String(
+              localized:
+                "Application and application-group bounds remain configured through Application Scope. General expressions, window text, and scripts are not evaluated as conditions."
+            )
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        }
+      }
+      .formStyle(.grouped)
+
+      Divider()
+      HStack {
+        Spacer()
+        Button(String(localized: "Cancel")) {
+          dismiss()
+        }
+        Button(String(localized: "Save")) {
+          var updated = condition
+          updated.displayIDs = parsedDisplayIDs
+          updated.connectedDeviceIdentifiers = parsedDeviceIdentifiers
+          onSave(updated)
+          dismiss()
+        }
+        .keyboardShortcut(.defaultAction)
+      }
+      .padding(20)
+    }
+    .frame(width: 620, height: 650)
+  }
+
+  private var modifiers: [(name: String, mask: UInt64)] {
+    [
+      (String(localized: "Command"), 0x10_0000),
+      (String(localized: "Option"), 0x8_0000),
+      (String(localized: "Control"), 0x4_0000),
+      (String(localized: "Shift"), 0x2_0000),
+    ]
+  }
+
+  private func modifierMode(
+    for mask: UInt64
+  ) -> Binding<ModifierMode> {
+    Binding(
+      get: {
+        if condition.requiredModifiers & mask != 0 {
+          return .required
+        }
+        if condition.forbiddenModifiers & mask != 0 {
+          return .forbidden
+        }
+        return .any
+      },
+      set: { mode in
+        condition.requiredModifiers &= ~mask
+        condition.forbiddenModifiers &= ~mask
+        switch mode {
+        case .any:
+          break
+        case .required:
+          condition.requiredModifiers |= mask
+        case .forbidden:
+          condition.forbiddenModifiers |= mask
+        }
+      }
+    )
+  }
+
+  private var parsedDisplayIDs: [UInt32] {
+    Array(
+      Set(
+        displayIDsText.split(whereSeparator: {
+          $0 == "," || $0.isWhitespace
+        }).compactMap { UInt32($0) }
+      )
+    ).sorted()
+  }
+
+  private var parsedDeviceIdentifiers: [String] {
+    Array(
+      Set(
+        connectedDeviceIDsText.split(whereSeparator: {
+          $0 == "," || $0.isNewline
+        }).map {
+          $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+      )
+    ).sorted()
+  }
+
+  private var currentDisplayID: UInt32? {
+    let key = NSDeviceDescriptionKey("NSScreenNumber")
+    return (NSScreen.main?.deviceDescription[key] as? NSNumber)?
+      .uint32Value
   }
 }
 
@@ -2624,6 +3077,8 @@ enum GestureActionSummary {
       return name.isEmpty
         ? String(localized: "Run Shortcut")
         : name
+    case .namedAction:
+      return String(localized: "Named Action")
     case .sequence(let sequence):
       return String(
         format: String(localized: "Sequence · %d Steps"),
@@ -2852,6 +3307,7 @@ struct GestureActionEditor: View {
     case typeText
     case applicationMenu
     case appleShortcut
+    case namedAction
     case sequence
     case script
 
@@ -2879,6 +3335,8 @@ struct GestureActionEditor: View {
         String(localized: "Application Menu Item")
       case .appleShortcut:
         String(localized: "Run Apple Shortcut")
+      case .namedAction:
+        String(localized: "Named Action")
       case .sequence:
         String(localized: "Action Sequence")
       case .script:
@@ -3009,6 +3467,15 @@ struct GestureActionEditor: View {
             embed: { .appleShortcut(name: $0) }
           )
         )
+      case .namedAction:
+        Picker(
+          String(localized: "Named Action"),
+          selection: namedActionID
+        ) {
+          ForEach(model.namedGestureActions) { item in
+            Text(item.name).tag(item.id)
+          }
+        }
       case .sequence:
         SequenceActionEditor(sequence: sequence, model: model)
       case .script:
@@ -3043,6 +3510,8 @@ struct GestureActionEditor: View {
           .applicationMenu
         case .appleShortcut:
           .appleShortcut
+        case .namedAction:
+          .namedAction
         case .sequence:
           .sequence
         case .script:
@@ -3075,6 +3544,11 @@ struct GestureActionEditor: View {
           )
         case .appleShortcut:
           action = .appleShortcut(name: "")
+        case .namedAction:
+          action =
+            model.namedGestureActions.first.map {
+              .namedAction($0.id)
+            } ?? .none
         case .sequence:
           action = .sequence(
             GestureActionSequence(
@@ -3160,6 +3634,18 @@ struct GestureActionEditor: View {
         return value
       },
       set: { action = .applicationMenu($0) }
+    )
+  }
+
+  private var namedActionID: Binding<UUID> {
+    Binding(
+      get: {
+        guard case .namedAction(let id) = action else {
+          return model.namedGestureActions.first?.id ?? UUID()
+        }
+        return id
+      },
+      set: { action = .namedAction($0) }
     )
   }
 

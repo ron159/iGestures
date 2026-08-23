@@ -766,6 +766,8 @@ struct AdvancedSettingsView: View {
   @ObservedObject private var diagnosticsState: GestureDiagnosticsState
   @State private var isDiagnosticsExpanded = false
   @State private var isScriptLibraryPresented = false
+  @State private var isConfigurationSetsPresented = false
+  @State private var isNamedActionsPresented = false
 
   init(model: AppModel) {
     _model = ObservedObject(wrappedValue: model)
@@ -857,6 +859,24 @@ struct AdvancedSettingsView: View {
           Label(
             String(localized: "Manage Scripts…"),
             systemImage: "books.vertical"
+          )
+        }
+
+        Button {
+          isConfigurationSetsPresented = true
+        } label: {
+          Label(
+            String(localized: "Manage Configuration Sets…"),
+            systemImage: "square.stack.3d.up"
+          )
+        }
+
+        Button {
+          isNamedActionsPresented = true
+        } label: {
+          Label(
+            String(localized: "Manage Named Actions…"),
+            systemImage: "bolt.badge.clock"
           )
         }
       }
@@ -983,6 +1003,12 @@ struct AdvancedSettingsView: View {
           maxHeight: 760
         )
     }
+    .sheet(isPresented: $isConfigurationSetsPresented) {
+      GestureConfigurationSetsView(model: model)
+    }
+    .sheet(isPresented: $isNamedActionsPresented) {
+      NamedGestureActionsView(model: model)
+    }
   }
 
   private var eventTapStatus: String {
@@ -1000,11 +1026,12 @@ struct AdvancedSettingsView: View {
 
   private func chooseImportFile() {
     let panel = NSOpenPanel()
-    panel.allowedContentTypes = [.json]
+    panel.allowedContentTypes = [.json, .iGesturesPack]
     panel.allowsMultipleSelection = false
     panel.canChooseDirectories = false
     panel.message = String(
-      localized: "Choose an iGestures JSON configuration to import."
+      localized:
+        "Choose an iGestures configuration or .igesturespack to import."
     )
     guard panel.runModal() == .OK, let url = panel.url else {
       return
@@ -1154,6 +1181,284 @@ private struct GesturePracticeSettingsSheet: View {
   }
 }
 
+private struct GestureConfigurationSetsView: View {
+  @Environment(\.dismiss) private var dismiss
+  @ObservedObject var model: AppModel
+  @State private var isAdding = false
+  @State private var newName = ""
+
+  var body: some View {
+    VStack(spacing: 0) {
+      HStack {
+        Text(String(localized: "Configuration Sets"))
+          .font(.title2.bold())
+        Spacer()
+        Button {
+          newName = ""
+          isAdding = true
+        } label: {
+          Label(String(localized: "Add"), systemImage: "plus")
+        }
+      }
+      .padding(20)
+
+      Divider()
+
+      if model.gestureConfigurationSets.isEmpty {
+        ContentUnavailableView(
+          String(localized: "No Configuration Sets"),
+          systemImage: "square.stack.3d.up",
+          description: Text(
+            String(
+              localized:
+                "Create named sets such as Work, Home, or Presentation, then assign gestures to them."
+            )
+          )
+        )
+      } else {
+        List {
+          ForEach(model.gestureConfigurationSets) { item in
+            HStack(spacing: 12) {
+              Toggle(
+                "",
+                isOn: Binding(
+                  get: { item.isEnabled },
+                  set: {
+                    model.updateGestureConfigurationSet(
+                      id: item.id,
+                      isEnabled: $0
+                    )
+                  }
+                )
+              )
+              .labelsHidden()
+
+              TextField(
+                String(localized: "Configuration Set Name"),
+                text: Binding(
+                  get: { item.name },
+                  set: {
+                    model.updateGestureConfigurationSet(
+                      id: item.id,
+                      name: $0
+                    )
+                  }
+                )
+              )
+
+              Button(String(localized: "Activate")) {
+                _ = model.activateGestureConfigurationSet(
+                  named: item.name
+                )
+              }
+
+              Button(role: .destructive) {
+                model.deleteGestureConfigurationSet(id: item.id)
+              } label: {
+                Image(systemName: "trash")
+              }
+              .buttonStyle(.borderless)
+            }
+          }
+        }
+      }
+
+      Divider()
+      HStack {
+        Text(
+          String(
+            localized:
+              "Activating a set enables it and disables the other named sets. Unassigned gestures stay active."
+          )
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        Spacer()
+        Button(String(localized: "Done")) {
+          dismiss()
+        }
+        .keyboardShortcut(.defaultAction)
+      }
+      .padding(20)
+    }
+    .frame(width: 680, height: 480)
+    .alert(
+      String(localized: "New Configuration Set"),
+      isPresented: $isAdding
+    ) {
+      TextField(
+        String(localized: "Configuration Set Name"),
+        text: $newName
+      )
+      Button(String(localized: "Cancel"), role: .cancel) {}
+      Button(String(localized: "Add")) {
+        _ = model.addGestureConfigurationSet(newName)
+      }
+      .disabled(
+        newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      )
+    }
+  }
+}
+
+private struct NamedGestureActionsView: View {
+  private struct EditorItem: Identifiable {
+    let id: UUID
+  }
+
+  @Environment(\.dismiss) private var dismiss
+  @ObservedObject var model: AppModel
+  @State private var editorItem: EditorItem?
+
+  var body: some View {
+    VStack(spacing: 0) {
+      HStack {
+        Text(String(localized: "Named Actions"))
+          .font(.title2.bold())
+        Spacer()
+        Button {
+          let number = model.namedGestureActions.count + 1
+          if let id = model.addNamedGestureAction(
+            name: String(
+              format: String(localized: "Named Action %d"),
+              number
+            ),
+            action: .window(.leftHalf)
+          ) {
+            editorItem = EditorItem(id: id)
+          }
+        } label: {
+          Label(String(localized: "Add"), systemImage: "plus")
+        }
+      }
+      .padding(20)
+
+      Divider()
+
+      if model.namedGestureActions.isEmpty {
+        ContentUnavailableView(
+          String(localized: "No Named Actions"),
+          systemImage: "bolt.badge.clock",
+          description: Text(
+            String(
+              localized:
+                "Create one reusable action, then reference it from multiple gestures."
+            )
+          )
+        )
+      } else {
+        List {
+          ForEach(model.namedGestureActions) { item in
+            VStack(alignment: .leading, spacing: 8) {
+              HStack(spacing: 12) {
+                Toggle(
+                  String(localized: "Enabled"),
+                  isOn: Binding(
+                    get: { item.isEnabled },
+                    set: { update(item, isEnabled: $0) }
+                  )
+                )
+                .toggleStyle(.switch)
+
+                TextField(
+                  String(localized: "Named Action"),
+                  text: Binding(
+                    get: { item.name },
+                    set: {
+                      update(item, name: $0)
+                    }
+                  )
+                )
+                Text(GestureActionSummary.text(for: item.action))
+                  .foregroundStyle(.secondary)
+                  .lineLimit(1)
+                Button(String(localized: "Edit Action")) {
+                  editorItem = EditorItem(id: item.id)
+                }
+                Button(role: .destructive) {
+                  model.deleteNamedGestureAction(id: item.id)
+                } label: {
+                  Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+              }
+
+              Toggle(
+                String(localized: "Allow this safe action in App Intents"),
+                isOn: Binding(
+                  get: { item.allowsAppIntent },
+                  set: { update(item, allowsAppIntent: $0) }
+                )
+              )
+              .disabled(!item.isEnabled || !item.action.isSafeForAppIntent)
+              .help(
+                String(
+                  localized:
+                    "Scripts, typed text, file paths, keyboard injection, application menus, and Apple Shortcuts are never exposed."
+                )
+              )
+            }
+            .padding(.vertical, 4)
+          }
+        }
+      }
+
+      Divider()
+      HStack {
+        Text(
+          String(
+            localized:
+              "Named actions are expanded into the immutable recognition snapshot. Cycles are rejected."
+          )
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        Spacer()
+        Button(String(localized: "Done")) {
+          dismiss()
+        }
+        .keyboardShortcut(.defaultAction)
+      }
+      .padding(20)
+    }
+    .frame(width: 760, height: 520)
+    .sheet(item: $editorItem) { editorItem in
+      if let item = model.namedGestureActions.first(where: {
+        $0.id == editorItem.id
+      }) {
+        GestureActionEditorSheet(
+          action: item.action,
+          model: model,
+          onClose: { self.editorItem = nil }
+        ) {
+          update(item, action: $0)
+        }
+      }
+    }
+  }
+
+  private func update(
+    _ item: NamedGestureAction,
+    name: String? = nil,
+    action: GestureAction? = nil,
+    isEnabled: Bool? = nil,
+    allowsAppIntent: Bool? = nil
+  ) {
+    let updatedAction = action ?? item.action
+    let updatedIsEnabled = isEnabled ?? item.isEnabled
+    model.updateNamedGestureAction(
+      id: item.id,
+      name: name ?? item.name,
+      action: updatedAction,
+      isEnabled: updatedIsEnabled,
+      allowsAppIntent:
+        updatedIsEnabled
+        && (allowsAppIntent ?? item.allowsAppIntent)
+        && updatedAction.isSafeForAppIntent
+    )
+  }
+}
+
 private struct MappingImportPreviewView: View {
   @Environment(\.dismiss) private var dismiss
   let preview: MappingImportPreview
@@ -1168,6 +1473,12 @@ private struct MappingImportPreviewView: View {
         .fontWeight(.semibold)
 
       Grid(alignment: .leading, horizontalSpacing: 20) {
+        if let packName = preview.packName {
+          GridRow {
+            Text(String(localized: "Gesture Pack"))
+            Text(packName)
+          }
+        }
         GridRow {
           Text(String(localized: "Schema"))
           Text("\(preview.schemaVersion)")
@@ -1187,6 +1498,14 @@ private struct MappingImportPreviewView: View {
         GridRow {
           Text(String(localized: "New Mappings"))
           Text("\(preview.mappingsToAdd)")
+        }
+        GridRow {
+          Text(String(localized: "Configuration Sets"))
+          Text("\(preview.importedConfigurationSetCount)")
+        }
+        GridRow {
+          Text(String(localized: "Named Actions"))
+          Text("\(preview.importedNamedActionCount)")
         }
         GridRow {
           Text(String(localized: "Action Types"))

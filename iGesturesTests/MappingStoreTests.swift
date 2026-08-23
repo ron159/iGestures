@@ -36,7 +36,7 @@ final class MappingStoreTests: XCTestCase {
     XCTAssertEqual(reloaded, database)
     XCTAssertTrue(json.contains(#""type" : "only""#))
     XCTAssertTrue(json.contains(#""type" : "keyboardShortcut""#))
-    XCTAssertTrue(json.contains(#""schemaVersion" : 4"#))
+    XCTAssertTrue(json.contains(#""schemaVersion" : 5"#))
     XCTAssertFalse(json.contains(#""_0""#))
   }
 
@@ -674,6 +674,306 @@ final class MappingStoreTests: XCTestCase {
         error as? MappingStoreError,
         .invalidApplicationGroup
       )
+    }
+  }
+
+  func testNamedActionsExpandAndDisabledConfigurationSetsAreFiltered()
+    throws
+  {
+    let enabledSet = GestureConfigurationSet(name: "Work")
+    let disabledSet = GestureConfigurationSet(
+      name: "Gaming",
+      isEnabled: false
+    )
+    let leaf = NamedGestureAction(
+      name: "Tile Left",
+      action: .window(.leftHalf),
+      allowsAppIntent: true
+    )
+    let wrapper = NamedGestureAction(
+      name: "Reusable Layout",
+      action: .sequence(
+        GestureActionSequence(
+          steps: [GestureActionStep(action: .namedAction(leaf.id))]
+        )
+      ),
+      allowsAppIntent: true
+    )
+    var active = try makeDatabase(name: "Active").mappings[0]
+    active.action = .namedAction(wrapper.id)
+    active.configurationSetID = enabledSet.id
+    var inactive = active
+    inactive = GestureMapping(
+      id: UUID(),
+      name: "Inactive",
+      templates: active.templates,
+      action: .namedAction(leaf.id),
+      configurationSetID: disabledSet.id,
+      priority: 1
+    )
+    let database = GestureDatabase(
+      mappings: [active, inactive],
+      configurationSets: [enabledSet, disabledSet],
+      namedActions: [leaf, wrapper]
+    )
+
+    try MappingStore(directoryURL: directoryURL).validate(database)
+    let snapshot = database.compiledSnapshot
+
+    XCTAssertEqual(snapshot.mappings.map(\.name), ["Active"])
+    guard case .sequence(let sequence) = snapshot.mappings[0].action
+    else {
+      return XCTFail("Expected the named action to expand")
+    }
+    XCTAssertEqual(sequence.steps.map(\.action), [.window(.leftHalf)])
+    XCTAssertTrue(
+      snapshot.namedAction(named: "reusable layout")?
+        .action.isSafeForAppIntent == true
+    )
+  }
+
+  func testNamedActionCyclesAreRejected() throws {
+    let firstID = UUID()
+    let secondID = UUID()
+    let database = GestureDatabase(
+      mappings: [],
+      namedActions: [
+        NamedGestureAction(
+          id: firstID,
+          name: "First",
+          action: .namedAction(secondID)
+        ),
+        NamedGestureAction(
+          id: secondID,
+          name: "Second",
+          action: .namedAction(firstID)
+        ),
+      ]
+    )
+
+    XCTAssertThrowsError(
+      try MappingStore(directoryURL: directoryURL).validate(database)
+    ) { error in
+      XCTAssertEqual(error as? MappingStoreError, .cyclicNamedAction)
+    }
+  }
+
+  func testGesturePackIncludesOnlySelectedDependencies() async throws {
+    let set = GestureConfigurationSet(name: "Shared Set")
+    let leaf = NamedGestureAction(
+      name: "Safe Window",
+      action: .window(.maximize),
+      allowsAppIntent: true
+    )
+    let wrapper = NamedGestureAction(
+      name: "Shared Action",
+      action: .namedAction(leaf.id),
+      allowsAppIntent: true
+    )
+    var database = try makeDatabase(name: "Share Me")
+    database.mappings[0].action = .namedAction(wrapper.id)
+    database.mappings[0].configurationSetID = set.id
+    database.configurationSets = [set]
+    database.namedActions = [leaf, wrapper]
+    let store = MappingStore(directoryURL: directoryURL)
+    try await store.save(database)
+
+    let data = try await store.exportGesturePack(
+      name: "Window Pack",
+      mappingIDs: [database.mappings[0].id]
+    )
+    let pack = try JSONDecoder().decode(
+      IGesturesGesturePack.self,
+      from: data
+    )
+    let packURL = directoryURL.appendingPathComponent(
+      "Window Pack.igesturespack"
+    )
+    try data.write(to: packURL)
+    let targetStore = MappingStore(
+      directoryURL: directoryURL.appendingPathComponent("target")
+    )
+    let preview = try await targetStore.previewImport(from: packURL)
+
+    XCTAssertEqual(pack.name, "Window Pack")
+    XCTAssertEqual(pack.database.mappings.map(\.name), ["Share Me"])
+    XCTAssertEqual(pack.database.configurationSets.map(\.name), ["Shared Set"])
+    XCTAssertEqual(
+      Set(pack.database.namedActions.map(\.name)),
+      ["Safe Window", "Shared Action"]
+    )
+    XCTAssertEqual(preview.packName, "Window Pack")
+    XCTAssertEqual(preview.importedConfigurationSetCount, 1)
+    XCTAssertEqual(preview.importedNamedActionCount, 2)
+  }
+
+  func testImportedScriptNamedActionIsDisabledTransitively()
+    async throws
+  {
+    let scriptAction = NamedGestureAction(
+      name: "Imported Script",
+      action: .script(
+        AutomationScript(
+          kind: .shell,
+          source: "open https://example.com",
+          isConfirmed: true
+        )
+      ),
+      allowsAppIntent: false
+    )
+    var imported = try makeDatabase(name: "Script Reference")
+    imported.mappings[0].action = .namedAction(scriptAction.id)
+    imported.namedActions = [scriptAction]
+    let importURL = directoryURL.appendingPathComponent("named-script.json")
+    try JSONEncoder().encode(imported).write(to: importURL)
+    let store = MappingStore(directoryURL: directoryURL)
+
+    let preview = try await store.previewImport(from: importURL)
+    let result = try await store.importData(
+      from: importURL,
+      mode: .replace
+    )
+
+    XCTAssertEqual(preview.scriptsRequiringConfirmation.count, 1)
+    XCTAssertFalse(try XCTUnwrap(result.namedActions.first).isEnabled)
+    XCTAssertEqual(
+      result.namedActions.first?.action.scripts.map(\.isConfirmed),
+      [false]
+    )
+    XCTAssertFalse(try XCTUnwrap(result.mappings.first).isEnabled)
+  }
+
+  func testDirectVariantsChordsAndBoundedContextMatchTogether()
+    throws
+  {
+    var database = try makeDatabase(name: "Context Action")
+    database.mappings[0].triggerButton = .button4
+    database.mappings[0].requiredChordButtons = [.left]
+    database.mappings[0].inputVariant = .longPress(
+      minimumDuration: 0.6
+    )
+    database.mappings[0].contextCondition = GestureContextCondition(
+      requiredModifiers: 0x10_0000,
+      forbiddenModifiers: 0x8_0000,
+      displayIDs: [42],
+      connectedDeviceIdentifiers: ["123:456:7"]
+    )
+    try MappingStore(directoryURL: directoryURL).validate(database)
+    let snapshot = database.compiledSnapshot
+    let matching = GestureMatchContext(
+      modifierFlags: 0x10_0000,
+      displayID: 42,
+      connectedDeviceIdentifiers: ["123:456:7"],
+      heldButtons: [.left],
+      inputVariant: .longPress(minimumDuration: 0.8)
+    )
+
+    XCTAssertNotNil(
+      snapshot.directActionRequest(
+        for: "com.apple.finder",
+        triggerButton: .button4,
+        default: .right,
+        context: matching
+      )
+    )
+    XCTAssertNil(
+      snapshot.directActionRequest(
+        for: "com.apple.finder",
+        triggerButton: .button4,
+        default: .right,
+        context: GestureMatchContext(
+          modifierFlags: 0x10_0000,
+          displayID: 42,
+          connectedDeviceIdentifiers: ["123:456:7"],
+          heldButtons: [],
+          inputVariant: .longPress(minimumDuration: 0.8)
+        )
+      )
+    )
+  }
+
+  func testDoubleClickAndHeldScrollVariantsRespectTheirBounds()
+    throws
+  {
+    let template = try makeDatabase(name: "Template").mappings[0]
+      .templates
+    let doubleClick = GestureMapping(
+      name: "Double Click",
+      templates: template,
+      action: .window(.leftHalf),
+      triggerButton: .button4,
+      inputVariant: .doubleClick(maximumInterval: 0.5)
+    )
+    let scroll = GestureMapping(
+      name: "Scroll Up",
+      templates: template,
+      action: .window(.rightHalf),
+      triggerButton: .button5,
+      inputVariant: .scrollWheel(direction: .up),
+      priority: 1
+    )
+    let database = GestureDatabase(mappings: [doubleClick, scroll])
+    try MappingStore(directoryURL: directoryURL).validate(database)
+    let snapshot = database.compiledSnapshot
+
+    XCTAssertNotNil(
+      snapshot.directActionRequest(
+        for: nil,
+        triggerButton: .button4,
+        default: .right,
+        context: GestureMatchContext(
+          inputVariant: .doubleClick(maximumInterval: 0.4)
+        )
+      )
+    )
+    XCTAssertNil(
+      snapshot.directActionRequest(
+        for: nil,
+        triggerButton: .button4,
+        default: .right,
+        context: GestureMatchContext(
+          inputVariant: .doubleClick(maximumInterval: 0.6)
+        )
+      )
+    )
+    XCTAssertNotNil(
+      snapshot.directActionRequest(
+        for: nil,
+        triggerButton: .button5,
+        default: .right,
+        context: GestureMatchContext(
+          inputVariant: .scrollWheel(direction: .up)
+        )
+      )
+    )
+    XCTAssertNil(
+      snapshot.directActionRequest(
+        for: nil,
+        triggerButton: .button5,
+        default: .right,
+        context: GestureMatchContext(
+          inputVariant: .scrollWheel(direction: .down)
+        )
+      )
+    )
+  }
+
+  func testUnsafeNamedActionCannotBeExposedToAppIntents() throws {
+    let database = GestureDatabase(
+      mappings: [],
+      namedActions: [
+        NamedGestureAction(
+          name: "Unsafe Typing",
+          action: .typeText("secret"),
+          allowsAppIntent: true
+        )
+      ]
+    )
+
+    XCTAssertThrowsError(
+      try MappingStore(directoryURL: directoryURL).validate(database)
+    ) { error in
+      XCTAssertEqual(error as? MappingStoreError, .invalidNamedAction)
     }
   }
 

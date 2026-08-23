@@ -640,6 +640,48 @@ final class GestureRecognizerTests: XCTestCase {
     )
   }
 
+  func testBoundedContextAndButtonChordFilterDrawnGestures() throws {
+    let candidate = try template(angle: 0)
+    var contextual = mapping(id: UUID(), template: candidate)
+    contextual.requiredChordButtons = [.left]
+    contextual.contextCondition = GestureContextCondition(
+      requiredModifiers: 0x10_0000,
+      displayIDs: [9],
+      connectedDeviceIdentifiers: ["mouse-a"]
+    )
+    let recognizer = GestureRecognizer()
+
+    XCTAssertEqual(
+      recognizer.recognize(
+        candidate,
+        mappings: [contextual],
+        frontmostBundleID: nil,
+        matchContext: GestureMatchContext(
+          modifierFlags: 0x10_0000,
+          displayID: 9,
+          connectedDeviceIdentifiers: ["mouse-a"],
+          heldButtons: []
+        )
+      ),
+      .noMatch
+    )
+    guard
+      case .matched = recognizer.recognize(
+        candidate,
+        mappings: [contextual],
+        frontmostBundleID: nil,
+        matchContext: GestureMatchContext(
+          modifierFlags: 0x10_0000,
+          displayID: 9,
+          connectedDeviceIdentifiers: ["mouse-a"],
+          heldButtons: [.left]
+        )
+      )
+    else {
+      return XCTFail("Expected every bounded condition to match")
+    }
+  }
+
   func testHundredMappingsWithThreeTemplatesRemainBounded() throws {
     let candidate = try template(angle: 0)
     let mappings = try (0..<100).map { index in
