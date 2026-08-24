@@ -123,6 +123,7 @@ final class AppModel: ObservableObject {
   @Published private(set) var currentApplicationBundleIdentifier: String?
   @Published private(set) var updateState: AppUpdateState = .unavailable
   @Published private(set) var updateMessage: String?
+  @Published private(set) var updateProgress: UpdateDownloadProgress?
   @Published private(set) var settingsNavigationRequest: SettingsNavigationRequest?
   @Published var isOnboardingPresented: Bool
 
@@ -531,6 +532,10 @@ final class AppModel: ObservableObject {
       && availableGitHubRelease?.diskImage == nil
   }
 
+  var hasAvailableUpdate: Bool {
+    availableUpdate != nil || availableGitHubRelease != nil
+  }
+
   var isLaunchAtLoginEnabled: Bool {
     loginItemState == .enabled
   }
@@ -856,6 +861,7 @@ final class AppModel: ObservableObject {
     }
     updateState = .checking
     updateMessage = nil
+    updateProgress = nil
     Task { @MainActor [weak self] in
       guard let self else { return }
       if let updateService, let updateManifestURL {
@@ -892,6 +898,7 @@ final class AppModel: ObservableObject {
     self.availableUpdate = nil
     self.availableGitHubRelease = nil
     updateState = .skipped(version: version)
+    updateProgress = nil
     updateMessage = String(
       format: String(localized: "Version %@ was skipped."),
       version
@@ -902,7 +909,14 @@ final class AppModel: ObservableObject {
     guard let availableUpdate else { return }
     let version = availableUpdate.manifest.version
     updateState = .downloading(version: version)
-    updateMessage = nil
+    updateProgress = UpdateDownloadProgress(
+      receivedByteCount: 0,
+      totalByteCount: nil
+    )
+    updateMessage = String(
+      format: String(localized: "Downloading version %@…"),
+      version
+    )
     Task { @MainActor [weak self] in
       guard let self else { return }
       let directoryURL = FileManager.default.temporaryDirectory
@@ -912,56 +926,30 @@ final class AppModel: ObservableObject {
         )
       let download = await updateService?.download(
         availableUpdate,
-        directoryURL: directoryURL
+        directoryURL: directoryURL,
+        progressHandler: { [weak self] progress in
+          Task { @MainActor [weak self] in
+            self?.applyDownloadProgress(
+              progress,
+              version: version
+            )
+          }
+        }
       )
       guard case .success(let archiveURL) = download else {
         updateState = .failed
+        updateProgress = nil
         updateMessage = String(
           localized:
             "The update download failed validation. The current version was not changed."
         )
         return
       }
-      do {
-        updateState = .installing(version: version)
-        let stagedURL = try await updateInstaller.stage(
-          archiveURL: archiveURL,
-          in: directoryURL
-        )
-        let bundleIdentifier =
-          Bundle.main.bundleIdentifier ?? "com.ron159.igestures"
-        let installedURL = try await updateInstaller.install(
-          stagedApplicationURL: stagedURL,
-          currentApplicationURL: Bundle.main.bundleURL,
-          expectedVersion: version,
-          expectedBundleIdentifier: bundleIdentifier
-        )
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = false
-        configuration.createsNewApplicationInstance = true
-        NSWorkspace.shared.openApplication(
-          at: installedURL,
-          configuration: configuration
-        ) { [weak self] _, error in
-          Task { @MainActor [weak self] in
-            if error == nil {
-              self?.terminate()
-            } else {
-              self?.updateState = .failed
-              self?.updateMessage = String(
-                localized:
-                  "The update was installed but could not be restarted."
-              )
-            }
-          }
-        }
-      } catch {
-        updateState = .failed
-        updateMessage = String(
-          localized:
-            "The update package was rejected. The current version remains available."
-        )
-      }
+      await installDownloadedUpdate(
+        at: archiveURL,
+        version: version,
+        directoryURL: directoryURL
+      )
     }
   }
 
@@ -970,7 +958,7 @@ final class AppModel: ObservableObject {
     NSWorkspace.shared.open(availableGitHubRelease.pageURL)
   }
 
-  func downloadAvailableGitHubUpdate() {
+  func installAvailableGitHubUpdate() {
     guard
       let availableGitHubRelease,
       availableGitHubRelease.diskImage != nil
@@ -979,7 +967,14 @@ final class AppModel: ObservableObject {
     }
     let version = availableGitHubRelease.version
     updateState = .downloading(version: version)
-    updateMessage = nil
+    updateProgress = UpdateDownloadProgress(
+      receivedByteCount: 0,
+      totalByteCount: availableGitHubRelease.diskImage?.byteCount
+    )
+    updateMessage = String(
+      format: String(localized: "Downloading version %@…"),
+      version
+    )
     Task { @MainActor [weak self] in
       guard let self else { return }
       let directoryURL = FileManager.default.temporaryDirectory
@@ -989,27 +984,130 @@ final class AppModel: ObservableObject {
         )
       let result = await githubReleaseService?.download(
         availableGitHubRelease,
-        directoryURL: directoryURL
+        directoryURL: directoryURL,
+        progressHandler: { [weak self] progress in
+          Task { @MainActor [weak self] in
+            self?.applyDownloadProgress(
+              progress,
+              version: version
+            )
+          }
+        }
       )
       guard case .success(let diskImageURL) = result else {
         updateState = .failed
+        updateProgress = nil
         updateMessage = String(
           localized:
             "The update download failed validation. The current version was not changed."
         )
         return
       }
-      guard NSWorkspace.shared.open(diskImageURL) else {
-        updateState = .failed
-        updateMessage = String(
-          localized: "The update disk image could not be opened."
-        )
-        return
+      await installDownloadedUpdate(
+        at: diskImageURL,
+        version: version,
+        directoryURL: directoryURL
+      )
+    }
+  }
+
+  private func applyDownloadProgress(
+    _ progress: UpdateDownloadProgress,
+    version: String
+  ) {
+    guard
+      case .downloading(let activeVersion) = updateState,
+      activeVersion == version,
+      progress.receivedByteCount
+        >= (updateProgress?.receivedByteCount ?? 0),
+      updateProgress?.percentage != progress.percentage
+        || updateProgress?.totalByteCount != progress.totalByteCount
+    else {
+      return
+    }
+    updateProgress = progress
+    if let percentage = progress.percentage {
+      updateMessage = String(
+        format: String(localized: "Downloading version %@… %d%%"),
+        version,
+        percentage
+      )
+    } else {
+      updateMessage = String(
+        format: String(localized: "Downloading version %@…"),
+        version
+      )
+    }
+  }
+
+  private func installDownloadedUpdate(
+    at archiveURL: URL,
+    version: String,
+    directoryURL: URL
+  ) async {
+    do {
+      updateState = .installing(version: version)
+      updateProgress = nil
+      updateMessage = String(
+        format: String(localized: "Installing version %@…"),
+        version
+      )
+      let stagedURL = try await updateInstaller.stage(
+        archiveURL: archiveURL,
+        in: directoryURL
+      )
+      let bundleIdentifier =
+        Bundle.main.bundleIdentifier ?? "com.ron159.igestures.dev"
+      let installedURL = try await updateInstaller.install(
+        stagedApplicationURL: stagedURL,
+        currentApplicationURL: Bundle.main.bundleURL,
+        expectedVersion: version,
+        expectedBundleIdentifier: bundleIdentifier
+      )
+      updateMessage = String(
+        localized: "Update installed. Restarting iGestures…"
+      )
+      let configuration = NSWorkspace.OpenConfiguration()
+      configuration.activates = false
+      configuration.createsNewApplicationInstance = true
+      NSWorkspace.shared.openApplication(
+        at: installedURL,
+        configuration: configuration
+      ) { [weak self] _, error in
+        Task { @MainActor [weak self] in
+          if error == nil {
+            self?.terminate()
+          } else {
+            self?.updateState = .failed
+            self?.updateMessage = String(
+              localized:
+                "The update was installed but could not be restarted."
+            )
+          }
+        }
       }
-      updateState = .available(version: version)
+    } catch let error as UpdateInstallationError {
+      updateState = .failed
+      updateProgress = nil
+      switch error {
+      case .replacementFailed:
+        updateMessage = String(
+          localized:
+            "iGestures could not replace the current app. Move it to Applications and try again."
+        )
+      case .invalidArchive, .invalidBundle, .invalidSignature,
+        .identityMismatch, .versionMismatch:
+        updateMessage = String(
+          localized:
+            "The update package was rejected. The current version remains available."
+        )
+      }
+    } catch {
+      updateState = .failed
+      updateProgress = nil
       updateMessage = String(
         localized:
-          "The update disk image was downloaded and opened. Quit iGestures, then drag it to Applications to finish installing."
+          "The update package was rejected. The current version remains available."
       )
     }
   }
@@ -2483,6 +2581,7 @@ final class AppModel: ObservableObject {
 
   private func handleUpdateCheckResult(_ result: UpdateCheckResult) {
     availableGitHubRelease = nil
+    updateProgress = nil
     switch result {
     case .upToDate:
       availableUpdate = nil
@@ -2518,6 +2617,7 @@ final class AppModel: ObservableObject {
     _ result: GitHubReleaseCheckResult
   ) {
     availableUpdate = nil
+    updateProgress = nil
     switch result {
     case .upToDate:
       availableGitHubRelease = nil

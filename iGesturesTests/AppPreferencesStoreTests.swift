@@ -544,6 +544,72 @@ final class AppPreferencesStoreTests: XCTestCase {
     )
   }
 
+  func testUpdateDownloadProgressReportsPercentageAndClampsAtCompletion() {
+    let progress = UpdateDownloadProgress(
+      receivedByteCount: 25,
+      totalByteCount: 100
+    )
+    XCTAssertEqual(progress.fractionCompleted, 0.25)
+    XCTAssertEqual(progress.percentage, 25)
+
+    let completed = UpdateDownloadProgress(
+      receivedByteCount: 120,
+      totalByteCount: 100
+    )
+    XCTAssertEqual(completed.fractionCompleted, 1)
+    XCTAssertEqual(completed.percentage, 100)
+
+    let indeterminate = UpdateDownloadProgress(
+      receivedByteCount: 25,
+      totalByteCount: nil
+    )
+    XCTAssertNil(indeterminate.fractionCompleted)
+    XCTAssertNil(indeterminate.percentage)
+  }
+
+  func testUpdateInstallerAcceptsMatchingAdHocSigningIdentity() {
+    let identity = UpdateSigningIdentity(
+      identifier: "com.ron159.igestures.dev",
+      teamIdentifier: nil
+    )
+
+    XCTAssertTrue(
+      UpdatePackageInstaller.isTrustedReplacement(
+        current: identity,
+        staged: identity,
+        expectedBundleIdentifier: identity.identifier
+      )
+    )
+  }
+
+  func testUpdateInstallerRejectsDifferentBundleOrSigningTeam() {
+    let current = UpdateSigningIdentity(
+      identifier: "com.ron159.igestures.dev",
+      teamIdentifier: "CURRENTTEAM"
+    )
+
+    XCTAssertFalse(
+      UpdatePackageInstaller.isTrustedReplacement(
+        current: current,
+        staged: UpdateSigningIdentity(
+          identifier: "com.example.other",
+          teamIdentifier: "CURRENTTEAM"
+        ),
+        expectedBundleIdentifier: current.identifier
+      )
+    )
+    XCTAssertFalse(
+      UpdatePackageInstaller.isTrustedReplacement(
+        current: current,
+        staged: UpdateSigningIdentity(
+          identifier: current.identifier,
+          teamIdentifier: "OTHERTEAM"
+        ),
+        expectedBundleIdentifier: current.identifier
+      )
+    )
+  }
+
   func testGitHubReleaseServiceHonorsSkippedVersion() async throws {
     let service = try XCTUnwrap(
       GitHubReleaseService(
@@ -578,6 +644,203 @@ final class AppPreferencesStoreTests: XCTestCase {
     return (
       suiteName,
       UserDefaults(suiteName: suiteName)!
+    )
+  }
+}
+
+private final class UpdateDownloadTestURLProtocol: URLProtocol {
+  private static let payload = Data(repeating: 0x61, count: 128 * 1_024)
+
+  override class func canInit(with request: URLRequest) -> Bool {
+    request.url?.scheme == "igestures-test"
+  }
+
+  override class func canonicalRequest(
+    for request: URLRequest
+  ) -> URLRequest {
+    request
+  }
+
+  override func startLoading() {
+    guard
+      let url = request.url,
+      let response = HTTPURLResponse(
+        url: url,
+        statusCode: 200,
+        httpVersion: "HTTP/1.1",
+        headerFields: [
+          "Content-Length": String(Self.payload.count)
+        ]
+      )
+    else {
+      client?.urlProtocol(
+        self,
+        didFailWithError: URLError(.badServerResponse)
+      )
+      return
+    }
+    client?.urlProtocol(
+      self,
+      didReceive: response,
+      cacheStoragePolicy: .notAllowed
+    )
+    let midpoint = Self.payload.count / 2
+    client?.urlProtocol(self, didLoad: Self.payload[..<midpoint])
+    client?.urlProtocol(self, didLoad: Self.payload[midpoint...])
+    client?.urlProtocolDidFinishLoading(self)
+  }
+
+  override func stopLoading() {}
+}
+
+private final class UpdateDownloadProgressRecorder: @unchecked Sendable {
+  private let lock = NSLock()
+  private var recordedProgress: [UpdateDownloadProgress] = []
+
+  func append(_ progress: UpdateDownloadProgress) {
+    lock.withLock {
+      recordedProgress.append(progress)
+    }
+  }
+
+  var values: [UpdateDownloadProgress] {
+    lock.withLock { recordedProgress }
+  }
+}
+
+final class UpdateFileDownloaderTests: XCTestCase {
+  func testDownloadPublishesByteProgress() async throws {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [UpdateDownloadTestURLProtocol.self]
+    let recorder = UpdateDownloadProgressRecorder()
+
+    let (temporaryURL, response) = try await UpdateFileDownloader.download(
+      from: try XCTUnwrap(URL(string: "igestures-test://update.dmg")),
+      configuration: configuration,
+      expectedByteCount: 128 * 1_024,
+      progressHandler: { progress in
+        recorder.append(progress)
+      }
+    )
+    defer { try? FileManager.default.removeItem(at: temporaryURL) }
+
+    XCTAssertEqual(response.statusCode, 200)
+    XCTAssertEqual(
+      try Data(contentsOf: temporaryURL).count,
+      128 * 1_024
+    )
+    XCTAssertFalse(recorder.values.isEmpty)
+    XCTAssertEqual(recorder.values.last?.percentage, 100)
+  }
+}
+
+final class UpdatePackageInstallerTests: XCTestCase {
+  func testStagesDiskImageAndReplacesAdHocSignedApplication() async throws {
+    let fileManager = FileManager.default
+    let rootURL = fileManager.temporaryDirectory.appendingPathComponent(
+      "iGestures-update-installer-tests-\(UUID().uuidString)",
+      isDirectory: true
+    )
+    defer { try? fileManager.removeItem(at: rootURL) }
+
+    let currentApplicationURL = rootURL.appendingPathComponent(
+      "Current/iGestures.app",
+      isDirectory: true
+    )
+    let imageRootURL = rootURL.appendingPathComponent(
+      "Image",
+      isDirectory: true
+    )
+    let imageApplicationURL = imageRootURL.appendingPathComponent(
+      "iGestures.app",
+      isDirectory: true
+    )
+    let diskImageURL = rootURL.appendingPathComponent("Update.dmg")
+    let updateDirectoryURL = rootURL.appendingPathComponent(
+      "Update",
+      isDirectory: true
+    )
+    try fileManager.createDirectory(
+      at: currentApplicationURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try fileManager.createDirectory(
+      at: imageRootURL,
+      withIntermediateDirectories: true
+    )
+    try run(
+      "/usr/bin/ditto",
+      [Bundle.main.bundleURL.path, currentApplicationURL.path]
+    )
+    try run(
+      "/usr/bin/ditto",
+      [Bundle.main.bundleURL.path, imageApplicationURL.path]
+    )
+    try run(
+      "/usr/bin/codesign",
+      ["--force", "--deep", "--sign", "-", currentApplicationURL.path]
+    )
+    try run(
+      "/usr/bin/codesign",
+      ["--force", "--deep", "--sign", "-", imageApplicationURL.path]
+    )
+    try run(
+      "/usr/bin/hdiutil",
+      [
+        "create",
+        "-srcfolder",
+        imageRootURL.path,
+        "-ov",
+        "-format",
+        "UDZO",
+        diskImageURL.path,
+      ]
+    )
+
+    let expectedBundle = try XCTUnwrap(Bundle(url: currentApplicationURL))
+    let expectedVersion = try XCTUnwrap(
+      expectedBundle.object(
+        forInfoDictionaryKey: "CFBundleShortVersionString"
+      ) as? String
+    )
+    let expectedIdentifier = try XCTUnwrap(
+      expectedBundle.bundleIdentifier
+    )
+    let installer = UpdatePackageInstaller()
+    let stagedApplicationURL = try await installer.stage(
+      archiveURL: diskImageURL,
+      in: updateDirectoryURL
+    )
+    let installedApplicationURL = try await installer.install(
+      stagedApplicationURL: stagedApplicationURL,
+      currentApplicationURL: currentApplicationURL,
+      expectedVersion: expectedVersion,
+      expectedBundleIdentifier: expectedIdentifier
+    )
+
+    XCTAssertEqual(installedApplicationURL, currentApplicationURL)
+    XCTAssertTrue(
+      fileManager.fileExists(atPath: installedApplicationURL.path)
+    )
+    try run(
+      "/usr/bin/codesign",
+      ["--verify", "--deep", "--strict", installedApplicationURL.path]
+    )
+  }
+
+  private func run(
+    _ executablePath: String,
+    _ arguments: [String]
+  ) throws {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: executablePath)
+    process.arguments = arguments
+    try process.run()
+    process.waitUntilExit()
+    XCTAssertEqual(
+      process.terminationStatus,
+      0,
+      "\(executablePath) failed with status \(process.terminationStatus)"
     )
   }
 }

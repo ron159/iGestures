@@ -649,6 +649,27 @@ struct AboutSettingsView: View {
           }
         }
 
+        if case .downloading = model.updateState {
+          if let fraction = model.updateProgress?.fractionCompleted {
+            ProgressView(value: fraction)
+              .accessibilityLabel(
+                String(localized: "Downloading update")
+              )
+          } else {
+            ProgressView()
+              .controlSize(.small)
+              .accessibilityLabel(
+                String(localized: "Downloading update")
+              )
+          }
+        } else if case .installing = model.updateState {
+          ProgressView()
+            .controlSize(.small)
+            .accessibilityLabel(
+              String(localized: "Installing update")
+            )
+        }
+
         if let updateMessage = model.updateMessage {
           Text(updateMessage)
             .foregroundStyle(
@@ -673,7 +694,7 @@ struct AboutSettingsView: View {
         || isUpdateOperationInProgress
     )
 
-    if case .available = model.updateState {
+    if shouldShowUpdateActions {
       Button(String(localized: "Skip This Version")) {
         model.skipAvailableUpdate()
       }
@@ -683,8 +704,8 @@ struct AboutSettingsView: View {
         }
         .buttonStyle(.borderedProminent)
       } else if model.canDownloadAvailableGitHubUpdate {
-        Button(String(localized: "Download Update")) {
-          model.downloadAvailableGitHubUpdate()
+        Button(String(localized: "Install and Restart")) {
+          model.installAvailableGitHubUpdate()
         }
         .buttonStyle(.borderedProminent)
       } else if model.canOpenAvailableGitHubRelease {
@@ -746,6 +767,16 @@ struct AboutSettingsView: View {
   private var isUpdateOperationInProgress: Bool {
     switch model.updateState {
     case .downloading, .installing:
+      true
+    default:
+      false
+    }
+  }
+
+  private var shouldShowUpdateActions: Bool {
+    guard model.hasAvailableUpdate else { return false }
+    return switch model.updateState {
+    case .available, .failed:
       true
     default:
       false
