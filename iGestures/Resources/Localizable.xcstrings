@@ -2103,6 +2103,36 @@
         }
       }
     },
+    "Downloading update": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下载更新"
+          }
+        }
+      }
+    },
+    "Downloading version %@…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下载版本 %@…"
+          }
+        }
+      }
+    },
+    "Downloading version %@… %d%%": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下载版本 %@… %d%%"
+          }
+        }
+      }
+    },
     "Down": {
       "localizations": {
         "zh-Hans": {
@@ -2919,6 +2949,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "安装并重新启动"
+          }
+        }
+      }
+    },
+    "Installing update": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在安装更新"
+          }
+        }
+      }
+    },
+    "Installing version %@…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在安装版本 %@…"
           }
         }
       }
@@ -5031,6 +5081,16 @@
         }
       }
     },
+    "iGestures could not replace the current app. Move it to Applications and try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iGestures 无法替换当前应用。请先将它移到“应用程序”文件夹，然后重试。"
+          }
+        }
+      }
+    },
     "The update download failed validation. The current version was not changed.": {
       "localizations": {
         "zh-Hans": {
@@ -5437,6 +5497,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "新版本通过 GitHub Releases 发布。"
+          }
+        }
+      }
+    },
+    "Update installed. Restarting iGestures…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新已安装，正在重新启动 iGestures…"
           }
         }
       }

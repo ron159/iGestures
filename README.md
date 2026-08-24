@@ -90,7 +90,9 @@ Requires macOS 26 or later on an Apple Silicon Mac. Download the latest
 `iGestures-<version>-macOS-arm64.dmg` from
 [GitHub Releases](https://github.com/ron159/iGestures/releases/latest), open
 it, and drag iGestures into Applications. After installation, **About → Check
-for Updates** can download, verify, and open future DMG releases directly.
+for Updates** can download and verify future DMG releases, replace the current
+app, and restart iGestures automatically. Keep iGestures in Applications so the
+updater can replace it reliably.
 
 If the first launch is blocked, open **System Settings → Privacy & Security**,
 click **Open Anyway**, then complete the permission checklist in iGestures.

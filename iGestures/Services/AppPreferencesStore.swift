@@ -819,6 +819,162 @@ public enum UpdateCheckResult: Equatable, Sendable {
   case rejected(UpdateRejectionReason)
 }
 
+public struct UpdateDownloadProgress: Equatable, Sendable {
+  public let receivedByteCount: Int64
+  public let totalByteCount: Int64?
+
+  public init(
+    receivedByteCount: Int64,
+    totalByteCount: Int64?
+  ) {
+    self.receivedByteCount = max(0, receivedByteCount)
+    self.totalByteCount = totalByteCount.flatMap {
+      $0 > 0 ? $0 : nil
+    }
+  }
+
+  public var fractionCompleted: Double? {
+    guard let totalByteCount else { return nil }
+    return min(
+      1,
+      Double(receivedByteCount) / Double(totalByteCount)
+    )
+  }
+
+  public var percentage: Int? {
+    fractionCompleted.map { Int(($0 * 100).rounded(.down)) }
+  }
+}
+
+private final class UpdateDownloadDelegate: NSObject,
+  URLSessionDownloadDelegate, @unchecked Sendable
+{
+  typealias DownloadResult = (URL, HTTPURLResponse)
+
+  private let expectedByteCount: Int64?
+  private let progressHandler: @Sendable (UpdateDownloadProgress) -> Void
+  private var continuation: CheckedContinuation<DownloadResult, any Error>?
+  private var downloadedURL: URL?
+  private var downloadError: (any Error)?
+  private var session: URLSession?
+
+  init(
+    expectedByteCount: Int64?,
+    progressHandler: @escaping @Sendable (UpdateDownloadProgress) -> Void
+  ) {
+    self.expectedByteCount = expectedByteCount
+    self.progressHandler = progressHandler
+  }
+
+  func download(
+    from url: URL,
+    configuration: URLSessionConfiguration
+  ) async throws -> DownloadResult {
+    try await withCheckedThrowingContinuation { continuation in
+      self.continuation = continuation
+      let session = URLSession(
+        configuration: configuration,
+        delegate: self,
+        delegateQueue: nil
+      )
+      self.session = session
+      session.downloadTask(with: url).resume()
+    }
+  }
+
+  func urlSession(
+    _ session: URLSession,
+    downloadTask: URLSessionDownloadTask,
+    didWriteData bytesWritten: Int64,
+    totalBytesWritten: Int64,
+    totalBytesExpectedToWrite: Int64
+  ) {
+    let totalByteCount =
+      totalBytesExpectedToWrite > 0
+      ? totalBytesExpectedToWrite
+      : expectedByteCount
+    progressHandler(
+      UpdateDownloadProgress(
+        receivedByteCount: totalBytesWritten,
+        totalByteCount: totalByteCount
+      )
+    )
+  }
+
+  func urlSession(
+    _ session: URLSession,
+    downloadTask: URLSessionDownloadTask,
+    didFinishDownloadingTo location: URL
+  ) {
+    let destinationURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("iGestures-download-\(UUID().uuidString)")
+    do {
+      try FileManager.default.moveItem(
+        at: location,
+        to: destinationURL
+      )
+      downloadedURL = destinationURL
+    } catch {
+      downloadError = error
+    }
+  }
+
+  func urlSession(
+    _ session: URLSession,
+    task: URLSessionTask,
+    didCompleteWithError error: (any Error)?
+  ) {
+    if let error {
+      finish(with: .failure(error))
+      return
+    }
+    if let downloadError {
+      finish(with: .failure(downloadError))
+      return
+    }
+    guard
+      let downloadedURL,
+      let response = task.response as? HTTPURLResponse,
+      (200..<300).contains(response.statusCode)
+    else {
+      finish(with: .failure(URLError(.badServerResponse)))
+      return
+    }
+    finish(with: .success((downloadedURL, response)))
+  }
+
+  private func finish(with result: Result<DownloadResult, any Error>) {
+    guard let continuation else { return }
+    self.continuation = nil
+    let session = self.session
+    self.session = nil
+    if case .failure = result, let downloadedURL {
+      try? FileManager.default.removeItem(at: downloadedURL)
+      self.downloadedURL = nil
+    }
+    session?.finishTasksAndInvalidate()
+    continuation.resume(with: result)
+  }
+}
+
+enum UpdateFileDownloader {
+  static func download(
+    from url: URL,
+    configuration: URLSessionConfiguration = .default,
+    expectedByteCount: Int64? = nil,
+    progressHandler: @escaping @Sendable (UpdateDownloadProgress) -> Void
+  ) async throws -> (URL, HTTPURLResponse) {
+    let delegate = UpdateDownloadDelegate(
+      expectedByteCount: expectedByteCount,
+      progressHandler: progressHandler
+    )
+    return try await delegate.download(
+      from: url,
+      configuration: configuration
+    )
+  }
+}
+
 public struct GitHubReleaseDiskImage: Equatable, Sendable {
   public let name: String
   public let downloadURL: URL
@@ -1016,7 +1172,10 @@ public actor GitHubReleaseService {
 
   public func download(
     _ release: GitHubRelease,
-    directoryURL: URL
+    directoryURL: URL,
+    progressHandler: @escaping @Sendable (UpdateDownloadProgress) -> Void = {
+      _ in
+    }
   ) async -> Result<URL, UpdateRejectionReason> {
     guard let diskImage = release.diskImage else {
       return .failure(.malformedManifest)
@@ -1036,14 +1195,12 @@ public actor GitHubReleaseService {
         return .failure(.invalidChecksum)
       }
 
-      let (temporaryURL, downloadResponse) =
-        try await URLSession.shared.download(from: diskImage.downloadURL)
-      guard
-        let downloadResponse = downloadResponse as? HTTPURLResponse,
-        (200..<300).contains(downloadResponse.statusCode)
-      else {
-        return .failure(.networkFailure)
-      }
+      let (temporaryURL, _) = try await UpdateFileDownloader.download(
+        from: diskImage.downloadURL,
+        expectedByteCount: diskImage.byteCount,
+        progressHandler: progressHandler
+      )
+      defer { try? FileManager.default.removeItem(at: temporaryURL) }
       let resourceValues = try temporaryURL.resourceValues(
         forKeys: [.fileSizeKey]
       )
@@ -1276,21 +1433,18 @@ public actor UpdateService {
 
   public func download(
     _ update: VerifiedUpdate,
-    directoryURL: URL
+    directoryURL: URL,
+    progressHandler: @escaping @Sendable (UpdateDownloadProgress) -> Void = {
+      _ in
+    }
   ) async -> Result<URL, UpdateRejectionReason> {
     do {
-      let (data, response) = try await URLSession.shared.data(
-        from: update.manifest.archiveURL
+      let (temporaryURL, _) = try await UpdateFileDownloader.download(
+        from: update.manifest.archiveURL,
+        progressHandler: progressHandler
       )
-      guard
-        let response = response as? HTTPURLResponse,
-        (200..<300).contains(response.statusCode)
-      else {
-        return .failure(.networkFailure)
-      }
-      let checksum = SHA256.hash(data: data)
-        .map { String(format: "%02x", $0) }
-        .joined()
+      defer { try? FileManager.default.removeItem(at: temporaryURL) }
+      let checksum = try Self.sha256(of: temporaryURL)
       guard checksum == update.manifest.sha256.lowercased() else {
         return .failure(.invalidChecksum)
       }
@@ -1301,7 +1455,13 @@ public actor UpdateService {
       let destination = directoryURL.appendingPathComponent(
         "iGestures-\(update.manifest.version).zip"
       )
-      try data.write(to: destination, options: .atomic)
+      if FileManager.default.fileExists(atPath: destination.path) {
+        try FileManager.default.removeItem(at: destination)
+      }
+      try FileManager.default.moveItem(
+        at: temporaryURL,
+        to: destination
+      )
       return .success(destination)
     } catch {
       return .failure(.networkFailure)
@@ -1311,6 +1471,20 @@ public actor UpdateService {
   private var operatingSystemVersion: String {
     let version = ProcessInfo.processInfo.operatingSystemVersion
     return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+  }
+
+  private static func sha256(of fileURL: URL) throws -> String {
+    let file = try FileHandle(forReadingFrom: fileURL)
+    defer { try? file.close() }
+    var hasher = SHA256()
+    while let data = try file.read(upToCount: 1_048_576),
+      !data.isEmpty
+    {
+      hasher.update(data: data)
+    }
+    return hasher.finalize()
+      .map { String(format: "%02x", $0) }
+      .joined()
   }
 
   private static func versionComponents(
@@ -1358,6 +1532,11 @@ public enum UpdateInstallationError: Error, Equatable, Sendable {
   case replacementFailed
 }
 
+struct UpdateSigningIdentity: Equatable, Sendable {
+  let identifier: String
+  let teamIdentifier: String?
+}
+
 public actor UpdatePackageInstaller {
   public init() {}
 
@@ -1365,6 +1544,13 @@ public actor UpdatePackageInstaller {
     archiveURL: URL,
     in directoryURL: URL
   ) async throws -> URL {
+    if archiveURL.pathExtension.lowercased() == "dmg" {
+      return try await stageDiskImage(
+        diskImageURL: archiveURL,
+        in: directoryURL
+      )
+    }
+
     let stagingURL = directoryURL.appendingPathComponent(
       "staged-\(UUID().uuidString)",
       isDirectory: true
@@ -1402,6 +1588,82 @@ public actor UpdatePackageInstaller {
     return applicationURL
   }
 
+  private func stageDiskImage(
+    diskImageURL: URL,
+    in directoryURL: URL
+  ) async throws -> URL {
+    let identifier = UUID().uuidString
+    let mountURL = directoryURL.appendingPathComponent(
+      "mounted-\(identifier)",
+      isDirectory: true
+    )
+    let stagingURL = directoryURL.appendingPathComponent(
+      "staged-\(identifier)",
+      isDirectory: true
+    )
+    try FileManager.default.createDirectory(
+      at: mountURL,
+      withIntermediateDirectories: true
+    )
+    let attachStatus = await runProcess(
+      executableURL: URL(fileURLWithPath: "/usr/bin/hdiutil"),
+      arguments: [
+        "attach",
+        "-nobrowse",
+        "-readonly",
+        "-mountpoint",
+        mountURL.path,
+        diskImageURL.path,
+      ]
+    )
+    guard attachStatus == 0 else {
+      throw UpdateInstallationError.invalidArchive
+    }
+
+    do {
+      let mountedApplicationURL = mountURL.appendingPathComponent(
+        "iGestures.app",
+        isDirectory: true
+      )
+      var isDirectory: ObjCBool = false
+      guard
+        FileManager.default.fileExists(
+          atPath: mountedApplicationURL.path,
+          isDirectory: &isDirectory
+        ),
+        isDirectory.boolValue
+      else {
+        throw UpdateInstallationError.invalidArchive
+      }
+      try FileManager.default.createDirectory(
+        at: stagingURL,
+        withIntermediateDirectories: true
+      )
+      let stagedApplicationURL = stagingURL.appendingPathComponent(
+        "iGestures.app",
+        isDirectory: true
+      )
+      let copyStatus = await runProcess(
+        executableURL: URL(fileURLWithPath: "/usr/bin/ditto"),
+        arguments: [
+          mountedApplicationURL.path,
+          stagedApplicationURL.path,
+        ]
+      )
+      guard copyStatus == 0 else {
+        throw UpdateInstallationError.invalidArchive
+      }
+      let detachStatus = await detachDiskImage(at: mountURL)
+      guard detachStatus == 0 else {
+        throw UpdateInstallationError.invalidArchive
+      }
+      return stagedApplicationURL
+    } catch {
+      _ = await detachDiskImage(at: mountURL)
+      throw error
+    }
+  }
+
   public func install(
     stagedApplicationURL: URL,
     currentApplicationURL: URL,
@@ -1435,21 +1697,44 @@ public actor UpdatePackageInstaller {
     else {
       throw UpdateInstallationError.invalidSignature
     }
-    var requirement: SecRequirement?
     guard
-      SecCodeCopyDesignatedRequirement(
-        currentCode,
-        [],
-        &requirement
-      ) == errSecSuccess,
-      let requirement,
       SecStaticCodeCheckValidity(
-        stagedCode,
+        currentCode,
         strictFlags,
-        requirement
+        nil
       ) == errSecSuccess
     else {
+      throw UpdateInstallationError.invalidSignature
+    }
+    let currentIdentity = try signingIdentity(for: currentCode)
+    let stagedIdentity = try signingIdentity(for: stagedCode)
+    guard
+      Self.isTrustedReplacement(
+        current: currentIdentity,
+        staged: stagedIdentity,
+        expectedBundleIdentifier: expectedBundleIdentifier
+      )
+    else {
       throw UpdateInstallationError.identityMismatch
+    }
+
+    if currentIdentity.teamIdentifier != nil {
+      var requirement: SecRequirement?
+      guard
+        SecCodeCopyDesignatedRequirement(
+          currentCode,
+          [],
+          &requirement
+        ) == errSecSuccess,
+        let requirement,
+        SecStaticCodeCheckValidity(
+          stagedCode,
+          strictFlags,
+          requirement
+        ) == errSecSuccess
+      else {
+        throw UpdateInstallationError.identityMismatch
+      }
     }
 
     do {
@@ -1463,6 +1748,48 @@ public actor UpdatePackageInstaller {
     } catch {
       throw UpdateInstallationError.replacementFailed
     }
+  }
+
+  static func isTrustedReplacement(
+    current: UpdateSigningIdentity,
+    staged: UpdateSigningIdentity,
+    expectedBundleIdentifier: String
+  ) -> Bool {
+    guard
+      current.identifier == expectedBundleIdentifier,
+      staged.identifier == expectedBundleIdentifier
+    else {
+      return false
+    }
+    switch (current.teamIdentifier, staged.teamIdentifier) {
+    case (nil, nil):
+      return true
+    case (.some(let currentTeam), .some(let stagedTeam)):
+      return currentTeam == stagedTeam
+    default:
+      return false
+    }
+  }
+
+  private func signingIdentity(
+    for code: SecStaticCode
+  ) throws -> UpdateSigningIdentity {
+    var information: CFDictionary?
+    guard
+      SecCodeCopySigningInformation(
+        code,
+        SecCSFlags(rawValue: kSecCSSigningInformation),
+        &information
+      ) == errSecSuccess,
+      let dictionary = information as NSDictionary?,
+      let identifier = dictionary[kSecCodeInfoIdentifier] as? String
+    else {
+      throw UpdateInstallationError.invalidSignature
+    }
+    return UpdateSigningIdentity(
+      identifier: identifier,
+      teamIdentifier: dictionary[kSecCodeInfoTeamIdentifier] as? String
+    )
   }
 
   private func staticCode(at url: URL) throws -> SecStaticCode {
@@ -1495,5 +1822,19 @@ public actor UpdatePackageInstaller {
         continuation.resume(returning: -1)
       }
     }
+  }
+
+  private func detachDiskImage(at mountURL: URL) async -> Int32 {
+    let status = await runProcess(
+      executableURL: URL(fileURLWithPath: "/usr/bin/hdiutil"),
+      arguments: ["detach", mountURL.path]
+    )
+    if status == 0 {
+      return status
+    }
+    return await runProcess(
+      executableURL: URL(fileURLWithPath: "/usr/bin/hdiutil"),
+      arguments: ["detach", "-force", mountURL.path]
+    )
   }
 }
