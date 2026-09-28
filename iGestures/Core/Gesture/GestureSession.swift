@@ -341,12 +341,16 @@ public struct GestureSession: Sendable {
       }
 
       _ = append(point)
-      if state == .pendingClick,
-        !hasReachedActivationThreshold(timestamp)
-      {
+      // Holding may show a preview, but only movement commits a gesture.
+      if accumulatedDistance < configuration.activationDistance {
+        var commands: [GestureSessionCommand] = []
+        if state == .tracking {
+          commands.append(.hideOverlay)
+        }
+        commands.append(.replayPendingClick(mouseUpLocation: point))
         let result = GestureSessionResult(
           disposition: .suppress,
-          commands: [.replayPendingClick(mouseUpLocation: point)]
+          commands: commands
         )
         reset()
         return result

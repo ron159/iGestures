@@ -232,6 +232,34 @@ private final class CoreChecks {
   }
 
   private func checkGestureSession() {
+    for triggerDuration in [0.0, 0.15, 0.3] {
+      for movement: Float in [0, 2] {
+        var click = GestureSession(
+          configuration: .init(minimumTriggerDuration: triggerDuration)
+        )
+        let origin = GesturePoint(x: 10, y: 20)
+        let endpoint = GesturePoint(x: 10 + movement, y: 20)
+        _ = click.mouseDown(
+          at: origin,
+          timestamp: 0,
+          frontmostBundleID: "com.apple.Safari",
+          shouldTrack: true
+        )
+        if movement > 0 {
+          _ = click.mouseDragged(to: endpoint, timestamp: 0.4)
+        }
+        let released = click.mouseUp(at: endpoint, timestamp: 0.5)
+        let expectedCommands: [GestureSessionCommand] =
+          movement > 0
+          ? [.hideOverlay, .replayPendingClick(mouseUpLocation: endpoint)]
+          : [.replayPendingClick(mouseUpLocation: endpoint)]
+        check(
+          released.commands == expectedCommands && click.state == .idle,
+          "a slow click was not replayed (hold: \(triggerDuration), movement: \(movement))"
+        )
+      }
+    }
+
     var session = GestureSession(
       configuration: .init(activationDistance: 20)
     )

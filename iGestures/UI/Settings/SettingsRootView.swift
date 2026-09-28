@@ -250,6 +250,12 @@ struct GeneralSettingsView: View {
 
         LabeledContent(String(localized: "Trigger Hold Duration")) {
           triggerDurationStepper
+            .help(
+              String(
+                localized:
+                  "Tracking starts after this hold duration or enough movement. Releasing without enough movement keeps the normal click."
+              )
+            )
         }
 
         if let error = model.triggerConfigurationError {

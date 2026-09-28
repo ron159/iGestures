@@ -198,6 +198,97 @@ final class GestureSessionTests: XCTestCase {
     XCTAssertEqual(session.state, .idle)
   }
 
+  func testStationaryClickIsReplayedRegardlessOfHoldDuration() {
+    for triggerDuration in [0.0, 0.15, 0.3] {
+      for clickDuration in [0.1, 0.2, 0.4, 2.0] {
+        var session = GestureSession(
+          configuration: .init(minimumTriggerDuration: triggerDuration)
+        )
+        _ = session.mouseDown(
+          at: point(10, 20),
+          timestamp: 0,
+          frontmostBundleID: "com.apple.Safari",
+          shouldTrack: true
+        )
+
+        let result = session.mouseUp(
+          at: point(10, 20),
+          timestamp: clickDuration
+        )
+
+        XCTAssertEqual(result.disposition, .suppress)
+        XCTAssertEqual(
+          result.commands,
+          [.replayPendingClick(mouseUpLocation: point(10, 20))],
+          "triggerDuration=\(triggerDuration), clickDuration=\(clickDuration)"
+        )
+        XCTAssertEqual(session.state, .idle)
+      }
+    }
+  }
+
+  func testSlowClickWithSmallReleaseMovementIsReplayed() {
+    var session = GestureSession()
+    _ = session.mouseDown(
+      at: point(10, 20),
+      timestamp: 0,
+      frontmostBundleID: "com.apple.Safari",
+      shouldTrack: true
+    )
+
+    let result = session.mouseUp(at: point(12, 21), timestamp: 0.4)
+
+    XCTAssertEqual(
+      result.commands,
+      [.replayPendingClick(mouseUpLocation: point(12, 21))]
+    )
+    XCTAssertEqual(session.state, .idle)
+  }
+
+  func testHoldPreviewWithSmallMovementReplaysClickAndHidesOverlay() {
+    var session = GestureSession()
+    _ = session.mouseDown(
+      at: point(10, 20),
+      timestamp: 0,
+      frontmostBundleID: "com.apple.Safari",
+      shouldTrack: true
+    )
+    _ = session.mouseDragged(to: point(12, 20), timestamp: 0.2)
+    XCTAssertEqual(session.state, .tracking)
+
+    let result = session.mouseUp(at: point(12, 21), timestamp: 0.4)
+
+    XCTAssertEqual(result.disposition, .suppress)
+    XCTAssertEqual(
+      result.commands,
+      [.hideOverlay, .replayPendingClick(mouseUpLocation: point(12, 21))]
+    )
+    XCTAssertEqual(session.state, .idle)
+    XCTAssertEqual(
+      session.mouseUp(at: point(12, 21), timestamp: 0.5),
+      .passThrough
+    )
+  }
+
+  func testFastGestureAtMovementThresholdIsRecognized() {
+    var session = GestureSession()
+    _ = session.mouseDown(
+      at: point(0, 0),
+      timestamp: 0,
+      frontmostBundleID: "com.apple.Safari",
+      shouldTrack: true
+    )
+    _ = session.mouseDragged(to: point(24, 0), timestamp: 0.05)
+
+    let result = session.mouseUp(at: point(24, 0), timestamp: 0.1)
+
+    guard case .recognize(let candidate) = result.commands.last else {
+      return XCTFail("Expected a fast gesture to be recognized")
+    }
+    XCTAssertNoThrow(try GestureNormalizer().normalize(candidate.points))
+    XCTAssertEqual(session.state, .idle)
+  }
+
   func testCrossingDeadZoneStartsTracking() {
     var session = GestureSession(
       configuration: .init(activationDistance: 20)

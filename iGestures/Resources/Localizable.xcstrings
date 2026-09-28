@@ -2647,16 +2647,6 @@
         }
       }
     },
-    "Gesture tracking starts when either this hold duration or the movement threshold is reached.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "达到此按住时长或移动距离阈值中的任一条件后，就会开始跟踪手势。"
-          }
-        }
-      }
-    },
     "Gesture verified. Choose a shortcut and save.": {
       "localizations": {
         "zh-Hans": {
@@ -5347,6 +5337,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "触控板不能用作第二触发键。"
+          }
+        }
+      }
+    },
+    "Tracking starts after this hold duration or enough movement. Releasing without enough movement keeps the normal click.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "达到此按住时长或移动足够距离后开始跟踪。松开时若移动距离不足，仍保留普通点击。"
           }
         }
       }
