@@ -27,7 +27,8 @@ struct IGesturesApp: App {
     MenuBarExtra {
       MenuBarContent(
         model: model,
-        showSettings: settingsWindowController.showSettings
+        showSettings: settingsWindowController.showSettings,
+        showGestureHelp: settingsWindowController.showGestureHelp
       )
       .preferredColorScheme(
         model.interfaceAppearance.preferredColorScheme
@@ -96,9 +97,35 @@ extension InterfaceAppearance {
 private final class SettingsWindowController: ObservableObject {
   private let model: AppModel
   private var windowController: NSWindowController?
+  private var helpWindowController: NSWindowController?
 
   init(model: AppModel) {
     self.model = model
+    model.showGestureHelp = { [weak self] in self?.showGestureHelp() }
+  }
+
+  func showGestureHelp() {
+    if helpWindowController == nil {
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 610, height: 660),
+        styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false
+      )
+      window.title = String(localized: "Gesture Help")
+      window.contentViewController = NSHostingController(
+        rootView: GestureHelpView(
+          model: model, showSettings: { [weak self] in self?.showSettings() }
+        )
+        .preferredColorScheme(model.interfaceAppearance.preferredColorScheme)
+      )
+      window.isReleasedWhenClosed = false
+      window.contentMinSize = NSSize(width: 530, height: 430)
+      window.setFrameAutosaveName("iGestures.GestureHelpWindow")
+      window.center()
+      helpWindowController = NSWindowController(window: window)
+    }
+    helpWindowController?.showWindow(nil)
+    NSApp.activate(ignoringOtherApps: true)
+    helpWindowController?.window?.makeKeyAndOrderFront(nil)
   }
 
   func showSettings() {
@@ -191,12 +218,16 @@ private struct MenuBarIcon: View {
 @MainActor
 private func isGestureRecognitionActive(_ model: AppModel) -> Bool {
   model.isEnabled
+    && !model.isPracticingGesture
     && model.permissionState == .granted
     && model.eventTapState == .running
 }
 
 @MainActor
 private func gestureRecognitionStatus(_ model: AppModel) -> String {
+  if model.isPracticingGesture {
+    return String(localized: "Live gestures are paused while practicing.")
+  }
   guard model.isEnabled else {
     return String(localized: "Gesture recognition is disabled.")
   }
@@ -764,6 +795,7 @@ struct GesturePracticePad: View {
 private struct MenuBarContent: View {
   @ObservedObject var model: AppModel
   let showSettings: () -> Void
+  let showGestureHelp: () -> Void
 
   var body: some View {
     Text(gestureRecognitionStatus(model))
@@ -810,6 +842,16 @@ private struct MenuBarContent: View {
     Divider()
 
     Text(model.permissionStatusText)
+
+    Button(String(localized: "Current App Gestures…")) {
+      model.gestureHelpPage = .reference
+      showGestureHelp()
+    }
+
+    Button(String(localized: "Diagnose Last Gesture…")) {
+      model.gestureHelpPage = .diagnostics
+      showGestureHelp()
+    }
 
     if model.permissionState != .granted
       || model.eventTapState == .failedToCreateTap

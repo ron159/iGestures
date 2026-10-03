@@ -10,6 +10,7 @@ private final class CoreChecks {
   func run() async throws {
     try checkNormalizationInvariants()
     try checkRecognitionDecisions()
+    try checkGestureAssistance()
     try checkBoundedMappingScan()
     checkGestureSession()
     checkPermissionCoordinator()
@@ -30,6 +31,76 @@ private final class CoreChecks {
       )
     }
     print("iGestures core checks passed")
+  }
+
+  private func checkGestureAssistance() throws {
+    let points = line(from: (0, 0), to: (160, 0), count: 80)
+    let global = GestureMapping(
+      name: "Global", templates: [try normalizer.normalize(points)],
+      action: .keyboardShortcut(shortcut)
+    )
+    let application = GestureMapping(
+      name: "Safari", templates: global.templates,
+      action: .keyboardShortcut(shortcut),
+      appScope: .only(["com.apple.Safari"])
+    )
+    let snapshot = CompiledMappingSnapshot(mappings: [global, application])
+    let report = GestureAssistance.diagnose(
+      points, snapshot: snapshot, bundleID: "com.apple.Safari",
+      trigger: .right, defaultTrigger: .right
+    )
+    check(report.reason == .matched, "practice did not recognize a valid stroke")
+    check(
+      report.suggestions.first?.mappingID == application.id,
+      "practice did not use application precedence")
+    let short = GestureAssistance.diagnose(
+      [GesturePoint(x: 0, y: 0), GesturePoint(x: 1, y: 0)],
+      snapshot: snapshot, bundleID: "com.apple.Safari",
+      trigger: .right, defaultTrigger: .right
+    )
+    check(short.reason == .strokeTooShort, "short stroke lost its diagnostic reason")
+    let entries = GestureAssistance.reference(
+      snapshot: snapshot, bundleID: "com.apple.Safari", defaultTrigger: .right
+    )
+    check(
+      entries.first(where: { $0.mapping.id == global.id })?.overriddenBy?.mappingID
+        == application.id, "reference did not explain the overridden global rule")
+    let preview = GesturePreviewContext(
+      mappings: [global, application], bundleID: "com.apple.Safari")
+    check(
+      preview.match(points)?.mappingID == application.id, "preview changed the release-time winner")
+    check(preview.match([GesturePoint(x: 0, y: 0)]) == nil, "preview accepted an incomplete stroke")
+    let buffer = OverlayEventBuffer()
+    buffer.preparePreview(preview)
+    buffer.show(at: points[0])
+    _ = buffer.drain()
+    var secondary = preview
+    secondary.useSecondaryAction = true
+    buffer.preparePreview(secondary)
+    check(
+      buffer.drain()?.previewContext == secondary,
+      "stationary secondary trigger changes did not invalidate the preview")
+    var direct = global
+    direct.templates = []
+    direct.inputVariant = .doubleClick(maximumInterval: 0.3)
+    let preferred = GestureMapping(
+      name: "Preferred", templates: [], action: .keyboardShortcut(shortcut),
+      inputVariant: direct.inputVariant, priority: -1)
+    let directEntries = GestureAssistance.reference(
+      snapshot: CompiledMappingSnapshot(mappings: [direct, preferred]),
+      bundleID: "com.apple.Safari", defaultTrigger: .right)
+    check(
+      directEntries.first(where: { $0.id == direct.id })?.overriddenBy?.mappingID == preferred.id,
+      "reference did not explain a direct input override")
+    var session = GestureSession(configuration: .init(minimumTriggerDuration: 1))
+    _ = session.mouseDown(
+      at: GesturePoint(x: 0, y: 0), timestamp: 0,
+      frontmostBundleID: nil, shouldTrack: true)
+    _ = session.mouseDragged(to: GesturePoint(x: 0, y: 12), timestamp: 0.01)
+    let activated = session.mouseDragged(to: GesturePoint(x: 20, y: 12), timestamp: 0.02)
+    check(
+      activated.commands.contains(.appendOverlayPoint(GesturePoint(x: 0, y: 12))),
+      "live preview lost the stroke before the activation threshold")
   }
 
   private func checkNormalizationInvariants() throws {

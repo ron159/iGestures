@@ -4,15 +4,18 @@ public struct OverlayUpdateBatch: Equatable, Sendable {
   public let startPoint: GesturePoint?
   public let points: [GesturePoint]
   public let shouldHide: Bool
+  public let previewContext: GesturePreviewContext?
 
   public init(
     startPoint: GesturePoint?,
     points: [GesturePoint],
-    shouldHide: Bool
+    shouldHide: Bool,
+    previewContext: GesturePreviewContext? = nil
   ) {
     self.startPoint = startPoint
     self.points = points
     self.shouldHide = shouldHide
+    self.previewContext = previewContext
   }
 }
 
@@ -30,6 +33,20 @@ public final class OverlayEventBuffer:
   private var pendingStartPoint: GesturePoint?
   private var pendingPoints: [GesturePoint] = []
   private var pendingHide = false
+  private var previewContext: GesturePreviewContext?
+  private var pendingPreviewChange = false
+
+  public func preparePreview(_ context: GesturePreviewContext) {
+    lock.lock()
+    let changed =
+      previewContext?.useSecondaryAction != context.useSecondaryAction
+      || previewContext?.matchContext != context.matchContext
+    previewContext = isEnabled ? context : nil
+    pendingPreviewChange = pendingPreviewChange || (isEnabled && isActive && changed)
+    let handler = pendingPreviewChange ? wakeHandler : nil
+    lock.unlock()
+    handler?()
+  }
 
   public init(maximumPendingPointCount: Int = 512) {
     self.maximumPendingPointCount = max(
@@ -48,6 +65,10 @@ public final class OverlayEventBuffer:
   public func setEnabled(_ isEnabled: Bool) {
     lock.lock()
     self.isEnabled = isEnabled
+    if !isEnabled {
+      previewContext = nil
+      pendingPreviewChange = false
+    }
     let shouldHide =
       !isEnabled
       && (isActive || pendingStartPoint != nil || !pendingPoints.isEmpty)
@@ -94,6 +115,8 @@ public final class OverlayEventBuffer:
       isActive || pendingStartPoint != nil || !pendingPoints.isEmpty
     isActive = false
     pendingHide = hadPendingUpdate
+    previewContext = nil
+    pendingPreviewChange = false
     let handler = hadPendingUpdate ? wakeHandler : nil
     lock.unlock()
     handler?()
@@ -106,6 +129,7 @@ public final class OverlayEventBuffer:
       pendingStartPoint != nil
         || !pendingPoints.isEmpty
         || pendingHide
+        || pendingPreviewChange
     else {
       return nil
     }
@@ -113,11 +137,13 @@ public final class OverlayEventBuffer:
     let batch = OverlayUpdateBatch(
       startPoint: pendingStartPoint,
       points: pendingPoints,
-      shouldHide: pendingHide
+      shouldHide: pendingHide,
+      previewContext: previewContext
     )
     pendingStartPoint = nil
     pendingPoints.removeAll(keepingCapacity: true)
     pendingHide = false
+    pendingPreviewChange = false
     return batch
   }
 

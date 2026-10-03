@@ -200,7 +200,7 @@ public struct GestureRecognizer: Sendable {
     )
   }
 
-  private func specificity(
+  func specificity(
     of mapping: GestureMapping,
     for frontmostBundleID: String?,
     inputDevice: GestureInputDevice?

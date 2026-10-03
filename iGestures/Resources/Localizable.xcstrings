@@ -7020,6 +7020,506 @@
           }
         }
       }
+    },
+    "A similar gesture belongs to another application.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相似手势属于其他应用。"
+          }
+        }
+      }
+    },
+    "A similar gesture requires different conditions.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相似手势需要满足其他条件。"
+          }
+        }
+      }
+    },
+    "A similar gesture uses another trigger.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相似手势使用了其他触发键。"
+          }
+        }
+      }
+    },
+    "Additional Conditions Required": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还需满足其他条件"
+          }
+        }
+      }
+    },
+    "Application Rule": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用专属规则"
+          }
+        }
+      }
+    },
+    "Check the configured action and its permissions. Changing the gesture drawing will not repair an action failure.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请检查动作配置及其权限。重新绘制手势无法解决动作执行失败的问题。"
+          }
+        }
+      }
+    },
+    "Check the rule's application scope and group. Its action was not run in this application.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请检查规则的应用范围和分组。该动作未在当前应用中执行。"
+          }
+        }
+      }
+    },
+    "Check the rule's trigger, held buttons, modifiers, display and input device conditions.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请检查规则的触发键、组合按键、修饰键、显示器和输入设备条件。"
+          }
+        }
+      }
+    },
+    "Compare the closest rules below. Practice the intended gesture or add a sample of your drawing style.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请对照下方最相近的手势，练习目标手势，或补充符合你绘制习惯的样本。"
+          }
+        }
+      }
+    },
+    "Compare these drawings. Make their shapes more distinct or assign them different triggers or scopes.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请对照这些手势，使形状更容易区分，或分别设置不同的触发键和应用范围。"
+          }
+        }
+      }
+    },
+    "Current App Gestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前应用手势"
+          }
+        }
+      }
+    },
+    "Current App Gestures…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前应用手势…"
+          }
+        }
+      }
+    },
+    "Diagnose Last Gesture…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "诊断最近手势…"
+          }
+        }
+      }
+    },
+    "Displays: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示器：%@"
+          }
+        }
+      }
+    },
+    "Draw a longer, continuous stroke. A small movement is kept as a normal click.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请绘制更长、连续的轨迹。轻微移动仍按普通点击处理。"
+          }
+        }
+      }
+    },
+    "Edit Rule…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑规则…"
+          }
+        }
+      }
+    },
+    "Gesture Help": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势助手"
+          }
+        }
+      }
+    },
+    "Global Rule": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全局规则"
+          }
+        }
+      }
+    },
+    "Group: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分组：%@"
+          }
+        }
+      }
+    },
+    "Hold %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住 %@"
+          }
+        }
+      }
+    },
+    "Inspect…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看原因…"
+          }
+        }
+      }
+    },
+    "Live gestures are paused while practicing.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习期间已暂停系统手势识别。"
+          }
+        }
+      }
+    },
+    "No Active Application": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无活动应用"
+          }
+        }
+      }
+    },
+    "No gestures are available here. Check app exclusions, enabled rules and configuration sets.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前没有可用手势。请检查应用排除项、规则和配置集是否启用。"
+          }
+        }
+      }
+    },
+    "No matching gesture in this context.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前条件下没有匹配的手势。"
+          }
+        }
+      }
+    },
+    "On release: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "松开执行：%@"
+          }
+        }
+      }
+    },
+    "Practice / Add Sample…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习 / 补充样本…"
+          }
+        }
+      }
+    },
+    "Practice never runs actions. Recorded paths stay in this window unless you save a sample.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习不会执行动作。绘制轨迹仅保留在此窗口中，手动保存样本后才会写入规则。"
+          }
+        }
+      }
+    },
+    "Practice simulates this rule's trigger and required modifiers. No action is executed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习会模拟此规则的触发键和所需修饰键，不会执行动作。"
+          }
+        }
+      }
+    },
+    "Release %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "松开 %@"
+          }
+        }
+      }
+    },
+    "Rules With Another Match": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "优先匹配了其他规则"
+          }
+        }
+      }
+    },
+    "Sample added. Your existing samples and actions are preserved.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "样本已添加，原有样本和动作均已保留。"
+          }
+        }
+      }
+    },
+    "Save as Additional Sample": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存为补充样本"
+          }
+        }
+      }
+    },
+    "Shows rules for the current app and active configuration sets. Conditional rules list what they need.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示适用于当前应用且配置集已启用的规则。有条件的规则会列出所需条件。"
+          }
+        }
+      }
+    },
+    "Similar gestures: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势过于相似：%@"
+          }
+        }
+      }
+    },
+    "The action timed out. Check whether its target application or script is responding.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "动作执行超时，请检查目标应用或脚本是否有响应。"
+          }
+        }
+      }
+    },
+    "The gesture is too short.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势轨迹过短。"
+          }
+        }
+      }
+    },
+    "The gesture path is incomplete.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手势轨迹不完整。"
+          }
+        }
+      }
+    },
+    "The saved drawing currently matches “%@” instead.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此规则保存的轨迹目前会优先匹配“%@”。"
+          }
+        }
+      }
+    },
+    "The script exited with code %d. Review the script and its Automation permissions.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本以退出码 %d 结束，请检查脚本及其自动化权限。"
+          }
+        }
+      }
+    },
+    "The script produced too much output. Reduce its output in the rule editor.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本输出过多，请在规则编辑器中减少其输出。"
+          }
+        }
+      }
+    },
+    "The script was not approved to run. Review its contents in the rule editor.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本尚未获准运行，请在规则编辑器中检查其内容。"
+          }
+        }
+      }
+    },
+    "The target could not be launched. Check the configured application, URL or file.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法打开目标，请检查配置的应用、网址或文件。"
+          }
+        }
+      }
+    },
+    "The target window, app or menu item was unavailable. Check the target and Accessibility permission.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目标窗口、应用或菜单项不可用，请检查目标及辅助功能权限。"
+          }
+        }
+      }
+    },
+    "This drawing is too different. Edit the rule to retrain it, or try a closer variation.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此次绘制与原手势差异过大。请编辑规则重新录制，或绘制更接近的变体。"
+          }
+        }
+      }
+    },
+    "This gesture already has five samples. Edit the rule to record it again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此手势已有五个样本，请编辑规则重新录制。"
+          }
+        }
+      }
+    },
+    "This input currently matches “%@” instead.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此输入目前会优先匹配“%@”。"
+          }
+        }
+      }
+    },
+    "This is a recognition test; the action was not executed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这是识别测试，动作并未执行。"
+          }
+        }
+      }
+    },
+    "View Matching Rule": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看优先匹配的规则"
+          }
+        }
+      }
+    },
+    "Would run: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将会执行：%@"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -19,6 +19,20 @@ final class OverlayController {
   private let feedbackLabel: NSTextField
   private var feedbackTask: Task<Void, Never>?
   private var isHapticFeedbackEnabled = false
+  var onInspectDiagnostic: (() -> Void)?
+  private let inspectButton = NSButton(
+    title: String(localized: "Inspect…"), target: nil, action: nil)
+  private let previewPanel = NSPanel(
+    contentRect: NSRect(x: 0, y: 0, width: 320, height: 38),
+    styleMask: .borderless, backing: .buffered, defer: false
+  )
+  private let previewLabel = NSTextField(labelWithString: "")
+  private var previewPoints: [GesturePoint] = []
+  private var previewContext: GesturePreviewContext?
+  private var previewTask: Task<Void, Never>?
+  private var previewGeneration = 0
+  private var isPreviewEnabled = true
+  private var isPreviewEligible = false
 
   init(
     eventSink: OverlayEventBuffer = OverlayEventBuffer(),
@@ -38,6 +52,18 @@ final class OverlayController {
     )
     configureDisplayLink(isPaused: true)
     configureFeedbackPanel()
+    previewPanel.isOpaque = false
+    previewPanel.backgroundColor = .windowBackgroundColor.withAlphaComponent(0.94)
+    previewPanel.hasShadow = true
+    previewPanel.ignoresMouseEvents = true
+    previewPanel.hidesOnDeactivate = false
+    previewPanel.isReleasedWhenClosed = false
+    previewPanel.level = .statusBar
+    previewPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+    previewLabel.frame = NSRect(x: 12, y: 10, width: 296, height: 20)
+    previewLabel.font = .systemFont(ofSize: 13, weight: .medium)
+    previewLabel.lineBreakMode = .byTruncatingMiddle
+    previewPanel.contentView?.addSubview(previewLabel)
 
     eventSink.setWakeHandler { [weak self] in
       Task { @MainActor [weak self] in
@@ -74,10 +100,24 @@ final class OverlayController {
       frame: feedbackPanel.contentRect(forFrameRect: feedbackPanel.frame)
     )
     feedbackPanel.contentView?.addSubview(feedbackLabel)
+    inspectButton.target = self
+    inspectButton.action = #selector(inspectDiagnostic)
+    inspectButton.bezelStyle = .rounded
+    inspectButton.isHidden = true
+    feedbackPanel.contentView?.addSubview(inspectButton)
   }
 
   private func showFeedback(_ feedback: GestureFeedback) {
     feedbackTask?.cancel()
+    let hasDetail: Bool
+    if case .diagnostic = feedback { hasDetail = true } else { hasDetail = false }
+    feedbackPanel.setContentSize(NSSize(width: hasDetail ? 440 : 320, height: 70))
+    feedbackPanel.ignoresMouseEvents = !hasDetail
+    feedbackLabel.frame = NSRect(x: 12, y: 12, width: hasDetail ? 318 : 296, height: 46)
+    feedbackLabel.maximumNumberOfLines = 3
+    feedbackLabel.lineBreakMode = .byWordWrapping
+    inspectButton.frame = NSRect(x: 340, y: 20, width: 88, height: 30)
+    inspectButton.isHidden = !hasDetail
     feedbackLabel.stringValue = feedbackText(feedback)
     let mouseLocation = NSEvent.mouseLocation
     let screen =
@@ -101,14 +141,80 @@ final class OverlayController {
       )
     }
     feedbackTask = Task { @MainActor [weak self] in
-      try? await Task.sleep(for: .seconds(1.4))
+      try? await Task.sleep(for: .seconds(hasDetail ? 6 : 1.4))
       guard !Task.isCancelled else { return }
       self?.feedbackPanel.orderOut(nil)
     }
   }
 
+  @objc private func inspectDiagnostic() {
+    feedbackTask?.cancel()
+    feedbackPanel.orderOut(nil)
+    onInspectDiagnostic?()
+  }
+
   func setHapticFeedbackEnabled(_ enabled: Bool) {
     isHapticFeedbackEnabled = enabled
+  }
+
+  func setFeedbackEnabled(_ enabled: Bool) {
+    feedbackSink.setEnabled(enabled)
+    isPreviewEnabled = enabled
+    if !enabled {
+      clearPreview()
+      feedbackTask?.cancel()
+      feedbackPanel.orderOut(nil)
+    }
+  }
+
+  private func clearPreview() {
+    previewGeneration += 1
+    previewTask?.cancel()
+    previewTask = nil
+    previewPanel.orderOut(nil)
+    previewPoints.removeAll(keepingCapacity: true)
+    previewContext = nil
+    isPreviewEligible = false
+  }
+
+  private func schedulePreview() {
+    guard isPreviewEnabled, isPreviewEligible, previewTask == nil, previewContext != nil else {
+      return
+    }
+    let generation = previewGeneration
+    previewTask = Task { @MainActor [weak self] in
+      // Coalesce mouse events and keep recognition off the Event Tap and drawing threads.
+      try? await Task.sleep(for: .milliseconds(120))
+      guard !Task.isCancelled, let self, generation == previewGeneration,
+        let context = previewContext
+      else { return }
+      let points = previewPoints
+      let match = await Task.detached(priority: .utility) { context.match(points) }.value
+      guard !Task.isCancelled, generation == previewGeneration else { return }
+      previewTask = nil
+      if let match, previewContext?.matchContext == context.matchContext,
+        previewContext?.useSecondaryAction == context.useSecondaryAction
+      {
+        previewLabel.stringValue = String(format: String(localized: "On release: %@"), match.name)
+        let location = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { $0.frame.contains(location) }) {
+          let bounds = screen.visibleFrame
+          previewPanel.setFrameOrigin(
+            NSPoint(
+              x: max(bounds.minX, min(location.x + 20, bounds.maxX - 320)),
+              y: max(bounds.minY, min(location.y - 55, bounds.maxY - 38))
+            ))
+          previewPanel.orderFrontRegardless()
+        }
+      } else {
+        previewPanel.orderOut(nil)
+      }
+      if previewPoints != points || previewContext?.matchContext != context.matchContext
+        || previewContext?.useSecondaryAction != context.useSecondaryAction
+      {
+        schedulePreview()
+      }
+    }
   }
 
   func setTrailColor(_ color: NSColor) {
@@ -124,7 +230,7 @@ final class OverlayController {
     switch feedback {
     case .executed:
       .alignment
-    case .noMatch, .ambiguous, .actionFailed, .cancelled:
+    case .noMatch, .ambiguous, .actionFailed, .cancelled, .diagnostic:
       .generic
     }
   }
@@ -152,6 +258,8 @@ final class OverlayController {
       )
     case .cancelled:
       String(localized: "Gesture cancelled.")
+    case .diagnostic(let detail):
+      detail.summary
     }
   }
 
@@ -184,6 +292,9 @@ final class OverlayController {
     }
 
     if let startPoint = update.startPoint {
+      clearPreview()
+      previewPoints = [startPoint]
+      isPreviewEligible = true
       updateScreenOverlays(for: .current)
       for overlay in screenOverlays {
         overlay.pathView.begin(
@@ -197,6 +308,11 @@ final class OverlayController {
       }
     }
     if !update.points.isEmpty {
+      if isPreviewEligible && previewPoints.count + update.points.count <= 4_096 {
+        previewPoints.append(contentsOf: update.points)
+      } else {
+        clearPreview()
+      }
       for overlay in screenOverlays {
         overlay.pathView.append(
           update.points.map {
@@ -209,11 +325,15 @@ final class OverlayController {
       }
     }
     if update.shouldHide {
+      clearPreview()
       for overlay in screenOverlays {
         overlay.pathView.clear()
         overlay.panel.orderOut(nil)
       }
       displayLink.isPaused = true
+    } else {
+      previewContext = update.previewContext
+      schedulePreview()
     }
   }
 

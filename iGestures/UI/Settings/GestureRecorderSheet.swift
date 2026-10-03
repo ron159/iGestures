@@ -606,7 +606,7 @@ struct GestureRecorderSheet: View {
   }
 }
 
-private struct GestureDrawingPad: View {
+struct GestureDrawingPad: View {
   @Binding var points: [GesturePoint]
   let guidePoints: [GesturePoint]
   let onComplete: ([GesturePoint]) -> Void

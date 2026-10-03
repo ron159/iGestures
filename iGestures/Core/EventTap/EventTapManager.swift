@@ -72,7 +72,16 @@ public final class EventTapManager: @unchecked Sendable {
   private var activeTriggerButton: GestureTriggerButton?
   private var secondaryTriggerIsDown = false
   private var secondaryTriggerIsPassingThrough = false
-  private var activeSessionUsesSecondaryTrigger = false
+  private var activeSessionUsesSecondaryTrigger = false {
+    didSet {
+      guard activeSessionUsesSecondaryTrigger != oldValue,
+        var context = activePreviewContext
+      else { return }
+      context.useSecondaryAction = activeSessionUsesSecondaryTrigger
+      activePreviewContext = context
+      overlaySink.preparePreview(context)
+    }
+  }
   private var mappingSnapshot = CompiledMappingSnapshot.empty
   private var isEnabled = false
   private var inputConfiguration = GestureInputConfiguration.default
@@ -85,6 +94,7 @@ public final class EventTapManager: @unchecked Sendable {
   private var pendingRepeatRequest: ActionRequest?
   private var pressedButtons: Set<GestureTriggerButton> = []
   private var activeMatchContext: GestureMatchContext?
+  private var activePreviewContext: GesturePreviewContext?
   private var pendingDirectInteraction: DirectInteraction?
   private let connectedDeviceLock = NSLock()
   private var connectedDeviceCache: [String] = []
@@ -113,9 +123,16 @@ public final class EventTapManager: @unchecked Sendable {
           feedbackSink.show(
             .executed(mappingName: request.mappingName)
           )
-        case .failed:
+        case .failed(let failure):
           feedbackSink.show(
-            .actionFailed(mappingName: request.mappingName)
+            .diagnostic(
+              GestureDiagnosticDetail(
+                reason: .actionFailed,
+                suggestions: [
+                  GestureSuggestion(mappingID: request.mappingID, name: request.mappingName)
+                ],
+                actionFailure: failure
+              ))
           )
         }
         diagnosticLogger?.record(
@@ -1209,10 +1226,29 @@ public final class EventTapManager: @unchecked Sendable {
     for command in commands {
       switch command {
       case .showOverlay(let point):
+        if let trigger = activeTriggerButton {
+          let context = GesturePreviewContext(
+            mappings: mappingSnapshot.mappings(
+              for: trigger, default: inputConfiguration.triggerButton),
+            bundleID: session.trackedApplicationBundleID,
+            matchContext: activeMatchContext ?? GestureMatchContext(),
+            useSecondaryAction: activeSessionUsesSecondaryTrigger,
+            configuration: recognizer.configuration
+          )
+          activePreviewContext = context
+          overlaySink.preparePreview(context)
+        }
         overlaySink.show(at: point)
       case .appendOverlayPoint(let point):
+        if var context = activePreviewContext {
+          context.matchContext = activeMatchContext ?? context.matchContext
+          context.useSecondaryAction = activeSessionUsesSecondaryTrigger
+          activePreviewContext = context
+          overlaySink.preparePreview(context)
+        }
         overlaySink.append(point)
       case .hideOverlay:
+        activePreviewContext = nil
         overlaySink.hide()
       case .replayPendingClick(let location):
         replayClick(
@@ -1369,7 +1405,7 @@ public final class EventTapManager: @unchecked Sendable {
           name: "normalization_failed",
           traceID: traceID
         )
-        feedbackSink.show(.noMatch)
+        showRecognitionDiagnostic(candidate, snapshot: snapshot)
         return
       }
 
@@ -1404,7 +1440,7 @@ public final class EventTapManager: @unchecked Sendable {
           name: "no_match",
           traceID: traceID
         )
-        feedbackSink.show(.noMatch)
+        showRecognitionDiagnostic(candidate, snapshot: snapshot)
         return
       case .ambiguous(let bestDistance, let secondDistance):
         diagnosticLogger?.record(
@@ -1420,7 +1456,7 @@ public final class EventTapManager: @unchecked Sendable {
             ),
           ]
         )
-        feedbackSink.show(.ambiguous)
+        showRecognitionDiagnostic(candidate, snapshot: snapshot)
         return
       case .matched:
         break
@@ -1482,6 +1518,19 @@ public final class EventTapManager: @unchecked Sendable {
       )
     }
     CFRunLoopWakeUp(runLoop)
+  }
+
+  private func showRecognitionDiagnostic(
+    _ candidate: GestureCandidate, snapshot: CompiledMappingSnapshot
+  ) {
+    feedbackSink.show(
+      .diagnostic(
+        GestureAssistance.diagnose(
+          candidate.points, snapshot: snapshot, bundleID: candidate.frontmostBundleID,
+          trigger: candidate.triggerButton, defaultTrigger: inputConfiguration.triggerButton,
+          context: candidate.matchContext, recognizer: recognizer,
+          useSecondaryAction: candidate.usesSecondaryTrigger
+        )))
   }
 
   private func abandonSessionForRepeatedAction() {

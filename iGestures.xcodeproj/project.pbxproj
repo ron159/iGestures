@@ -67,6 +67,9 @@
 		A2000000000000000000003B /* AppIcon-GestureRunner.icns in Resources */ = {isa = PBXBuildFile; fileRef = A2100000000000000000003F /* AppIcon-GestureRunner.icns */; };
 		A2000000000000000000003C /* AppIcon-GestureThinker.icns in Resources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000040 /* AppIcon-GestureThinker.icns */; };
 		A2000000000000000000003D /* AppIcon-PurpleMouse.icns in Resources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000041 /* AppIcon-PurpleMouse.icns */; };
+		A20000000000000000000050 /* GestureAssistance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000050 /* GestureAssistance.swift */; };
+		A20000000000000000000051 /* GestureHelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000051 /* GestureHelpView.swift */; };
+		A20000000000000000000052 /* GestureAssistanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000052 /* GestureAssistanceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -144,6 +147,9 @@
 		A2100000000000000000003F /* AppIcon-GestureRunner.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "AlternateAppIcons/AppIcon-GestureRunner.icns"; sourceTree = "<group>"; };
 		A21000000000000000000040 /* AppIcon-GestureThinker.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "AlternateAppIcons/AppIcon-GestureThinker.icns"; sourceTree = "<group>"; };
 		A21000000000000000000041 /* AppIcon-PurpleMouse.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "AlternateAppIcons/AppIcon-PurpleMouse.icns"; sourceTree = "<group>"; };
+		A21000000000000000000050 /* GestureAssistance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureAssistance.swift; sourceTree = "<group>"; };
+		A21000000000000000000051 /* GestureHelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureHelpView.swift; sourceTree = "<group>"; };
+		A21000000000000000000052 /* GestureAssistanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureAssistanceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -222,6 +228,7 @@
 				A21000000000000000000006 /* GestureTemplate.swift */,
 				A21000000000000000000007 /* GestureNormalizer.swift */,
 				A21000000000000000000008 /* GestureRecognizer.swift */,
+				A21000000000000000000050 /* GestureAssistance.swift */,
 				A2100000000000000000000F /* GestureSession.swift */,
 				A21000000000000000000020 /* GestureTrainingSession.swift */,
 			);
@@ -273,6 +280,7 @@
 				A21000000000000000000027 /* GestureLibraryTests.swift */,
 				A2100000000000000000000C /* GestureNormalizerTests.swift */,
 				A2100000000000000000000D /* GestureRecognizerTests.swift */,
+				A21000000000000000000052 /* GestureAssistanceTests.swift */,
 				A21000000000000000000011 /* GestureSessionTests.swift */,
 				A21000000000000000000028 /* GestureTrainingSessionTests.swift */,
 				A2100000000000000000002C /* LoginItemControllerTests.swift */,
@@ -345,6 +353,7 @@
 			children = (
 				A21000000000000000000039 /* ApplicationMetadataCache.swift */,
 				A21000000000000000000026 /* GestureRecorderSheet.swift */,
+				A21000000000000000000051 /* GestureHelpView.swift */,
 				A21000000000000000000025 /* GesturesSettingsView.swift */,
 				A21000000000000000000022 /* KeyboardShortcutFormatter.swift */,
 				A21000000000000000000024 /* SettingsRootView.swift */,
@@ -468,6 +477,7 @@
 				A20000000000000000000004 /* GestureTemplate.swift in Sources */,
 				A20000000000000000000005 /* GestureNormalizer.swift in Sources */,
 				A20000000000000000000006 /* GestureRecognizer.swift in Sources */,
+				A20000000000000000000050 /* GestureAssistance.swift in Sources */,
 				A20000000000000000000007 /* GestureMapping.swift in Sources */,
 				A2000000000000000000000B /* EventSourceMarker.swift in Sources */,
 				A2000000000000000000000C /* GestureSession.swift in Sources */,
@@ -489,6 +499,7 @@
 				A20000000000000000000021 /* SettingsRootView.swift in Sources */,
 				A20000000000000000000022 /* GesturesSettingsView.swift in Sources */,
 				A20000000000000000000023 /* GestureRecorderSheet.swift in Sources */,
+				A20000000000000000000051 /* GestureHelpView.swift in Sources */,
 				A20000000000000000000028 /* LoginItemController.swift in Sources */,
 				A2000000000000000000002A /* SystemShortcutConflictDetector.swift in Sources */,
 				A2000000000000000000002C /* AppPreferencesStore.swift in Sources */,
@@ -511,6 +522,7 @@
 				A20000000000000000000024 /* GestureLibraryTests.swift in Sources */,
 				A20000000000000000000009 /* GestureNormalizerTests.swift in Sources */,
 				A2000000000000000000000A /* GestureRecognizerTests.swift in Sources */,
+				A20000000000000000000052 /* GestureAssistanceTests.swift in Sources */,
 				A2000000000000000000000E /* GestureSessionTests.swift in Sources */,
 				A20000000000000000000025 /* GestureTrainingSessionTests.swift in Sources */,
 				A20000000000000000000029 /* LoginItemControllerTests.swift in Sources */,

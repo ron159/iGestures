@@ -88,7 +88,7 @@ public struct SystemShortcutExecutor: ShortcutExecuting {
   }
 }
 
-public enum ActionExecutionFailure: Equatable, Sendable {
+public enum ActionExecutionFailure: Codable, Equatable, Sendable {
   case invalidAction
   case targetNotFound
   case launchFailed

@@ -4,6 +4,11 @@ public protocol GestureOverlaySinking: Sendable {
   func show(at point: GesturePoint)
   func append(_ point: GesturePoint)
   func hide()
+  func preparePreview(_ context: GesturePreviewContext)
+}
+
+extension GestureOverlaySinking {
+  public func preparePreview(_ context: GesturePreviewContext) {}
 }
 
 public struct NoOpGestureOverlaySink: GestureOverlaySinking {
@@ -20,6 +25,7 @@ public enum GestureFeedback: Equatable, Sendable {
   case ambiguous
   case actionFailed(mappingName: String)
   case cancelled
+  case diagnostic(GestureDiagnosticDetail)
 }
 
 public protocol GestureFeedbackSinking: Sendable {
@@ -81,17 +87,20 @@ public struct GestureDiagnosticRecord:
   public let timestamp: Date
   public let outcome: Outcome
   public let mappingName: String?
+  public let detail: GestureDiagnosticDetail?
 
   public init(
     id: UUID = UUID(),
     timestamp: Date = Date(),
     outcome: Outcome,
-    mappingName: String? = nil
+    mappingName: String? = nil,
+    detail: GestureDiagnosticDetail? = nil
   ) {
     self.id = id
     self.timestamp = timestamp
     self.outcome = outcome
     self.mappingName = mappingName
+    self.detail = detail
   }
 }
 
@@ -142,6 +151,12 @@ public final class GestureDiagnosticsBuffer:
       )
     case .cancelled:
       record = GestureDiagnosticRecord(outcome: .cancelled)
+    case .diagnostic(let detail):
+      record = GestureDiagnosticRecord(
+        outcome: detail.outcome,
+        mappingName: detail.suggestions.first?.name,
+        detail: detail
+      )
     }
     lock.lock()
     records.append(record)

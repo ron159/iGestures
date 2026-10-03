@@ -374,6 +374,7 @@ final class GestureSessionTests: XCTestCase {
       result.commands,
       [
         .showOverlay(at: point(0, 0)),
+        .appendOverlayPoint(point(10, 0)),
         .appendOverlayPoint(point(11, 0)),
       ]
     )

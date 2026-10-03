@@ -990,6 +990,23 @@ struct GesturesSettingsView: View {
     switch request {
     case .permissions:
       selectedDestination = .permissions
+    case .mapping(let id):
+      guard let mapping = model.mappings.first(where: { $0.id == id }) else {
+        model.consumeSettingsNavigationRequest()
+        return
+      }
+      let target: GestureTarget
+      if let groupID = mapping.applicationGroupID {
+        target = .group(groupID)
+      } else if case .only(let bundleIDs) = mapping.appScope, let bundleID = bundleIDs.first {
+        target = .application(bundleID)
+      } else {
+        target = .global
+      }
+      searchText = ""
+      selectedGestureTarget = target
+      selectedDestination = .gestures(target)
+      selectedMappingIDs = [id]
     }
     model.consumeSettingsNavigationRequest()
   }

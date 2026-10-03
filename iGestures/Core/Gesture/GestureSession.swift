@@ -228,6 +228,7 @@ public struct GestureSession: Sendable {
   private var points: [GesturePoint]
   private var startedAt: TimeInterval?
   private var frontmostBundleID: String?
+  var trackedApplicationBundleID: String? { frontmostBundleID }
   private var triggerButton: GestureTriggerButton?
   private var accumulatedDistance: Float = 0
 
@@ -297,10 +298,8 @@ public struct GestureSession: Sendable {
         state = .tracking
         return GestureSessionResult(
           disposition: .suppress,
-          commands: [
-            .showOverlay(at: points[0]),
-            .appendOverlayPoint(point),
-          ]
+          commands: [.showOverlay(at: points[0])]
+            + points.dropFirst().map(GestureSessionCommand.appendOverlayPoint)
         )
       }
       if state == .tracking, appended {

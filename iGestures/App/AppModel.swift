@@ -15,6 +15,11 @@ enum AppUpdateState: Equatable {
 
 enum SettingsNavigationRequest: Equatable {
   case permissions
+  case mapping(UUID)
+}
+
+enum GestureHelpPage: Hashable {
+  case reference, diagnostics
 }
 
 @MainActor
@@ -67,6 +72,9 @@ final class GestureDiagnosticsState: ObservableObject {
 
 @MainActor
 final class AppModel: ObservableObject {
+  @Published var gestureHelpPage: GestureHelpPage = .reference
+  var showGestureHelp: (() -> Void)?
+  @Published private(set) var isPracticingGesture = false
   @Published private(set) var isEnabled = false
   @Published private(set) var isOverlayEnabled = true
   @Published private(set) var trailColor = NSColor.controlAccentColor
@@ -298,7 +306,7 @@ final class AppModel: ObservableObject {
     }
     overlayController.eventSink.setEnabled(isOverlayEnabled)
     overlayController.setTrailColor(trailColor)
-    overlayController.feedbackSink.setEnabled(isFeedbackEnabled)
+    overlayController.setFeedbackEnabled(isFeedbackEnabled)
     overlayController.setHapticFeedbackEnabled(
       isHapticFeedbackEnabled
     )
@@ -330,6 +338,10 @@ final class AppModel: ObservableObject {
         diagnosticsState.replaceRecords(with: records)
         preferencesStore.setDiagnosticRecords(records)
       }
+    }
+    overlayController.onInspectDiagnostic = { [weak self] in
+      self?.gestureHelpPage = .diagnostics
+      self?.showGestureHelp?()
     }
     diagnosticLogger.record(
       category: "lifecycle",
@@ -570,7 +582,7 @@ final class AppModel: ObservableObject {
     )
     if refreshedState == .checking || refreshedState == .granted {
       eventTapManager.start()
-      eventTapManager.setEnabled(isEnabled)
+      eventTapManager.setEnabled(isEnabled && !isPracticingGesture)
     } else {
       eventTapManager.stop(reason: .permissionLost)
     }
@@ -649,7 +661,7 @@ final class AppModel: ObservableObject {
   func toggleEnabled() {
     isEnabled.toggle()
     preferencesStore.setRecognitionEnabled(isEnabled)
-    eventTapManager.setEnabled(isEnabled)
+    eventTapManager.setEnabled(isEnabled && !isPracticingGesture)
     recordSettingChanged("recognition_enabled", value: isEnabled)
     if isEnabled,
       permissionState == .checking || permissionState == .granted
@@ -731,7 +743,7 @@ final class AppModel: ObservableObject {
   func setFeedbackEnabled(_ isEnabled: Bool) {
     isFeedbackEnabled = isEnabled
     preferencesStore.setFeedbackEnabled(isEnabled)
-    overlayController.feedbackSink.setEnabled(isEnabled)
+    overlayController.setFeedbackEnabled(isEnabled)
     recordSettingChanged("feedback_enabled", value: isEnabled)
   }
 
@@ -1355,6 +1367,35 @@ final class AppModel: ObservableObject {
     let id = library.create(draft)
     apply(library.database)
     return id
+  }
+
+  func setGesturePracticeActive(_ active: Bool) {
+    isPracticingGesture = active
+    eventTapManager.setEnabled(isEnabled && !active)
+  }
+
+  var assistanceSnapshot: CompiledMappingSnapshot { database.compiledSnapshot }
+
+  func requestMappingSettings(_ id: UUID) {
+    settingsNavigationRequest = .mapping(id)
+  }
+
+  func addGestureSample(_ points: [GesturePoint], mappingID: UUID) async throws {
+    guard let index = database.mappings.firstIndex(where: { $0.id == mappingID }) else {
+      throw GestureAssistance.SampleError.invalidStroke
+    }
+    let templates = try GestureAssistance.addingSample(
+      points, to: database.mappings[index], mappings: database.mappings,
+      defaultTrigger: triggerButton,
+      recognizer: GestureRecognizer(configuration: recognitionSensitivity.configuration)
+    )
+    var updated = database
+    updated.mappings[index].templates = templates
+    apply(updated)
+    await persistenceTask?.value
+    guard mappingStoreError == nil,
+      database.mappings.first(where: { $0.id == mappingID })?.templates == templates
+    else { throw CocoaError(.fileWriteUnknown) }
   }
 
   func updateMapping(
@@ -2247,10 +2288,10 @@ final class AppModel: ObservableObject {
     recentActionPresetIDs = preferencesStore.recentActionPresetIDs
     triggerConfigurationError = nil
 
-    eventTapManager.setEnabled(isEnabled)
+    eventTapManager.setEnabled(isEnabled && !isPracticingGesture)
     overlayController.eventSink.setEnabled(isOverlayEnabled)
     overlayController.setTrailColor(trailColor)
-    overlayController.feedbackSink.setEnabled(isFeedbackEnabled)
+    overlayController.setFeedbackEnabled(isFeedbackEnabled)
     overlayController.setHapticFeedbackEnabled(
       isHapticFeedbackEnabled
     )
@@ -2561,7 +2602,7 @@ final class AppModel: ObservableObject {
       permissionState = permissionCoordinator.recordEventTapCreation(
         succeeded: true
       )
-      eventTapManager.setEnabled(isEnabled)
+      eventTapManager.setEnabled(isEnabled && !isPracticingGesture)
     case .failedToCreateTap:
       permissionState = permissionCoordinator.recordEventTapCreation(
         succeeded: false

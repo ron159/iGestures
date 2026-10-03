@@ -970,8 +970,14 @@ struct AdvancedSettingsView: View {
                       Text(record.timestamp, style: .time)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
-                      Text(diagnosticSummary(record))
+                      Text(record.summary)
                       Spacer()
+                      if record.detail != nil {
+                        Button(String(localized: "Inspect…")) {
+                          model.gestureHelpPage = .diagnostics
+                          model.showGestureHelp?()
+                        }
+                      }
                     }
                     .accessibilityElement(children: .combine)
                   }
@@ -1119,29 +1125,6 @@ struct AdvancedSettingsView: View {
       return applicationName
     }
     return "\(applicationName) · \(triggerButton.localizedName)"
-  }
-
-  private func diagnosticSummary(
-    _ record: GestureDiagnosticRecord
-  ) -> String {
-    switch record.outcome {
-    case .executed:
-      return String(
-        format: String(localized: "Executed: %@"),
-        record.mappingName ?? String(localized: "Unnamed Gesture")
-      )
-    case .noMatch:
-      return String(localized: "Gesture was not recognized")
-    case .ambiguous:
-      return String(localized: "Gesture result was ambiguous")
-    case .actionFailed:
-      return String(
-        format: String(localized: "Action failed: %@"),
-        record.mappingName ?? String(localized: "Unnamed Gesture")
-      )
-    case .cancelled:
-      return String(localized: "Gesture was cancelled")
-    }
   }
 
   private func adaptiveControlGroup<Content: View>(
