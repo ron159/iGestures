@@ -156,7 +156,9 @@ jobs:
           notes="Rolling development build from commit $GITHUB_SHA.
 
           This prerelease is replaced after every successful push to main.
-          Requires macOS 26 or later on Apple Silicon."
+          Requires macOS 14 or later on Apple Silicon.
+          Physical-device testing has only been performed on macOS 26 or later.
+          macOS 14 compatibility has been checked by compilation only."
 
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
               >/dev/null 2>&1; then

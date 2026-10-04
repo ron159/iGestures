@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="https://github.com/ron159/iGestures/releases/latest"><img src="https://img.shields.io/github/v/release/ron159/iGestures?display_name=tag&sort=semver" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/macOS-26%2B-black?logo=apple" alt="macOS 26+">
+  <img src="https://img.shields.io/badge/macOS-14%2B-black?logo=apple" alt="macOS 14+">
   <img src="https://img.shields.io/badge/Swift-6-orange?logo=swift" alt="Swift 6">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
 </p>
@@ -86,7 +86,12 @@ iGestures asks for macOS permissions only for the actions that need them.
 
 ### Option 1: Download a release
 
-Requires macOS 26 or later on an Apple Silicon Mac. Download the latest
+Requires macOS 14 or later on an Apple Silicon Mac.
+**Physical-device testing has only been performed on macOS 26 or later.**
+macOS 14 compatibility has been checked by compilation only; macOS 14 and 15
+have not been tested on physical devices.
+
+Download the latest
 `iGestures-<version>-macOS-arm64.dmg` from
 [GitHub Releases](https://github.com/ron159/iGestures/releases/latest), open
 it, and drag iGestures into Applications. After installation, **About → Check
@@ -153,7 +158,7 @@ flowchart LR
 
 ## Notes and limitations
 
-- Current release artifacts target Apple Silicon only and require macOS 26+.
+- Current release artifacts target Apple Silicon only and require macOS 14+.
 - Ad-hoc signatures can change between builds, so macOS may ask you to grant
   permissions again after an upgrade.
 - Script actions can control other apps or run shell commands; inspect and

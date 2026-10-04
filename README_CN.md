@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="https://github.com/ron159/iGestures/releases/latest"><img src="https://img.shields.io/github/v/release/ron159/iGestures?display_name=tag&sort=semver" alt="最新版本"></a>
-  <img src="https://img.shields.io/badge/macOS-26%2B-black?logo=apple" alt="macOS 26+">
+  <img src="https://img.shields.io/badge/macOS-14%2B-black?logo=apple" alt="macOS 14+">
   <img src="https://img.shields.io/badge/Swift-6-orange?logo=swift" alt="Swift 6">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
 </p>
@@ -75,7 +75,11 @@ iGestures 只在相关功能需要时请求 macOS 权限。
 
 ### 方式一：下载发布版本
 
-需要 macOS 26 或更高版本以及 Apple Silicon Mac。前往
+需要 macOS 14 或更高版本以及 Apple Silicon Mac。
+**目前仅在 macOS 26 及以上版本做过实机验证。**
+macOS 14 兼容性仅通过静态编译检查，macOS 14 和 15 尚未进行实机验证。
+
+前往
 [GitHub Releases](https://github.com/ron159/iGestures/releases/latest) 下载最新的
 `iGestures-<版本>-macOS-arm64.dmg`，打开后将 iGestures 拖入“应用程序”。完成安装后，可通过
 **关于 → 检查更新**直接下载并校验后续版本的 DMG，自动替换当前应用并重启 iGestures。
@@ -135,7 +139,7 @@ flowchart LR
 
 ## 说明与限制
 
-- 当前发布包只支持 Apple Silicon，并要求 macOS 26 或更高版本。
+- 当前发布包只支持 Apple Silicon，并要求 macOS 14 或更高版本。
 - 临时签名可能随构建变化，升级后 macOS 可能要求重新授予权限。
 - 脚本动作可以控制其他应用或运行 Shell 命令；启用前请先检查并确认脚本内容。
 

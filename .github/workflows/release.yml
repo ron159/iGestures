@@ -111,7 +111,9 @@ jobs:
           ARCHIVE: ${{ steps.package.outputs.archive }}
           CHECKSUM: ${{ steps.package.outputs.checksum }}
         run: |
-          notes="Requires macOS 26 or later on Apple Silicon.
+          notes="Requires macOS 14 or later on Apple Silicon.
+          Physical-device testing has only been performed on macOS 26 or later.
+          macOS 14 compatibility has been checked by compilation only.
 
           See README for installation and permission steps."
 
