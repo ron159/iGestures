@@ -195,9 +195,11 @@ final class OverlayController {
         NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
         ? nil
         : feedbackTintColor(feedback)
-      if #available(macOS 27.0, *) {
-        glassView.effectIsInteractive = hasDetail
-      }
+      #if compiler(>=6.3)
+        if #available(macOS 27.0, *) {
+          glassView.effectIsInteractive = hasDetail
+        }
+      #endif
 
       let style = feedbackSymbolStyle(feedback)
       feedbackIconView.image = NSImage(

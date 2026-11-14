@@ -108,9 +108,11 @@ final class ShortcutRecorderControl: NSControl {
       glassView.autoresizingMask = [.width, .height]
       glassView.cornerRadius = radius
       glassView.style = .regular
-      if #available(macOS 27.0, *) {
-        glassView.effectIsInteractive = true
-      }
+      #if compiler(>=6.3)
+        if #available(macOS 27.0, *) {
+          glassView.effectIsInteractive = true
+        }
+      #endif
       addSubview(glassView)
       glassViewStorage = glassView
     } else {
