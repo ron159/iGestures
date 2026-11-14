@@ -16,28 +16,76 @@ struct GestureHelpView: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      HStack {
-        VStack(alignment: .leading, spacing: 4) {
-          Text(String(localized: "Gesture Help")).font(.title2.bold())
-          Text(model.currentApplicationName ?? String(localized: "No Active Application"))
-            .foregroundStyle(.secondary)
+    Group {
+      if #available(macOS 26.0, *) {
+        NavigationStack {
+          helpMainContent
+            .padding(20)
+            .navigationTitle(String(localized: "Gesture Help"))
+            .navigationSubtitle(
+              model.currentApplicationName
+                ?? String(localized: "No Active Application")
+            )
+            .toolbar {
+              ToolbarItem(placement: .principal) {
+                pagePicker
+                  .frame(maxWidth: 320)
+              }
+              ToolbarItem(placement: .primaryAction) {
+                refreshButton
+              }
+            }
         }
-        Spacer()
-        Button(String(localized: "Refresh"), systemImage: "arrow.clockwise") {
-          refreshContext()
+      } else {
+        VStack(alignment: .leading, spacing: 16) {
+          HStack {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(String(localized: "Gesture Help")).font(.title2.bold())
+              Text(
+                model.currentApplicationName
+                  ?? String(localized: "No Active Application")
+              )
+              .foregroundStyle(.secondary)
+            }
+            Spacer()
+            refreshButton
+          }
+          pagePicker
+          helpMainContent
         }
+        .padding(20)
       }
-      Picker(String(localized: "Gesture Help"), selection: $model.gestureHelpPage) {
-        Text(String(localized: "Current App Gestures")).tag(GestureHelpPage.reference)
-        Text(String(localized: "Recent Gesture Diagnostics")).tag(GestureHelpPage.diagnostics)
-      }
-      .pickerStyle(.segmented)
+    }
+    .frame(minWidth: 530, idealWidth: 610, minHeight: 430, idealHeight: 660)
+    .onAppear { refreshContext() }
+    .preferredColorScheme(model.interfaceAppearance.preferredColorScheme)
+    .onChange(of: model.currentApplicationBundleIdentifier) { refreshContext() }
+    .sheet(item: $practice) { target in
+      GesturePracticeView(model: model, target: target, context: context)
+    }
+  }
 
+  private var pagePicker: some View {
+    Picker(String(localized: "Gesture Help"), selection: $model.gestureHelpPage) {
+      Text(String(localized: "Current App Gestures")).tag(GestureHelpPage.reference)
+      Text(String(localized: "Recent Gesture Diagnostics")).tag(GestureHelpPage.diagnostics)
+    }
+    .pickerStyle(.segmented)
+  }
+
+  private var refreshButton: some View {
+    Button(String(localized: "Refresh"), systemImage: "arrow.clockwise") {
+      refreshContext()
+    }
+  }
+
+  private var helpMainContent: some View {
+    VStack(alignment: .leading, spacing: 16) {
       if !model.isEnabled {
         Label(String(localized: "Gesture recognition is disabled."), systemImage: "pause.circle")
       } else if model.permissionState != .granted {
         Button(String(localized: "Review Permissions…")) { openPermissions() }
+          .adaptiveGlassButtonStyle()
       }
 
       ScrollView {
@@ -58,14 +106,6 @@ struct GestureHelpView: View {
         )
       )
       .font(.caption).foregroundStyle(.secondary)
-    }
-    .padding(20)
-    .frame(minWidth: 530, idealWidth: 610, minHeight: 430, idealHeight: 660)
-    .onAppear { refreshContext() }
-    .preferredColorScheme(model.interfaceAppearance.preferredColorScheme)
-    .onChange(of: model.currentApplicationBundleIdentifier) { refreshContext() }
-    .sheet(item: $practice) { target in
-      GesturePracticeView(model: model, target: target, context: context)
     }
   }
 
@@ -110,7 +150,7 @@ struct GestureHelpView: View {
   }
 
   private func referenceRow(_ entry: GestureReferenceEntry) -> some View {
-    GroupBox {
+    helpSurfaceCard {
       VStack(alignment: .leading, spacing: 8) {
         mappingHeader(entry.mapping)
         Text(triggerSummary(entry.mapping)).font(.callout)
@@ -135,10 +175,10 @@ struct GestureHelpView: View {
           )
           .font(.callout).foregroundStyle(.secondary)
           Button(String(localized: "View Matching Rule")) { edit(winner.mappingID) }
+            .adaptiveGlassButtonStyle()
         }
         mappingButtons(entry.mapping, bundleID: model.currentApplicationBundleIdentifier)
       }
-      .padding(6).frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 
@@ -148,7 +188,7 @@ struct GestureHelpView: View {
         Text(String(localized: "No recent gesture diagnostics."))
       }
       ForEach(diagnostics.records.reversed()) { record in
-        GroupBox {
+        helpSurfaceCard {
           VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
               Text(record.summary).font(.headline)
@@ -172,14 +212,38 @@ struct GestureHelpView: View {
               }
               if detail.reason == .actionFailed {
                 Button(String(localized: "Review Permissions…")) { openPermissions() }
+                  .adaptiveGlassButtonStyle()
               }
             }
           }
-          .padding(6).frame(maxWidth: .infinity, alignment: .leading)
         }
       }
       if !diagnostics.records.isEmpty {
         Button(String(localized: "Clear Diagnostics")) { model.clearDiagnostics() }
+          .adaptiveGlassButtonStyle()
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func helpSurfaceCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    if LiquidGlassStyle.isAvailable {
+      content()
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+          Color.primary.opacity(0.045),
+          in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .overlay {
+          RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .stroke(Color.primary.opacity(0.07), lineWidth: 1)
+        }
+    } else {
+      GroupBox {
+        content()
+          .padding(6)
+          .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
   }
@@ -204,8 +268,10 @@ struct GestureHelpView: View {
         Button(String(localized: "Practice / Add Sample…")) {
           practice = PracticeTarget(mapping: mapping, bundleID: bundleID)
         }
+        .adaptiveGlassButtonStyle()
       }
       Button(String(localized: "Edit Rule…")) { edit(mapping.id) }
+        .adaptiveGlassButtonStyle()
     }
   }
 
@@ -362,9 +428,12 @@ private struct GesturePracticeView: View {
         Button(String(localized: "Save as Additional Sample")) {
           Task { await saveSample() }
         }
+        .adaptiveGlassButtonStyle()
         .disabled(isSavingSample || completedStroke.isEmpty || mapping == nil)
         Spacer()
-        Button(String(localized: "Done")) { dismiss() }.keyboardShortcut(.cancelAction)
+        Button(String(localized: "Done")) { dismiss() }
+          .adaptiveGlassButtonStyle(prominent: true)
+          .keyboardShortcut(.cancelAction)
       }
     }
     .padding(24).frame(width: 570, height: 640)

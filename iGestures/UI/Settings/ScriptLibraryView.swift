@@ -138,7 +138,7 @@ struct ScriptLibraryView: View {
         systemImage: "plus"
       )
     }
-    .buttonStyle(.borderedProminent)
+    .adaptiveGlassButtonStyle(prominent: true)
   }
 
   private var scriptList: some View {
@@ -324,6 +324,8 @@ private struct ScriptLibraryItemEditor: View {
         Button(String(localized: "Cancel")) {
           dismiss()
         }
+        .adaptiveGlassButtonStyle()
+
         Button(String(localized: "Save")) {
           item.name = item.name.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -331,6 +333,7 @@ private struct ScriptLibraryItemEditor: View {
           onSave(item)
           dismiss()
         }
+        .adaptiveGlassButtonStyle(prominent: true)
         .keyboardShortcut(.defaultAction)
         .disabled(!isValid)
       }

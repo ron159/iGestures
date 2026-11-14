@@ -1,18 +1,27 @@
 import AppIntents
 import AppKit
+import Combine
 import SwiftUI
 
 @main
 struct IGesturesApp: App {
+  #if !UI_PREVIEW
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+  #endif
   @StateObject private var model: AppModel
   @StateObject private var settingsWindowController: SettingsWindowController
 
   init() {
     let model = AppModel()
     _model = StateObject(wrappedValue: model)
-    _settingsWindowController = StateObject(
-      wrappedValue: SettingsWindowController(model: model)
-    )
+    let settingsController = SettingsWindowController(model: model)
+    _settingsWindowController = StateObject(wrappedValue: settingsController)
+    #if !UI_PREVIEW
+      AppDelegate.configure(
+        model: model,
+        settingsController: settingsController
+      )
+    #endif
   }
 
   var body: some Scene {
@@ -22,44 +31,15 @@ struct IGesturesApp: App {
       }
       .defaultSize(width: 1_100, height: 700)
       .windowResizability(.contentMinSize)
-    #endif
-
-    MenuBarExtra {
-      MenuBarContent(
-        model: model,
-        showSettings: settingsWindowController.showSettings,
-        showGestureHelp: settingsWindowController.showGestureHelp
-      )
-      .preferredColorScheme(
-        model.interfaceAppearance.preferredColorScheme
-      )
-    } label: {
-      MenuBarIcon(
-        isActive: isGestureRecognitionActive(model)
-      )
-      .accessibilityLabel("iGestures")
-      .accessibilityValue(gestureRecognitionStatus(model))
-      .help(gestureRecognitionStatus(model))
-    }
-    #if !UI_PREVIEW
+    #else
+      Settings {
+        EmptyView()
+      }
       .commands {
         AppSettingsCommands(
           showSettings: settingsWindowController.showSettings
         )
       }
-    #endif
-
-    #if !UI_PREVIEW
-      Window(
-        String(localized: "Welcome to iGestures"),
-        id: "onboarding"
-      ) {
-        OnboardingView(model: model)
-          .preferredColorScheme(
-            model.interfaceAppearance.preferredColorScheme
-          )
-      }
-      .defaultSize(width: 660, height: 560)
     #endif
   }
 }
@@ -93,24 +73,150 @@ extension InterfaceAppearance {
   }
 #endif
 
+#if !UI_PREVIEW
+  @MainActor
+  private final class AppDelegate: NSObject, NSApplicationDelegate {
+    private static weak var sharedInstance: AppDelegate?
+    private static weak var model: AppModel?
+    private static weak var settingsController: SettingsWindowController?
+
+    private var statusBarController: StatusBarController?
+    private var didFinishLaunching = false
+
+    static func configure(
+      model: AppModel,
+      settingsController: SettingsWindowController
+    ) {
+      self.model = model
+      self.settingsController = settingsController
+      if let instance = sharedInstance, instance.didFinishLaunching {
+        instance.installStatusBarIfNeeded()
+      }
+    }
+
+    override init() {
+      super.init()
+      Self.sharedInstance = self
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+      didFinishLaunching = true
+      installStatusBarIfNeeded()
+      #if DEBUG
+        DispatchQueue.main.async { Self.settingsController?.showSettings() }
+      #endif
+    }
+
+    func applicationShouldHandleReopen(
+      _ sender: NSApplication, hasVisibleWindows flag: Bool
+    ) -> Bool {
+      statusBarController?.ensureVisible()
+      Self.settingsController?.showSettings()
+      return true
+    }
+
+    private func installStatusBarIfNeeded() {
+      guard statusBarController == nil,
+        let model = Self.model,
+        let settingsController = Self.settingsController
+      else {
+        return
+      }
+      statusBarController = StatusBarController(
+        model: model,
+        showSettings: settingsController.showSettings,
+        showGestureHelp: settingsController.showGestureHelp
+      )
+    }
+  }
+#endif
+
 @MainActor
-private final class SettingsWindowController: ObservableObject {
+private final class SettingsWindowController:
+  NSObject, ObservableObject, NSWindowDelegate
+{
   private let model: AppModel
   private var windowController: NSWindowController?
   private var helpWindowController: NSWindowController?
+  private var onboardingWindowController: NSWindowController?
+  private var cancellables: Set<AnyCancellable> = []
 
   init(model: AppModel) {
     self.model = model
+    super.init()
     model.showGestureHelp = { [weak self] in self?.showGestureHelp() }
+    model.$isOnboardingPresented
+      .removeDuplicates()
+      .receive(on: RunLoop.main)
+      .sink { [weak self] isPresented in
+        if isPresented {
+          self?.showOnboarding()
+        } else {
+          self?.closeOnboarding()
+        }
+      }
+      .store(in: &cancellables)
+  }
+
+  func showOnboarding() {
+    if onboardingWindowController == nil {
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 660, height: 560),
+        styleMask: [.titled, .closable],
+        backing: .buffered,
+        defer: false
+      )
+      window.title = String(localized: "Welcome to iGestures")
+      window.contentViewController = NSHostingController(
+        rootView: OnboardingView(model: model)
+          .preferredColorScheme(model.interfaceAppearance.preferredColorScheme)
+      )
+      window.contentMinSize = NSSize(width: 660, height: 560)
+      window.setContentSize(NSSize(width: 660, height: 560))
+      window.isReleasedWhenClosed = false
+      window.delegate = self
+      window.center()
+      onboardingWindowController = NSWindowController(window: window)
+    } else if let window = onboardingWindowController?.window,
+      window.contentLayoutRect.width < 660 || window.contentLayoutRect.height < 560
+    {
+      window.contentMinSize = NSSize(width: 660, height: 560)
+      window.setContentSize(NSSize(width: 660, height: 560))
+      window.center()
+    }
+    onboardingWindowController?.showWindow(nil)
+    NSApp.activate(ignoringOtherApps: true)
+    onboardingWindowController?.window?.makeKeyAndOrderFront(nil)
+  }
+
+  func closeOnboarding() {
+    onboardingWindowController?.close()
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    if notification.object as? NSWindow === onboardingWindowController?.window,
+      model.isOnboardingPresented
+    {
+      model.finishOnboarding()
+    }
   }
 
   func showGestureHelp() {
     if helpWindowController == nil {
+      let styleMask: NSWindow.StyleMask =
+        if #available(macOS 26.0, *) {
+          [.titled, .closable, .resizable, .fullSizeContentView]
+        } else {
+          [.titled, .closable, .resizable]
+        }
       let window = NSWindow(
         contentRect: NSRect(x: 0, y: 0, width: 610, height: 660),
-        styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false
+        styleMask: styleMask, backing: .buffered, defer: false
       )
       window.title = String(localized: "Gesture Help")
+      if #available(macOS 26.0, *) {
+        window.toolbarStyle = .unified
+      }
       window.contentViewController = NSHostingController(
         rootView: GestureHelpView(
           model: model, showSettings: { [weak self] in self?.showSettings() }
@@ -161,11 +267,19 @@ private final class SettingsWindowController: ObservableObject {
       defer: false
     )
     window.contentViewController = hostingController
-    window.title = "iGestures"
-    window.titleVisibility = .hidden
-    window.titlebarAppearsTransparent = true
-    window.titlebarSeparatorStyle = .none
-    window.isMovableByWindowBackground = true
+    #if DEBUG
+      window.title = "iGestures Debug"
+    #else
+      window.title = "iGestures"
+    #endif
+    if #available(macOS 26.0, *) {
+      window.toolbarStyle = .unified
+    } else {
+      window.titleVisibility = .hidden
+      window.titlebarAppearsTransparent = true
+      window.titlebarSeparatorStyle = .none
+      window.isMovableByWindowBackground = true
+    }
     window.contentMinSize = SettingsRootView.minimumContentSize
     window.isReleasedWhenClosed = false
     window.center()
@@ -203,17 +317,6 @@ private final class SettingsWindowController: ObservableObject {
     }
   }
 #endif
-
-private struct MenuBarIcon: View {
-  let isActive: Bool
-
-  var body: some View {
-    Image(nsImage: MenuBarTemplateImage.icon)
-      .renderingMode(.template)
-      .frame(width: 22, height: 18)
-      .opacity(isActive ? 1 : 0.52)
-  }
-}
 
 @MainActor
 private func isGestureRecognitionActive(_ model: AppModel) -> Bool {
@@ -402,7 +505,6 @@ struct IGesturesAppShortcuts: AppShortcutsProvider {
 }
 
 private struct OnboardingView: View {
-  @Environment(\.dismissWindow) private var dismissWindow
   @ObservedObject var model: AppModel
 
   @State private var step = 0
@@ -418,14 +520,33 @@ private struct OnboardingView: View {
           .font(.largeTitle)
           .fontWeight(.bold)
         Spacer()
-        Text(
-          String(
-            format: String(localized: "Step %d of %d"),
-            step + 1,
-            4
+        if LiquidGlassStyle.isAvailable {
+          HStack(spacing: 6) {
+            ForEach(0..<4, id: \.self) { index in
+              Capsule()
+                .fill(index == step ? Color.accentColor : Color.secondary.opacity(0.28))
+                .frame(width: index == step ? 22 : 8, height: 6)
+                .animation(.easeInOut(duration: 0.2), value: step)
+            }
+          }
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel(
+            String(
+              format: String(localized: "Step %d of %d"),
+              step + 1,
+              4
+            )
           )
-        )
-        .foregroundStyle(.secondary)
+        } else {
+          Text(
+            String(
+              format: String(localized: "Step %d of %d"),
+              step + 1,
+              4
+            )
+          )
+          .foregroundStyle(.secondary)
+        }
       }
 
       Group {
@@ -442,22 +563,27 @@ private struct OnboardingView: View {
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-      Divider()
+      if !LiquidGlassStyle.isAvailable {
+        Divider()
+      }
 
       HStack {
         Button(String(localized: "Skip Setup")) {
           complete()
         }
+        .adaptiveGlassButtonStyle()
         Spacer()
         if step > 0 {
           Button(String(localized: "Back")) {
             step -= 1
           }
+          .adaptiveGlassButtonStyle()
         }
         if step < 3 {
           Button(String(localized: "Continue")) {
             step += 1
           }
+          .adaptiveGlassButtonStyle(prominent: true)
           .keyboardShortcut(.defaultAction)
           .disabled(step == 2 && selectedPresetIDs.isEmpty)
         } else {
@@ -465,14 +591,26 @@ private struct OnboardingView: View {
             model.installPresets(selectedPresets)
             complete()
           }
+          .adaptiveGlassButtonStyle(prominent: true)
           .keyboardShortcut(.defaultAction)
         }
       }
     }
     .padding(28)
+    .frame(
+      minWidth: 660,
+      idealWidth: 660,
+      maxWidth: .infinity,
+      minHeight: 560,
+      idealHeight: 560,
+      maxHeight: .infinity
+    )
     .onAppear {
-      if !model.isOnboardingPresented {
-        dismissWindow(id: "onboarding")
+      step = 0
+    }
+    .onChange(of: model.isOnboardingPresented) {
+      if model.isOnboardingPresented {
+        step = 0
       }
     }
     .onChange(of: selectedPresetIDs) {
@@ -513,20 +651,24 @@ private struct OnboardingView: View {
           .foregroundStyle(.secondary)
       }
 
-      VStack(alignment: .leading, spacing: 8) {
-        onboardingPermissionRow(
-          String(localized: "Read Mouse Input"),
-          isGranted: model.permissionDiagnostics.listenEventAccess
-        )
-        onboardingPermissionRow(
-          String(localized: "Send Shortcuts and Clicks"),
-          isGranted: model.permissionDiagnostics.postEventAccess
-        )
-        onboardingPermissionRow(
-          String(localized: "Accessibility Control"),
-          isGranted: model.permissionDiagnostics.accessibilityTrusted
-        )
+      Group {
+        VStack(alignment: .leading, spacing: 8) {
+          onboardingPermissionRow(
+            String(localized: "Read Mouse Input"),
+            isGranted: model.permissionDiagnostics.listenEventAccess
+          )
+          onboardingPermissionRow(
+            String(localized: "Send Shortcuts and Clicks"),
+            isGranted: model.permissionDiagnostics.postEventAccess
+          )
+          onboardingPermissionRow(
+            String(localized: "Accessibility Control"),
+            isGranted: model.permissionDiagnostics.accessibilityTrusted
+          )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
+      .modifier(OnboardingChecklistCardModifier())
     }
   }
 
@@ -682,7 +824,6 @@ private struct OnboardingView: View {
 
   private func complete() {
     model.finishOnboarding()
-    dismissWindow(id: "onboarding")
   }
 
   private func onboardingTriggerLabel(
@@ -713,15 +854,47 @@ struct GesturePracticePad: View {
   @State private var message = String(
     localized: "Draw here without executing an action."
   )
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
   var body: some View {
+    let useLuminous = LiquidGlassStyle.isAvailable && !reduceTransparency
+    let cornerRadius: CGFloat = LiquidGlassStyle.isAvailable ? 16 : 10
     Canvas { context, size in
       let bounds = Path(
         roundedRect: CGRect(origin: .zero, size: size),
-        cornerRadius: 10
+        cornerRadius: cornerRadius,
+        style: .continuous
       )
-      context.fill(bounds, with: .color(.secondary.opacity(0.08)))
+      context.fill(
+        bounds,
+        with: .color(
+          LiquidGlassStyle.isAvailable
+            ? Color.primary.opacity(0.04)
+            : Color.secondary.opacity(0.08)
+        )
+      )
+      if LiquidGlassStyle.isAvailable {
+        context.stroke(
+          bounds,
+          with: .color(Color.primary.opacity(0.1)),
+          lineWidth: 1
+        )
+      }
       guard let first = points.first else { return }
+      let strokeColor: Color = succeeded ? .green : .accentColor
+      if useLuminous {
+        let cgPoints = points.map { CGPoint(x: CGFloat($0.x), y: CGFloat($0.y)) }
+        LuminousCanvasTrail.draw(
+          in: &context,
+          points: cgPoints,
+          color: strokeColor,
+          maxRadius: 2.5,
+          glowBlurRadius: 5.5,
+          showsMarkers: false,
+          showsLiveHead: !succeeded
+        )
+        return
+      }
       var path = Path()
       path.move(to: CGPoint(x: CGFloat(first.x), y: CGFloat(first.y)))
       for point in points.dropFirst() {
@@ -731,7 +904,7 @@ struct GesturePracticePad: View {
       }
       context.stroke(
         path,
-        with: .color(succeeded ? .green : .accentColor),
+        with: .color(strokeColor),
         style: StrokeStyle(
           lineWidth: 4,
           lineCap: .round,
@@ -761,9 +934,19 @@ struct GesturePracticePad: View {
         }
     )
     .overlay(alignment: .bottom) {
-      Text(message)
-        .font(.callout)
-        .padding(8)
+      if LiquidGlassStyle.isAvailable {
+        Text(message)
+          .font(.callout)
+          .foregroundStyle(succeeded ? .green : .secondary)
+          .padding(.horizontal, 12)
+          .padding(.vertical, 6)
+          .adaptiveGlassCapsule(tint: succeeded ? .green.opacity(0.15) : nil)
+          .padding(10)
+      } else {
+        Text(message)
+          .font(.callout)
+          .padding(8)
+      }
     }
   }
 
@@ -792,91 +975,283 @@ struct GesturePracticePad: View {
   }
 }
 
-private struct MenuBarContent: View {
-  @ObservedObject var model: AppModel
-  let showSettings: () -> Void
-  let showGestureHelp: () -> Void
+private struct OnboardingChecklistCardModifier: ViewModifier {
+  func body(content: Content) -> some View {
+    if LiquidGlassStyle.isAvailable {
+      content
+        .padding(14)
+        .adaptiveGlassCard(cornerRadius: 14)
+    } else {
+      content
+    }
+  }
+}
 
-  var body: some View {
-    Text(gestureRecognitionStatus(model))
+#if !UI_PREVIEW
+  @MainActor
+  private final class StatusBarController: NSObject, NSMenuDelegate {
+    private let model: AppModel
+    private let showSettings: () -> Void
+    private let showGestureHelp: () -> Void
+    private let statusItem = NSStatusBar.system.statusItem(
+      withLength: NSStatusItem.variableLength
+    )
+    private let menu = NSMenu()
+    private var cancellables: Set<AnyCancellable> = []
 
-    Divider()
-
-    Button(
-      model.isEnabled
-        ? String(localized: "Disable")
-        : String(localized: "Enable")
+    init(
+      model: AppModel,
+      showSettings: @escaping () -> Void,
+      showGestureHelp: @escaping () -> Void
     ) {
-      model.toggleEnabled()
+      self.model = model
+      self.showSettings = showSettings
+      self.showGestureHelp = showGestureHelp
+      super.init()
+
+      menu.autoenablesItems = false
+      menu.delegate = self
+      statusItem.menu = menu
+      statusItem.isVisible = true
+
+      configureButton()
+      observeState()
+      updateButton()
     }
 
-    if let applicationName = model.currentApplicationName {
-      Button(
-        model.isCurrentApplicationExcluded
-          ? String(
-            format: String(localized: "Enable in %@"),
-            applicationName
+    func ensureVisible() {
+      statusItem.isVisible = true
+      updateButton()
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+      menu.removeAllItems()
+      applyAppearance(to: menu)
+
+      let statusItemHeader = NSMenuItem(
+        title: gestureRecognitionStatus(model),
+        action: nil,
+        keyEquivalent: ""
+      )
+      statusItemHeader.isEnabled = false
+      menu.addItem(statusItemHeader)
+
+      menu.addItem(.separator())
+
+      menu.addItem(
+        makeActionItem(
+          title: model.isEnabled
+            ? String(localized: "Disable")
+            : String(localized: "Enable"),
+          systemImage: model.isEnabled ? "pause.circle" : "play.circle"
+        ) { [model] in
+          model.toggleEnabled()
+        }
+      )
+
+      if let applicationName = model.currentApplicationName {
+        menu.addItem(
+          makeActionItem(
+            title: model.isCurrentApplicationExcluded
+              ? String(
+                format: String(localized: "Enable in %@"),
+                applicationName
+              )
+              : String(
+                format: String(localized: "Exclude %@"),
+                applicationName
+              ),
+            systemImage: model.isCurrentApplicationExcluded
+              ? "checkmark.circle"
+              : "nosign"
+          ) { [model] in
+            model.setCurrentApplicationExcluded(
+              !model.isCurrentApplicationExcluded
+            )
+          }
+        )
+
+        let triggerSubmenuItem = NSMenuItem(
+          title: String(localized: "Exclude Current App for Trigger"),
+          action: nil,
+          keyEquivalent: ""
+        )
+        if LiquidGlassStyle.isAvailable {
+          triggerSubmenuItem.image = NSImage(
+            systemSymbolName: "computermouse",
+            accessibilityDescription: nil
           )
-          : String(
-            format: String(localized: "Exclude %@"),
-            applicationName
+        }
+        let triggerSubmenu = NSMenu()
+        triggerSubmenu.autoenablesItems = false
+        for button in GestureTriggerButton.commonPresets {
+          triggerSubmenu.addItem(
+            makeActionItem(title: button.localizedName) { [model] in
+              model.setCurrentApplicationExcluded(
+                true,
+                triggerButton: button
+              )
+            }
           )
-      ) {
-        model.setCurrentApplicationExcluded(
-          !model.isCurrentApplicationExcluded
+        }
+        triggerSubmenuItem.submenu = triggerSubmenu
+        menu.addItem(triggerSubmenuItem)
+      }
+
+      menu.addItem(.separator())
+
+      let permissionHeader = NSMenuItem(
+        title: model.permissionStatusText,
+        action: nil,
+        keyEquivalent: ""
+      )
+      permissionHeader.isEnabled = false
+      menu.addItem(permissionHeader)
+
+      menu.addItem(
+        makeActionItem(
+          title: String(localized: "Current App Gestures…"),
+          systemImage: "hand.draw"
+        ) { [model, showGestureHelp] in
+          model.gestureHelpPage = .reference
+          showGestureHelp()
+        }
+      )
+
+      menu.addItem(
+        makeActionItem(
+          title: String(localized: "Diagnose Last Gesture…"),
+          systemImage: "stethoscope"
+        ) { [model, showGestureHelp] in
+          model.gestureHelpPage = .diagnostics
+          showGestureHelp()
+        }
+      )
+
+      if model.permissionState != .granted
+        || model.eventTapState == .failedToCreateTap
+      {
+        menu.addItem(
+          makeActionItem(
+            title: String(localized: "Review Permissions…"),
+            systemImage: "exclamationmark.shield"
+          ) { [model, showSettings] in
+            model.requestPermissionsSettings()
+            showSettings()
+          }
         )
       }
 
-      Menu(String(localized: "Exclude Current App for Trigger")) {
-        ForEach(GestureTriggerButton.commonPresets) { button in
-          Button(onboardingMenuTriggerLabel(button)) {
-            model.setCurrentApplicationExcluded(
-              true,
-              triggerButton: button
-            )
-          }
+      menu.addItem(
+        makeActionItem(
+          title: String(localized: "Settings…"),
+          systemImage: "gearshape",
+          keyEquivalent: ","
+        ) { [showSettings] in
+          showSettings()
         }
+      )
+
+      menu.addItem(.separator())
+
+      menu.addItem(
+        makeActionItem(
+          title: String(localized: "Quit"),
+          systemImage: "power",
+          keyEquivalent: "q"
+        ) { [model] in
+          model.terminate()
+        }
+      )
+    }
+
+    private func configureButton() {
+      guard let button = statusItem.button else { return }
+      button.image = MenuBarTemplateImage.icon
+      #if DEBUG
+        button.imagePosition = .imageLeading
+        button.title = "DEV"
+        button.font = .monospacedSystemFont(ofSize: 9.5, weight: .bold)
+        button.setAccessibilityLabel("iGestures Debug")
+      #else
+        button.imagePosition = .imageOnly
+        button.title = ""
+        button.setAccessibilityLabel("iGestures")
+      #endif
+    }
+
+    private func observeState() {
+      Publishers.Merge4(
+        model.$isEnabled.map { _ in () },
+        model.$isPracticingGesture.map { _ in () },
+        model.$permissionState.map { _ in () },
+        model.$eventTapState.map { _ in () }
+      )
+      .receive(on: RunLoop.main)
+      .sink { [weak self] _ in
+        self?.updateButton()
+      }
+      .store(in: &cancellables)
+    }
+
+    private func updateButton() {
+      statusItem.isVisible = true
+      guard let button = statusItem.button else { return }
+      let status = gestureRecognitionStatus(model)
+      button.appearsDisabled = !isGestureRecognitionActive(model)
+      #if DEBUG
+        button.toolTip = "iGestures Debug — \(status)"
+      #else
+        button.toolTip = status
+      #endif
+      button.setAccessibilityValue(status)
+    }
+
+    private func applyAppearance(to menu: NSMenu) {
+      switch model.interfaceAppearance {
+      case .system:
+        menu.appearance = nil
+      case .light:
+        menu.appearance = NSAppearance(named: .aqua)
+      case .dark:
+        menu.appearance = NSAppearance(named: .darkAqua)
       }
     }
 
-    Divider()
-
-    Text(model.permissionStatusText)
-
-    Button(String(localized: "Current App Gestures…")) {
-      model.gestureHelpPage = .reference
-      showGestureHelp()
-    }
-
-    Button(String(localized: "Diagnose Last Gesture…")) {
-      model.gestureHelpPage = .diagnostics
-      showGestureHelp()
-    }
-
-    if model.permissionState != .granted
-      || model.eventTapState == .failedToCreateTap
-    {
-      Button(String(localized: "Review Permissions…")) {
-        model.requestPermissionsSettings()
-        showSettings()
+    private func makeActionItem(
+      title: String,
+      systemImage: String? = nil,
+      keyEquivalent: String = "",
+      handler: @escaping () -> Void
+    ) -> NSMenuItem {
+      let target = MenuActionTarget(handler)
+      let item = NSMenuItem(
+        title: title,
+        action: #selector(MenuActionTarget.invoke(_:)),
+        keyEquivalent: keyEquivalent
+      )
+      item.target = target
+      item.representedObject = target
+      if LiquidGlassStyle.isAvailable, let systemImage {
+        item.image = NSImage(
+          systemSymbolName: systemImage,
+          accessibilityDescription: nil
+        )
       }
-    }
-
-    Button(
-      String(localized: "Settings…"),
-      action: showSettings
-    )
-
-    Divider()
-
-    Button(String(localized: "Quit")) {
-      model.terminate()
+      return item
     }
   }
 
-  private func onboardingMenuTriggerLabel(
-    _ button: GestureTriggerButton
-  ) -> String {
-    button.localizedName
+  @MainActor
+  private final class MenuActionTarget: NSObject {
+    private let handler: () -> Void
+
+    init(_ handler: @escaping () -> Void) {
+      self.handler = handler
+    }
+
+    @objc func invoke(_ sender: Any?) {
+      handler()
+    }
   }
-}
+#endif

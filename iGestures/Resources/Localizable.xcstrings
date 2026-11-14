@@ -11,6 +11,16 @@
         }
       }
     },
+    "%d gestures": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d 个手势"
+          }
+        }
+      }
+    },
     "Activate": {
       "localizations": {
         "zh-Hans": {
@@ -3533,6 +3543,16 @@
         }
       }
     },
+    "None": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无"
+          }
+        }
+      }
+    },
     "Not quite. Follow the preview and try again.": {
       "localizations": {
         "zh-Hans": {
@@ -5281,6 +5301,16 @@
         }
       }
     },
+    "Toggle Inspector": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换检查器"
+          }
+        }
+      }
+    },
     "Too similar to “%@”. Try again.": {
       "localizations": {
         "zh-Hans": {
@@ -5357,6 +5387,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "触发键"
+          }
+        }
+      }
+    },
+    "Trigger & Conditions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触发与条件"
           }
         }
       }

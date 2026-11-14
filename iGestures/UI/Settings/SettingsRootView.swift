@@ -92,7 +92,6 @@ private final class WindowMinimumSizeView: NSView {
 }
 
 struct GeneralSettingsView: View {
-  @Environment(\.openWindow) private var openWindow
   @ObservedObject var model: AppModel
   @State private var isPracticePresented = false
 
@@ -138,7 +137,10 @@ struct GeneralSettingsView: View {
             .tag(RecognitionSensitivity.strict)
         }
 
-        LabeledContent(String(localized: "Global Enable Shortcut")) {
+        HStack(alignment: .center, spacing: 12) {
+          Text(String(localized: "Global Enable Shortcut"))
+            .lineLimit(1)
+          Spacer(minLength: 12)
           ShortcutRecorderView(
             shortcut: Binding(
               get: { model.globalToggleShortcut },
@@ -146,7 +148,7 @@ struct GeneralSettingsView: View {
             ),
             model: model
           )
-          .frame(width: 170)
+          .frame(width: 120, height: 24)
         }
 
         if let conflict = SystemShortcutConflictDetector().conflict(
@@ -344,14 +346,13 @@ struct GeneralSettingsView: View {
           }
           Button(String(localized: "Open Setup Guide")) {
             model.reopenOnboarding()
-            openWindow(id: "onboarding")
           }
         }
       }
 
     }
     .formStyle(.grouped)
-    .padding()
+    .modifier(AdaptiveLegacyFormPadding())
     .onAppear {
       model.refreshLoginItemStatus()
     }
@@ -548,6 +549,7 @@ private struct ApplicationIconPicker: View {
               .symbolRenderingMode(.palette)
               .foregroundStyle(.white, .tint)
               .background(Circle().fill(.background))
+              .adaptiveWindowFocusOpacity()
               .accessibilityHidden(true)
           }
         }
@@ -558,22 +560,7 @@ private struct ApplicationIconPicker: View {
       }
       .frame(maxWidth: .infinity)
       .padding(8)
-      .background(
-        RoundedRectangle(cornerRadius: 10)
-          .fill(
-            isSelected
-              ? Color.accentColor.opacity(0.12)
-              : Color.clear
-          )
-      )
-      .overlay {
-        RoundedRectangle(cornerRadius: 10)
-          .stroke(
-            isSelected ? Color.accentColor : Color.clear,
-            lineWidth: 1.5
-          )
-      }
-      .contentShape(RoundedRectangle(cornerRadius: 10))
+      .modifier(IconChoiceTileStyle(isSelected: isSelected))
     }
     .buttonStyle(.plain)
     .accessibilityLabel(icon.localizedName)
@@ -687,7 +674,7 @@ struct AboutSettingsView: View {
       }
     }
     .formStyle(.grouped)
-    .padding()
+    .modifier(AdaptiveLegacyFormPadding())
   }
 
   @ViewBuilder
@@ -1001,7 +988,7 @@ struct AdvancedSettingsView: View {
       }
     }
     .formStyle(.grouped)
-    .padding()
+    .modifier(AdaptiveLegacyFormPadding())
     .onAppear {
       if model.eventTapState == .failedToCreateTap {
         isDiagnosticsExpanded = true
@@ -1184,6 +1171,7 @@ private struct GesturePracticeSettingsSheet: View {
         Button(String(localized: "Done")) {
           dismiss()
         }
+        .adaptiveGlassButtonStyle(prominent: true)
         .keyboardShortcut(.defaultAction)
       }
     }
@@ -1219,10 +1207,13 @@ private struct GestureConfigurationSetsView: View {
         } label: {
           Label(String(localized: "Add"), systemImage: "plus")
         }
+        .adaptiveGlassButtonStyle()
       }
       .padding(20)
 
-      Divider()
+      if !LiquidGlassStyle.isAvailable {
+        Divider()
+      }
 
       if model.gestureConfigurationSets.isEmpty {
         ContentUnavailableView(
@@ -1283,7 +1274,9 @@ private struct GestureConfigurationSetsView: View {
         }
       }
 
-      Divider()
+      if !LiquidGlassStyle.isAvailable {
+        Divider()
+      }
       HStack {
         Text(
           String(
@@ -1297,6 +1290,7 @@ private struct GestureConfigurationSetsView: View {
         Button(String(localized: "Done")) {
           dismiss()
         }
+        .adaptiveGlassButtonStyle(prominent: true)
         .keyboardShortcut(.defaultAction)
       }
       .padding(20)
@@ -1350,10 +1344,13 @@ private struct NamedGestureActionsView: View {
         } label: {
           Label(String(localized: "Add"), systemImage: "plus")
         }
+        .adaptiveGlassButtonStyle()
       }
       .padding(20)
 
-      Divider()
+      if !LiquidGlassStyle.isAvailable {
+        Divider()
+      }
 
       if model.namedGestureActions.isEmpty {
         ContentUnavailableView(
@@ -1423,7 +1420,9 @@ private struct NamedGestureActionsView: View {
         }
       }
 
-      Divider()
+      if !LiquidGlassStyle.isAvailable {
+        Divider()
+      }
       HStack {
         Text(
           String(
@@ -1437,6 +1436,7 @@ private struct NamedGestureActionsView: View {
         Button(String(localized: "Done")) {
           dismiss()
         }
+        .adaptiveGlassButtonStyle(prominent: true)
         .keyboardShortcut(.defaultAction)
       }
       .padding(20)
@@ -1603,14 +1603,17 @@ private struct MappingImportPreviewView: View {
           onCancel()
           dismiss()
         }
+        .adaptiveGlassButtonStyle()
         Button(String(localized: "Replace All"), role: .destructive) {
           onReplace()
           dismiss()
         }
+        .adaptiveGlassButtonStyle()
         Button(String(localized: "Merge")) {
           onMerge()
           dismiss()
         }
+        .adaptiveGlassButtonStyle(prominent: true)
         .keyboardShortcut(.defaultAction)
       }
     }
@@ -1758,7 +1761,7 @@ struct PermissionsSettingsView: View {
       }
     }
     .formStyle(.grouped)
-    .padding()
+    .modifier(AdaptiveLegacyFormPadding())
     .onAppear {
       model.refreshPermissions()
     }
@@ -1883,4 +1886,56 @@ struct PermissionsSettingsView: View {
     }
   }
 
+}
+
+private struct AdaptiveLegacyFormPadding: ViewModifier {
+  func body(content: Content) -> some View {
+    if LiquidGlassStyle.isAvailable {
+      content
+    } else {
+      content.padding()
+    }
+  }
+}
+
+private struct IconChoiceTileStyle: ViewModifier {
+  let isSelected: Bool
+
+  @ViewBuilder
+  func body(content: Content) -> some View {
+    if LiquidGlassStyle.isAvailable {
+      content
+        .background(
+          RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(isSelected ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.03))
+        )
+        .overlay {
+          RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .stroke(
+              isSelected ? Color.accentColor : Color.primary.opacity(0.07),
+              lineWidth: isSelected ? 1.5 : 1
+            )
+            .adaptiveWindowFocusOpacity(inactive: 0.45)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    } else {
+      content
+        .background(
+          RoundedRectangle(cornerRadius: 10)
+            .fill(
+              isSelected
+                ? Color.accentColor.opacity(0.12)
+                : Color.clear
+            )
+        )
+        .overlay {
+          RoundedRectangle(cornerRadius: 10)
+            .stroke(
+              isSelected ? Color.accentColor : Color.clear,
+              lineWidth: 1.5
+            )
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 10))
+    }
+  }
 }

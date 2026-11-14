@@ -121,117 +121,25 @@ struct GestureRecorderSheet: View {
   }
 
   private var recorder: some View {
-    VStack(spacing: 0) {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-          HStack {
-            Text(
-              isEditing
-                ? String(localized: "Record Gesture Again")
-                : String(localized: "Record Gesture")
-            )
-            .font(.title2)
-            .fontWeight(.semibold)
-            Spacer()
-            phaseLabel
-              .foregroundStyle(.secondary)
-          }
-
-          if !originalGesture.isEmpty {
-            Label(
-              String(localized: "Original Gesture"),
-              systemImage: "scribble"
-            )
-            .font(.headline)
-          }
-
-          GestureDrawingPad(
-            points: $points,
-            guidePoints: originalGesture
-          ) {
-            handleStroke($0)
-          }
-          .frame(height: 300)
-
-          Text(feedback)
-            .foregroundStyle(feedbackColor)
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-          TextField(String(localized: "Gesture Name"), text: $name)
-
-          GroupBox(String(localized: "Action")) {
-            HStack(spacing: 12) {
-              Image(systemName: "bolt.circle")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-              Text(GestureActionSummary.text(for: action))
-                .frame(maxWidth: .infinity, alignment: .leading)
-              Button(
-                action.performsAction
-                  ? String(localized: "Edit")
-                  : String(localized: "Set Action")
-              ) {
-                page = .action
-              }
-            }
-            .padding(.vertical, 6)
-          }
-
-          VStack(alignment: .leading, spacing: 0) {
-            Button {
-              withAnimation(.easeInOut(duration: 0.12)) {
-                isAdvancedOptionsExpanded.toggle()
-              }
-            } label: {
-              HStack(spacing: 8) {
-                Image(systemName: "chevron.right")
-                  .font(.system(size: 11, weight: .semibold))
-                  .rotationEffect(
-                    .degrees(isAdvancedOptionsExpanded ? 90 : 0)
-                  )
-                  .frame(width: 12, height: 18)
-                  .accessibilityHidden(true)
-                Text(String(localized: "Advanced Options"))
-                  .fontWeight(.medium)
-                Spacer()
-              }
-              .frame(maxWidth: .infinity, minHeight: 28)
-              .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isAdvancedOptionsExpanded {
-              advancedOptions
-                .padding(.top, 12)
+    Group {
+      if LiquidGlassStyle.isAvailable {
+        recorderScrollContent
+          .safeAreaInset(edge: .bottom, spacing: 0) {
+            AdaptiveGlassGroup(spacing: 8) {
+              footer
+                .padding(.horizontal, 24)
+                .padding(.vertical, 14)
             }
           }
-
-          if let triggerConflictMessage {
-            Label(
-              triggerConflictMessage,
-              systemImage: "exclamationmark.triangle.fill"
-            )
-            .font(.caption)
-            .foregroundStyle(.orange)
-          }
-
-          if let conflict = shortcutConflict {
-            Label(
-              conflict.localizedDescription,
-              systemImage: "exclamationmark.triangle.fill"
-            )
-            .foregroundStyle(.orange)
-          }
-
+      } else {
+        VStack(spacing: 0) {
+          recorderScrollContent
+          Divider()
+          footer
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
         }
-        .padding(24)
       }
-
-      Divider()
-      footer
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
     }
     .frame(
       minWidth: 560,
@@ -241,6 +149,123 @@ struct GestureRecorderSheet: View {
       idealHeight: 700,
       maxHeight: 820
     )
+  }
+
+  private var recorderScrollContent: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 16) {
+        HStack {
+          Text(
+            isEditing
+              ? String(localized: "Record Gesture Again")
+              : String(localized: "Record Gesture")
+          )
+          .font(.title2)
+          .fontWeight(.semibold)
+          Spacer()
+          if LiquidGlassStyle.isAvailable {
+            phaseLabel
+              .font(.subheadline.weight(.medium))
+              .foregroundStyle(.secondary)
+              .padding(.horizontal, 10)
+              .padding(.vertical, 4)
+              .adaptiveGlassCapsule()
+          } else {
+            phaseLabel
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        if !originalGesture.isEmpty {
+          Label(
+            String(localized: "Original Gesture"),
+            systemImage: "scribble"
+          )
+          .font(.headline)
+        }
+
+        GestureDrawingPad(
+          points: $points,
+          guidePoints: originalGesture
+        ) {
+          handleStroke($0)
+        }
+        .frame(height: 300)
+
+        Text(feedback)
+          .foregroundStyle(feedbackColor)
+          .frame(maxWidth: .infinity, alignment: .leading)
+
+        TextField(String(localized: "Gesture Name"), text: $name)
+
+        GroupBox(String(localized: "Action")) {
+          HStack(spacing: 12) {
+            Image(systemName: "bolt.circle")
+              .font(.title3)
+              .foregroundStyle(.secondary)
+              .accessibilityHidden(true)
+            Text(GestureActionSummary.text(for: action))
+              .frame(maxWidth: .infinity, alignment: .leading)
+            Button(
+              action.performsAction
+                ? String(localized: "Edit")
+                : String(localized: "Set Action")
+            ) {
+              page = .action
+            }
+            .adaptiveGlassButtonStyle()
+          }
+          .padding(.vertical, 6)
+        }
+
+        VStack(alignment: .leading, spacing: 0) {
+          Button {
+            withAnimation(.easeInOut(duration: 0.12)) {
+              isAdvancedOptionsExpanded.toggle()
+            }
+          } label: {
+            HStack(spacing: 8) {
+              Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .rotationEffect(
+                  .degrees(isAdvancedOptionsExpanded ? 90 : 0)
+                )
+                .frame(width: 12, height: 18)
+                .accessibilityHidden(true)
+              Text(String(localized: "Advanced Options"))
+                .fontWeight(.medium)
+              Spacer()
+            }
+            .frame(maxWidth: .infinity, minHeight: 28)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+
+          if isAdvancedOptionsExpanded {
+            advancedOptions
+              .padding(.top, 12)
+          }
+        }
+
+        if let triggerConflictMessage {
+          Label(
+            triggerConflictMessage,
+            systemImage: "exclamationmark.triangle.fill"
+          )
+          .font(.caption)
+          .foregroundStyle(.orange)
+        }
+
+        if let conflict = shortcutConflict {
+          Label(
+            conflict.localizedDescription,
+            systemImage: "exclamationmark.triangle.fill"
+          )
+          .foregroundStyle(.orange)
+        }
+      }
+      .padding(24)
+    }
   }
 
   private func updateScope(_ scope: AppScope) {
@@ -388,12 +413,14 @@ struct GestureRecorderSheet: View {
           localized: "Draw the same gesture three times."
         )
       }
+      .adaptiveGlassButtonStyle()
 
       Spacer()
 
       Button(String(localized: "Cancel")) {
         dismiss()
       }
+      .adaptiveGlassButtonStyle()
 
       Button(String(localized: "Save Gesture")) {
         onSave(
@@ -413,6 +440,7 @@ struct GestureRecorderSheet: View {
         )
         dismiss()
       }
+      .adaptiveGlassButtonStyle(prominent: true)
       .keyboardShortcut(.defaultAction)
       .disabled(!canSave)
     }
@@ -612,17 +640,35 @@ struct GestureDrawingPad: View {
   let onComplete: ([GesturePoint]) -> Void
 
   @State private var isDrawing = false
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
   var body: some View {
+    let useLuminous = LiquidGlassStyle.isAvailable && !reduceTransparency
     Canvas { context, size in
+      let isGlass = LiquidGlassStyle.isAvailable
       let bounds = Path(
         roundedRect: CGRect(origin: .zero, size: size),
-        cornerRadius: 10
+        cornerRadius: isGlass ? 16 : 10
       )
-      context.fill(bounds, with: .color(.black.opacity(0.04)))
+      context.fill(
+        bounds,
+        with: .color(isGlass ? .primary.opacity(0.035) : .black.opacity(0.04))
+      )
+      if isGlass {
+        for x in stride(from: 24.0, to: size.width - 16.0, by: 24.0) {
+          for y in stride(from: 24.0, to: size.height - 16.0, by: 24.0) {
+            let dot = Path(
+              ellipseIn: CGRect(x: x - 0.75, y: y - 0.75, width: 1.5, height: 1.5)
+            )
+            context.fill(dot, with: .color(.primary.opacity(0.07)))
+          }
+        }
+      }
       context.stroke(
         bounds,
-        with: .color(.secondary.opacity(0.35)),
+        with: .color(
+          isGlass ? .primary.opacity(0.10) : .secondary.opacity(0.35)
+        ),
         lineWidth: 1
       )
 
@@ -646,6 +692,19 @@ struct GestureDrawingPad: View {
       }
 
       guard let first = points.first else { return }
+      if useLuminous {
+        let cgPoints = points.map { CGPoint(x: CGFloat($0.x), y: CGFloat($0.y)) }
+        LuminousCanvasTrail.draw(
+          in: &context,
+          points: cgPoints,
+          color: .accentColor,
+          maxRadius: 2.5,
+          glowBlurRadius: 5.5,
+          showsMarkers: false,
+          showsLiveHead: isDrawing
+        )
+        return
+      }
       var path = Path()
       path.move(
         to: CGPoint(x: CGFloat(first.x), y: CGFloat(first.y))
@@ -673,11 +732,19 @@ struct GestureDrawingPad: View {
     )
     .overlay {
       if points.isEmpty && guidePoints.isEmpty {
-        Label(
+        let prompt = Label(
           String(localized: "Draw here"),
           systemImage: "cursorarrow.motionlines"
         )
         .foregroundStyle(.secondary)
+        if LiquidGlassStyle.isAvailable {
+          prompt
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .adaptiveGlassCapsule()
+        } else {
+          prompt
+        }
       }
     }
     .overlay(alignment: .bottomLeading) {

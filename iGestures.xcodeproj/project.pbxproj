@@ -70,6 +70,7 @@
 		A20000000000000000000050 /* GestureAssistance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000050 /* GestureAssistance.swift */; };
 		A20000000000000000000051 /* GestureHelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000051 /* GestureHelpView.swift */; };
 		A20000000000000000000052 /* GestureAssistanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000052 /* GestureAssistanceTests.swift */; };
+		A20000000000000000000053 /* LiquidGlassSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21000000000000000000053 /* LiquidGlassSupport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -150,6 +151,7 @@
 		A21000000000000000000050 /* GestureAssistance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureAssistance.swift; sourceTree = "<group>"; };
 		A21000000000000000000051 /* GestureHelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureHelpView.swift; sourceTree = "<group>"; };
 		A21000000000000000000052 /* GestureAssistanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureAssistanceTests.swift; sourceTree = "<group>"; };
+		A21000000000000000000053 /* LiquidGlassSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassSupport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -356,6 +358,7 @@
 				A21000000000000000000051 /* GestureHelpView.swift */,
 				A21000000000000000000025 /* GesturesSettingsView.swift */,
 				A21000000000000000000022 /* KeyboardShortcutFormatter.swift */,
+				A21000000000000000000053 /* LiquidGlassSupport.swift */,
 				A21000000000000000000024 /* SettingsRootView.swift */,
 				A21000000000000000000034 /* ScriptLibraryView.swift */,
 				A21000000000000000000023 /* ShortcutRecorderView.swift */,
@@ -496,6 +499,7 @@
 				A2000000000000000000001E /* ShortcutRecordingSession.swift in Sources */,
 				A2000000000000000000001F /* KeyboardShortcutFormatter.swift in Sources */,
 				A20000000000000000000020 /* ShortcutRecorderView.swift in Sources */,
+				A20000000000000000000053 /* LiquidGlassSupport.swift in Sources */,
 				A20000000000000000000021 /* SettingsRootView.swift in Sources */,
 				A20000000000000000000022 /* GesturesSettingsView.swift in Sources */,
 				A20000000000000000000023 /* GestureRecorderSheet.swift in Sources */,
@@ -556,6 +560,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_TESTABILITY = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_MODULE_NAME = iGestures;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -571,6 +576,7 @@
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ONLY_ACTIVE_ARCH = NO;
+				PRODUCT_MODULE_NAME = iGestures;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
@@ -588,7 +594,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/iGestures.app/Contents/MacOS/iGestures";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/iGestures Debug.app/Contents/MacOS/iGestures Debug";
 			};
 			name = Debug;
 		};

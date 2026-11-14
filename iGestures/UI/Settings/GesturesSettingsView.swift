@@ -281,29 +281,17 @@ struct GesturesSettingsView: View {
   @State private var searchText = ""
   @State private var isNamingGesturePack = false
   @State private var gesturePackName = ""
+  @State private var columnVisibility: NavigationSplitViewVisibility = .all
+  @State private var isInspectorPresented = true
+  @State private var hoveredSidebarRowID: String?
 
   var body: some View {
-    GeometryReader { geometry in
-      HStack(spacing: 0) {
-        targetSidebar(topSafeAreaInset: geometry.safeAreaInsets.top)
-          .frame(width: SettingsSidebarMetrics.width)
-          .frame(maxHeight: .infinity)
-
-        Divider()
-
-        selectedWorkspace
-          .environment(
-            \.settingsTopSafeAreaInset,
-            geometry.safeAreaInsets.top
-          )
-          .frame(
-            minWidth: SettingsSidebarMetrics.minimumWorkspaceWidth,
-            maxWidth: .infinity,
-            maxHeight: .infinity
-          )
-          .clipped()
+    Group {
+      if #available(macOS 26.0, *) {
+        modernWorkspace
+      } else {
+        legacyWorkspace
       }
-      .ignoresSafeArea(.container, edges: .top)
     }
     .sheet(isPresented: $isPresentingRecorder) {
       GestureRecorderSheet(
@@ -432,6 +420,204 @@ struct GesturesSettingsView: View {
     }
   }
 
+  private var legacyWorkspace: some View {
+    GeometryReader { geometry in
+      HStack(spacing: 0) {
+        targetSidebar(topSafeAreaInset: geometry.safeAreaInsets.top)
+          .frame(width: SettingsSidebarMetrics.width)
+          .frame(maxHeight: .infinity)
+
+        Divider()
+
+        selectedWorkspace
+          .environment(
+            \.settingsTopSafeAreaInset,
+            geometry.safeAreaInsets.top
+          )
+          .frame(
+            minWidth: SettingsSidebarMetrics.minimumWorkspaceWidth,
+            maxWidth: .infinity,
+            maxHeight: .infinity
+          )
+          .clipped()
+      }
+      .ignoresSafeArea(.container, edges: .top)
+    }
+  }
+
+  @available(macOS 26.0, *)
+  private var modernWorkspace: some View {
+    NavigationSplitView(columnVisibility: $columnVisibility) {
+      modernSidebar
+        .navigationSplitViewColumnWidth(
+          min: 236,
+          ideal: 264,
+          max: 340
+        )
+    } detail: {
+      modernDetail
+    }
+  }
+
+  @available(macOS 26.0, *)
+  private var modernSidebar: some View {
+    List(selection: $selectedDestination) {
+      sidebarListSections(hoverAware: true)
+    }
+    .listStyle(.sidebar)
+    .scrollContentBackground(.hidden)
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      if sidebarMissingPermissionCount > 0 {
+        sidebarPermissionNotice
+          .padding(.horizontal, 10)
+          .padding(.vertical, 10)
+      }
+    }
+  }
+
+  @available(macOS 26.0, *)
+  @ViewBuilder
+  private var modernDetail: some View {
+    switch selectedDestination ?? .gestures(selectedGestureTarget) {
+    case .gestures:
+      modernGestureListDetail
+    case .general:
+      GeneralSettingsView(model: model)
+        .navigationTitle(String(localized: "General"))
+    case .permissions:
+      PermissionsSettingsView(model: model)
+        .navigationTitle(String(localized: "Permissions"))
+    case .advanced:
+      AdvancedSettingsView(model: model)
+        .navigationTitle(String(localized: "Advanced"))
+    case .about:
+      AboutSettingsView(model: model)
+        .navigationTitle(String(localized: "About"))
+    }
+  }
+
+  @available(macOS 26.0, *)
+  private var modernGestureListDetail: some View {
+    let displayedMappings = filteredMappings
+    return Group {
+      if model.isLoadingMappings {
+        ProgressView(String(localized: "Loading Gestures…"))
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if displayedMappings.isEmpty {
+        emptyGestureList
+      } else {
+        List(selection: $selectedMappingIDs) {
+          ForEach(displayedMappings, id: \.mapping.id) { item in
+            GestureLibraryRow(model: model, mapping: item.mapping)
+              .tag(item.mapping.id)
+              .contextMenu {
+                gestureContextMenu(mappingID: item.mapping.id)
+              }
+          }
+        }
+        .listStyle(.inset)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+    }
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      if let error = model.mappingStoreError {
+        Text(error)
+          .font(.callout)
+          .foregroundStyle(.red)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, 16)
+          .padding(.vertical, 10)
+          .adaptiveGlassCard(cornerRadius: 12, tint: .red)
+          .padding(.horizontal, 12)
+          .padding(.bottom, 10)
+      }
+    }
+    .navigationTitle(targetTitle)
+    .navigationSubtitle(
+      String(format: String(localized: "%d gestures"), displayedMappings.count)
+    )
+    .searchable(
+      text: $searchText,
+      placement: .toolbar,
+      prompt: String(localized: "Search gestures")
+    )
+    .toolbar {
+      ToolbarItemGroup(placement: .primaryAction) {
+        Button {
+          presentRecorder(for: selectedGestureTarget)
+        } label: {
+          Label(
+            String(localized: "New Gesture"),
+            systemImage: "plus"
+          )
+        }
+        .buttonStyle(.glassProminent)
+        .disabled(model.isLoadingMappings)
+
+        Menu {
+          gestureMoreActionsMenuItems
+        } label: {
+          Label(
+            String(localized: "More Gesture Actions"),
+            systemImage: "ellipsis"
+          )
+        }
+        .menuIndicator(.hidden)
+        .disabled(model.isLoadingMappings)
+        .help(String(localized: "More Gesture Actions"))
+      }
+
+      ToolbarSpacer(.fixed, placement: .primaryAction)
+
+      ToolbarItem(placement: .primaryAction) {
+        Button {
+          isInspectorPresented.toggle()
+        } label: {
+          Label(
+            String(localized: "Toggle Inspector"),
+            systemImage: "sidebar.right"
+          )
+        }
+        .help(String(localized: "Toggle Inspector"))
+      }
+    }
+    .inspector(isPresented: $isInspectorPresented) {
+      modernGestureInspector
+        .inspectorColumnWidth(min: 340, ideal: 384, max: 460)
+    }
+  }
+
+  @available(macOS 26.0, *)
+  @ViewBuilder
+  private var modernGestureInspector: some View {
+    if let mapping = selectedMapping {
+      GestureMappingInspector(
+        model: model,
+        mapping: mapping,
+        index: selectedMappingIndex,
+        mappingCount: model.mappings.count,
+        applicationGroupName:
+          mapping.applicationGroupID.flatMap {
+            applicationGroupName($0)
+          },
+        applicationName: directApplicationName(for: mapping)
+      ) {
+        selectedMappingIDs.remove(mapping.id)
+      }
+      .id(mapping.id)
+    } else {
+      ContentUnavailableView {
+        Label(
+          String(localized: "Gesture Settings"),
+          systemImage: "slider.horizontal.3"
+        )
+      } description: {
+        Text(String(localized: "Select a gesture to edit its settings."))
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+  }
+
   @ViewBuilder
   private var selectedWorkspace: some View {
     switch selectedDestination ?? .gestures(selectedGestureTarget) {
@@ -450,145 +636,33 @@ struct GesturesSettingsView: View {
 
   private func targetSidebar(topSafeAreaInset: CGFloat) -> some View {
     VStack(alignment: .leading, spacing: 0) {
-      Text(verbatim: "iGestures")
-        .font(.title2.weight(.bold))
-        .padding(.horizontal, 16)
-        .padding(.top, topSafeAreaInset + 8)
-        .padding(.bottom, 4)
-        .accessibilityAddTraits(.isHeader)
+      HStack(spacing: 6) {
+        Text(verbatim: "iGestures")
+          .font(.title2.weight(.bold))
+        #if DEBUG
+          Text(verbatim: "DEBUG")
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+              Capsule()
+                .fill(Color.accentColor.opacity(0.14))
+            )
+            .overlay(
+              Capsule()
+                .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 0.75)
+            )
+        #endif
+      }
+      .padding(.horizontal, 16)
+      .padding(.top, topSafeAreaInset + 8)
+      .padding(.bottom, 4)
+      .accessibilityElement(children: .combine)
+      .accessibilityAddTraits(.isHeader)
 
       List(selection: $selectedDestination) {
-        Section {
-          sidebarPrimaryDestinationRow(
-            title: String(localized: "Global"),
-            systemImage: "globe",
-            count: mappingCount(for: .global),
-            addLabel: String(localized: "Add Gesture")
-          ) {
-            presentRecorder(for: .global)
-          }
-          .tag(GestureWorkspaceDestination.gestures(.global))
-
-          sidebarExpandableCategoryRow(
-            title: String(localized: "Groups"),
-            systemImage: "folder.fill",
-            count: model.gestureApplicationGroups.count,
-            isExpanded: $isGroupsSectionExpanded,
-            addLabel: String(localized: "Add Group")
-          ) {
-            newGroupName = ""
-            isAddingGroup = true
-          }
-
-          if isGroupsSectionExpanded {
-            ForEach(model.gestureApplicationGroups) { group in
-              sidebarDestinationRow(
-                title: group.name,
-                systemImage: "folder",
-                count: mappingCount(for: .group(group.id)),
-                addLabel: String(localized: "Add Gesture")
-              ) {
-                presentRecorder(for: .group(group.id))
-              }
-              .tag(
-                GestureWorkspaceDestination.gestures(.group(group.id))
-              )
-              .padding(.leading, 14)
-              .contextMenu {
-                Button {
-                  chooseApplication(destinationGroupID: group.id)
-                } label: {
-                  Label(
-                    String(localized: "Add Application"),
-                    systemImage: "plus.app"
-                  )
-                }
-                Divider()
-                Button(role: .destructive) {
-                  groupPendingDeletion = group
-                } label: {
-                  Label(
-                    String(localized: "Delete Group"),
-                    systemImage: "trash"
-                  )
-                }
-                .disabled(
-                  group.bundleIdentifiers.isEmpty
-                    && model.mappings.contains {
-                      $0.applicationGroupID == group.id
-                    }
-                )
-                .help(
-                  String(
-                    localized:
-                      "Add an application or remove the group’s gestures before deleting this group."
-                  )
-                )
-              }
-
-              ForEach(
-                sortedApplicationBundleIdentifiers(
-                  group.bundleIdentifiers
-                ),
-                id: \.self
-              ) { bundleIdentifier in
-                applicationSidebarRow(
-                  bundleIdentifier: bundleIdentifier,
-                  groupID: group.id
-                )
-                .padding(.leading, 28)
-              }
-            }
-          }
-
-          sidebarExpandableCategoryRow(
-            title: String(localized: "Applications"),
-            systemImage: "square.grid.2x2",
-            count: ungroupedApplicationBundleIdentifiers.count,
-            isExpanded: $isApplicationsSectionExpanded,
-            addLabel: String(localized: "Add Application")
-          ) {
-            chooseApplication()
-          }
-
-          if isApplicationsSectionExpanded {
-            ForEach(ungroupedApplicationBundleIdentifiers, id: \.self) {
-              bundleIdentifier in
-              applicationSidebarRow(
-                bundleIdentifier: bundleIdentifier,
-                groupID: nil
-              )
-              .padding(.leading, 8)
-            }
-          }
-        } header: {
-          sidebarDomainHeader(title: String(localized: "Gestures"))
-        }
-
-        Section {
-          settingsSidebarRow(
-            title: String(localized: "General"),
-            systemImage: "slider.horizontal.3"
-          )
-          .tag(GestureWorkspaceDestination.general)
-          settingsSidebarRow(
-            title: String(localized: "Permissions"),
-            systemImage: "hand.raised"
-          )
-          .tag(GestureWorkspaceDestination.permissions)
-          settingsSidebarRow(
-            title: String(localized: "Advanced"),
-            systemImage: "wrench.and.screwdriver"
-          )
-          .tag(GestureWorkspaceDestination.advanced)
-          settingsSidebarRow(
-            title: String(localized: "About"),
-            systemImage: "info.circle"
-          )
-          .tag(GestureWorkspaceDestination.about)
-        } header: {
-          sidebarDomainHeader(title: String(localized: "Settings"))
-        }
+        sidebarListSections(hoverAware: false)
       }
       .listStyle(.sidebar)
       .scrollContentBackground(.hidden)
@@ -600,6 +674,158 @@ struct GesturesSettingsView: View {
       }
     }
     .background(SidebarMaterialBackground())
+  }
+
+  @ViewBuilder
+  private func sidebarListSections(hoverAware: Bool) -> some View {
+    let groupPadding: CGFloat = hoverAware ? 10 : 14
+    let groupAppPadding: CGFloat = hoverAware ? 20 : 28
+    let ungroupedAppPadding: CGFloat = 8
+
+    Section {
+      sidebarPrimaryDestinationRow(
+        title: String(localized: "Global"),
+        systemImage: "globe",
+        count: mappingCount(for: .global),
+        addLabel: String(localized: "Add Gesture"),
+        rowID: "global",
+        isSelected: selectedDestination == .gestures(.global),
+        hoverAware: hoverAware
+      ) {
+        presentRecorder(for: .global)
+      }
+      .tag(GestureWorkspaceDestination.gestures(.global))
+
+      sidebarExpandableCategoryRow(
+        title: String(localized: "Groups"),
+        systemImage: "folder.fill",
+        count: model.gestureApplicationGroups.count,
+        isExpanded: $isGroupsSectionExpanded,
+        addLabel: String(localized: "Add Group"),
+        rowID: "category-groups",
+        hoverAware: hoverAware
+      ) {
+        newGroupName = ""
+        isAddingGroup = true
+      }
+
+      if isGroupsSectionExpanded {
+        ForEach(model.gestureApplicationGroups) { group in
+          let groupDestination = GestureWorkspaceDestination.gestures(
+            .group(group.id)
+          )
+          sidebarDestinationRow(
+            title: group.name,
+            systemImage: "folder",
+            count: mappingCount(for: .group(group.id)),
+            addLabel: String(localized: "Add Gesture"),
+            rowID: "group-\(group.id.uuidString)",
+            isSelected: selectedDestination == groupDestination,
+            hoverAware: hoverAware
+          ) {
+            presentRecorder(for: .group(group.id))
+          }
+          .tag(groupDestination)
+          .padding(.leading, groupPadding)
+          .contextMenu {
+            Button {
+              chooseApplication(destinationGroupID: group.id)
+            } label: {
+              Label(
+                String(localized: "Add Application"),
+                systemImage: "plus.app"
+              )
+            }
+            Divider()
+            Button(role: .destructive) {
+              groupPendingDeletion = group
+            } label: {
+              Label(
+                String(localized: "Delete Group"),
+                systemImage: "trash"
+              )
+            }
+            .disabled(
+              group.bundleIdentifiers.isEmpty
+                && model.mappings.contains {
+                  $0.applicationGroupID == group.id
+                }
+            )
+            .help(
+              String(
+                localized:
+                  "Add an application or remove the group’s gestures before deleting this group."
+              )
+            )
+          }
+
+          ForEach(
+            sortedApplicationBundleIdentifiers(
+              group.bundleIdentifiers
+            ),
+            id: \.self
+          ) { bundleIdentifier in
+            applicationSidebarRow(
+              bundleIdentifier: bundleIdentifier,
+              groupID: group.id,
+              hoverAware: hoverAware
+            )
+            .padding(.leading, groupAppPadding)
+          }
+        }
+      }
+
+      sidebarExpandableCategoryRow(
+        title: String(localized: "Applications"),
+        systemImage: "square.grid.2x2",
+        count: ungroupedApplicationBundleIdentifiers.count,
+        isExpanded: $isApplicationsSectionExpanded,
+        addLabel: String(localized: "Add Application"),
+        rowID: "category-applications",
+        hoverAware: hoverAware
+      ) {
+        chooseApplication()
+      }
+
+      if isApplicationsSectionExpanded {
+        ForEach(ungroupedApplicationBundleIdentifiers, id: \.self) {
+          bundleIdentifier in
+          applicationSidebarRow(
+            bundleIdentifier: bundleIdentifier,
+            groupID: nil,
+            hoverAware: hoverAware
+          )
+          .padding(.leading, ungroupedAppPadding)
+        }
+      }
+    } header: {
+      sidebarDomainHeader(title: String(localized: "Gestures"))
+    }
+
+    Section {
+      settingsSidebarRow(
+        title: String(localized: "General"),
+        systemImage: "slider.horizontal.3"
+      )
+      .tag(GestureWorkspaceDestination.general)
+      settingsSidebarRow(
+        title: String(localized: "Permissions"),
+        systemImage: "hand.raised"
+      )
+      .tag(GestureWorkspaceDestination.permissions)
+      settingsSidebarRow(
+        title: String(localized: "Advanced"),
+        systemImage: "wrench.and.screwdriver"
+      )
+      .tag(GestureWorkspaceDestination.advanced)
+      settingsSidebarRow(
+        title: String(localized: "About"),
+        systemImage: "info.circle"
+      )
+      .tag(GestureWorkspaceDestination.about)
+    } header: {
+      sidebarDomainHeader(title: String(localized: "Settings"))
+    }
   }
 
   private var gestureWorkspace: some View {
@@ -664,42 +890,7 @@ struct GesturesSettingsView: View {
       .buttonStyle(.borderedProminent)
 
       Menu {
-        Button {
-          isPresentingPresets = true
-        } label: {
-          Label(
-            String(localized: "Gesture Templates"),
-            systemImage: "square.grid.2x2"
-          )
-        }
-        Divider()
-        Button(String(localized: "Enable Selected Gestures")) {
-          model.setMappingsEnabled(
-            ids: selectedMappingIDs,
-            isEnabled: true
-          )
-        }
-        .disabled(!selectedMappings.contains { !$0.isEnabled })
-        Button(String(localized: "Disable Selected Gestures")) {
-          model.setMappingsEnabled(
-            ids: selectedMappingIDs,
-            isEnabled: false
-          )
-        }
-        .disabled(!selectedMappings.contains { $0.isEnabled })
-        Button(String(localized: "Export Selected as Gesture Pack…")) {
-          gesturePackName = targetTitle
-          isNamingGesturePack = true
-        }
-        .disabled(selectedMappingIDs.isEmpty)
-        Divider()
-        Button(
-          String(localized: "Delete Selected Gestures"),
-          role: .destructive
-        ) {
-          mappingIDsPendingDeletion = selectedMappingIDs
-        }
-        .disabled(selectedMappingIDs.isEmpty)
+        gestureMoreActionsMenuItems
       } label: {
         Image(systemName: "chevron.down")
           .frame(width: 18, height: 18)
@@ -712,6 +903,46 @@ struct GesturesSettingsView: View {
     }
     .disabled(model.isLoadingMappings)
     .controlSize(.large)
+  }
+
+  @ViewBuilder
+  private var gestureMoreActionsMenuItems: some View {
+    Button {
+      isPresentingPresets = true
+    } label: {
+      Label(
+        String(localized: "Gesture Templates"),
+        systemImage: "square.grid.2x2"
+      )
+    }
+    Divider()
+    Button(String(localized: "Enable Selected Gestures")) {
+      model.setMappingsEnabled(
+        ids: selectedMappingIDs,
+        isEnabled: true
+      )
+    }
+    .disabled(!selectedMappings.contains { !$0.isEnabled })
+    Button(String(localized: "Disable Selected Gestures")) {
+      model.setMappingsEnabled(
+        ids: selectedMappingIDs,
+        isEnabled: false
+      )
+    }
+    .disabled(!selectedMappings.contains { $0.isEnabled })
+    Button(String(localized: "Export Selected as Gesture Pack…")) {
+      gesturePackName = targetTitle
+      isNamingGesturePack = true
+    }
+    .disabled(selectedMappingIDs.isEmpty)
+    Divider()
+    Button(
+      String(localized: "Delete Selected Gestures"),
+      role: .destructive
+    ) {
+      mappingIDsPendingDeletion = selectedMappingIDs
+    }
+    .disabled(selectedMappingIDs.isEmpty)
   }
 
   private var gestureList: some View {
@@ -1024,6 +1255,9 @@ struct GesturesSettingsView: View {
     systemImage: String,
     count: Int,
     addLabel: String,
+    rowID: String,
+    isSelected: Bool,
+    hoverAware: Bool,
     addAction: @escaping () -> Void
   ) -> some View {
     HStack(spacing: 10) {
@@ -1034,10 +1268,19 @@ struct GesturesSettingsView: View {
       sidebarTrailingControls(
         count: count,
         addLabel: addLabel,
+        isAddVisible: !hoverAware || isSelected || hoveredSidebarRowID == rowID,
         addAction: addAction
       )
     }
     .frame(maxWidth: .infinity, minHeight: 30)
+    .onHover { hovering in
+      guard hoverAware else { return }
+      if hovering {
+        hoveredSidebarRowID = rowID
+      } else if hoveredSidebarRowID == rowID {
+        hoveredSidebarRowID = nil
+      }
+    }
   }
 
   private func sidebarPrimaryDestinationRow(
@@ -1045,6 +1288,9 @@ struct GesturesSettingsView: View {
     systemImage: String,
     count: Int,
     addLabel: String,
+    rowID: String,
+    isSelected: Bool,
+    hoverAware: Bool,
     addAction: @escaping () -> Void
   ) -> some View {
     HStack(spacing: 10) {
@@ -1056,10 +1302,19 @@ struct GesturesSettingsView: View {
       sidebarTrailingControls(
         count: count,
         addLabel: addLabel,
+        isAddVisible: !hoverAware || isSelected || hoveredSidebarRowID == rowID,
         addAction: addAction
       )
     }
     .frame(maxWidth: .infinity, minHeight: 38)
+    .onHover { hovering in
+      guard hoverAware else { return }
+      if hovering {
+        hoveredSidebarRowID = rowID
+      } else if hoveredSidebarRowID == rowID {
+        hoveredSidebarRowID = nil
+      }
+    }
   }
 
   private func sidebarExpandableCategoryRow(
@@ -1068,6 +1323,8 @@ struct GesturesSettingsView: View {
     count: Int,
     isExpanded: Binding<Bool>,
     addLabel: String,
+    rowID: String,
+    hoverAware: Bool,
     addAction: @escaping () -> Void
   ) -> some View {
     HStack(spacing: 4) {
@@ -1099,15 +1356,25 @@ struct GesturesSettingsView: View {
       sidebarTrailingControls(
         count: count,
         addLabel: addLabel,
+        isAddVisible: !hoverAware || hoveredSidebarRowID == rowID,
         addAction: addAction
       )
     }
     .frame(maxWidth: .infinity, minHeight: 34)
+    .onHover { hovering in
+      guard hoverAware else { return }
+      if hovering {
+        hoveredSidebarRowID = rowID
+      } else if hoveredSidebarRowID == rowID {
+        hoveredSidebarRowID = nil
+      }
+    }
   }
 
   private func sidebarTrailingControls(
     count: Int,
     addLabel: String,
+    isAddVisible: Bool,
     addAction: @escaping () -> Void
   ) -> some View {
     HStack(spacing: 4) {
@@ -1125,6 +1392,8 @@ struct GesturesSettingsView: View {
           .contentShape(Rectangle())
       }
       .buttonStyle(.borderless)
+      .opacity(isAddVisible ? 1 : 0)
+      .animation(.easeInOut(duration: 0.12), value: isAddVisible)
       .help(addLabel)
       .accessibilityLabel(addLabel)
     }
@@ -1182,19 +1451,12 @@ struct GesturesSettingsView: View {
         selectedDestination = .permissions
         model.requestAccess()
       }
-      .buttonStyle(.bordered)
+      .adaptiveGlassButtonStyle()
       .controlSize(.small)
     }
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(
-      Color(nsColor: .controlBackgroundColor),
-      in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-    )
-    .overlay {
-      RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-    }
+    .modifier(SidebarPermissionCardBackgroundModifier())
   }
 
   private var sidebarPermissionOverview: String {
@@ -1232,9 +1494,14 @@ struct GesturesSettingsView: View {
 
   private func applicationSidebarRow(
     bundleIdentifier: String,
-    groupID: UUID?
+    groupID: UUID?,
+    hoverAware: Bool
   ) -> some View {
-    HStack(spacing: 10) {
+    let destination = GestureWorkspaceDestination.gestures(
+      .application(bundleIdentifier)
+    )
+    let rowID = "app-\(groupID?.uuidString ?? "ungrouped")-\(bundleIdentifier)"
+    return HStack(spacing: 10) {
       applicationIcon(bundleIdentifier: bundleIdentifier)
       Text(applicationName(bundleIdentifier: bundleIdentifier))
         .lineLimit(1)
@@ -1242,17 +1509,24 @@ struct GesturesSettingsView: View {
       let count = mappingCount(for: .application(bundleIdentifier))
       sidebarTrailingControls(
         count: count,
-        addLabel: String(localized: "Add Gesture")
+        addLabel: String(localized: "Add Gesture"),
+        isAddVisible: !hoverAware
+          || selectedDestination == destination
+          || hoveredSidebarRowID == rowID
       ) {
         presentRecorder(for: .application(bundleIdentifier))
       }
     }
     .frame(maxWidth: .infinity, minHeight: 30)
-    .tag(
-      GestureWorkspaceDestination.gestures(
-        .application(bundleIdentifier)
-      )
-    )
+    .onHover { hovering in
+      guard hoverAware else { return }
+      if hovering {
+        hoveredSidebarRowID = rowID
+      } else if hoveredSidebarRowID == rowID {
+        hoveredSidebarRowID = nil
+      }
+    }
+    .tag(destination)
     .contextMenu {
       if groupID != nil {
         Button {
@@ -1579,6 +1853,7 @@ private struct GestureLibraryRow: View {
         )
       )
       .labelsHidden()
+      .modifier(AdaptiveMiniSwitchToggleModifier())
       .accessibilityLabel(
         String(
           format: String(localized: "Enable gesture %@"),
@@ -1646,21 +1921,13 @@ private struct GestureMappingInspector: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      Text(String(localized: "Gesture Settings"))
-        .font(.headline)
-
-      VStack(alignment: .leading, spacing: 16) {
-        gesturePreview
-          .frame(maxWidth: .infinity, alignment: .center)
-        mappingFieldsStack
+    Group {
+      if LiquidGlassStyle.isAvailable {
+        modernInspectorBody
+      } else {
+        legacyInspectorBody
       }
-
-      actionEditor
-      secondaryActionEditor
-      inspectorToolbar
     }
-    .modifier(SettingsContentPadding())
     .onChange(of: mapping.name) {
       name = mapping.name
     }
@@ -1738,6 +2005,211 @@ private struct GestureMappingInspector: View {
     isRetraining = false
     isConfirmingDeletion = false
     isEditingContext = false
+  }
+
+  private var legacyInspectorBody: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text(String(localized: "Gesture Settings"))
+        .font(.headline)
+
+      VStack(alignment: .leading, spacing: 16) {
+        gesturePreview
+          .frame(maxWidth: .infinity, alignment: .center)
+        mappingFieldsStack
+      }
+
+      actionEditor
+      secondaryActionEditor
+      inspectorToolbar
+    }
+    .modifier(SettingsContentPadding())
+  }
+
+  private var modernInspectorBody: some View {
+    Form {
+      Section {
+        VStack(spacing: 12) {
+          GestureTemplatePreview(
+            template: mapping.templates.first ?? .emptyPreview,
+            animatesDrawing: true
+          )
+          .frame(width: 220, height: 148)
+          .adaptiveWindowFocusOpacity()
+
+          Button {
+            isRetraining = true
+          } label: {
+            Label(
+              String(localized: "Record Gesture Again"),
+              systemImage: "scribble.variable"
+            )
+          }
+          .adaptiveGlassButtonStyle()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+      }
+
+      Section {
+        LabeledContent(String(localized: "Gesture Name")) {
+          mappingNameField
+            .multilineTextAlignment(.trailing)
+        }
+
+        LabeledContent(String(localized: "Application Scope")) {
+          mappingScopeControl
+        }
+      }
+
+      Section(String(localized: "Trigger & Conditions")) {
+        LabeledContent(String(localized: "Trigger")) {
+          mappingTriggerControls
+        }
+
+        LabeledContent(String(localized: "Configuration Set")) {
+          mappingConfigurationSetMenu
+        }
+
+        LabeledContent(String(localized: "Activation Variant")) {
+          mappingInputVariantMenu
+        }
+
+        LabeledContent(String(localized: "Button Combination")) {
+          mappingChordMenu
+        }
+
+        LabeledContent(String(localized: "Context Conditions")) {
+          Button(mappingContextSummary) {
+            isEditingContext = true
+          }
+          .buttonStyle(.bordered)
+        }
+
+        LabeledContent(String(localized: "Input Device")) {
+          mappingDevicePicker
+        }
+
+        mappingRepeatToggle
+      }
+
+      Section(String(localized: "Action")) {
+        HStack(spacing: 12) {
+          Image(
+            systemName:
+              mapping.action.performsAction
+              ? "bolt.circle" : "minus.circle"
+          )
+          .font(.title3)
+          .foregroundStyle(.secondary)
+          .accessibilityHidden(true)
+          Text(GestureActionSummary.text(for: mapping.action))
+            .frame(maxWidth: .infinity, alignment: .leading)
+          if mapping.action.performsAction {
+            Button(
+              String(localized: "Clear Action"),
+              role: .destructive
+            ) {
+              model.setMappingAction(id: mapping.id, action: .none)
+            }
+            .adaptiveGlassButtonStyle()
+            .fixedSize()
+          }
+          Button(
+            mapping.action.performsAction
+              ? String(localized: "Edit")
+              : String(localized: "Set Action")
+          ) {
+            isEditingAction = true
+          }
+          .adaptiveGlassButtonStyle()
+          .fixedSize()
+        }
+        .padding(.vertical, 2)
+      }
+
+      if let secondaryButton = model.secondaryTriggerButton {
+        Section(
+          String(
+            format: String(localized: "Secondary Action · %@"),
+            triggerButtonName(secondaryButton)
+          )
+        ) {
+          Toggle(
+            String(localized: "Use a higher-priority action"),
+            isOn: Binding(
+              get: { mapping.secondaryAction != nil },
+              set: {
+                model.setMappingSecondaryAction(
+                  id: mapping.id,
+                  action: $0 ? .window(.leftHalf) : nil
+                )
+              }
+            )
+          )
+
+          Text(
+            String(
+              localized:
+                "Hold the primary and secondary triggers together, then draw this gesture."
+            )
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+          HStack(spacing: 12) {
+            Image(
+              systemName:
+                mapping.secondaryAction == nil
+                ? "minus.circle" : "bolt.badge.plus"
+            )
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
+            Text(
+              GestureActionSummary.text(
+                for: mapping.secondaryAction ?? .none
+              )
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if let secondaryAction = mapping.secondaryAction {
+              Button(
+                String(localized: "Clear Action"),
+                role: .destructive
+              ) {
+                model.setMappingSecondaryAction(
+                  id: mapping.id,
+                  action: nil
+                )
+              }
+              .adaptiveGlassButtonStyle()
+              .fixedSize()
+              Button(String(localized: "Edit")) {
+                secondaryActionEditorItem = SecondaryActionEditorItem(
+                  action: secondaryAction
+                )
+              }
+              .adaptiveGlassButtonStyle()
+              .fixedSize()
+            } else {
+              Button(String(localized: "Set Action")) {
+                secondaryActionEditorItem = SecondaryActionEditorItem(
+                  action: .window(.leftHalf)
+                )
+              }
+              .adaptiveGlassButtonStyle()
+              .fixedSize()
+            }
+          }
+        }
+      }
+    }
+    .formStyle(.grouped)
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      AdaptiveGlassGroup(spacing: 8) {
+        inspectorToolbar
+      }
+      .padding(.horizontal, 16)
+      .padding(.vertical, 10)
+    }
   }
 
   private var gesturePreview: some View {
@@ -2006,18 +2478,24 @@ private struct GestureMappingInspector: View {
         }
       }
     } label: {
-      Text(
-        mapping.requiredChordButtons.isEmpty
-          ? String(localized: "None")
-          : mapping.requiredChordButtons.map(triggerButtonName)
-            .joined(separator: " + ")
-      )
-      .frame(
-        width: SettingsAlignedControlMetrics.labelWidth,
-        alignment: .leading
-      )
+      HStack(spacing: 8) {
+        Text(
+          mapping.requiredChordButtons.isEmpty
+            ? String(localized: "None")
+            : mapping.requiredChordButtons.map(triggerButtonName)
+              .joined(separator: " + ")
+        )
+        .lineLimit(1)
+        .truncationMode(.middle)
+        Spacer(minLength: 8)
+        Image(systemName: "chevron.up.chevron.down")
+          .foregroundStyle(.secondary)
+      }
+      .frame(width: SettingsAlignedControlMetrics.labelWidth)
     }
+    .menuIndicator(.hidden)
     .menuStyle(.button)
+    .buttonStyle(.bordered)
   }
 
   private var mappingContextSummary: String {
@@ -2266,6 +2744,7 @@ private struct GestureMappingInspector: View {
       } label: {
         Image(systemName: "chevron.up")
       }
+      .adaptiveGlassButtonStyle()
       .disabled(index == 0)
       .help(String(localized: "Move Up"))
       .accessibilityLabel(String(localized: "Move Up"))
@@ -2275,6 +2754,7 @@ private struct GestureMappingInspector: View {
       } label: {
         Image(systemName: "chevron.down")
       }
+      .adaptiveGlassButtonStyle()
       .disabled(index == mappingCount - 1)
       .help(String(localized: "Move Down"))
       .accessibilityLabel(String(localized: "Move Down"))
@@ -2284,6 +2764,7 @@ private struct GestureMappingInspector: View {
       } label: {
         Image(systemName: "plus.square.on.square")
       }
+      .adaptiveGlassButtonStyle()
       .help(String(localized: "Duplicate Gesture"))
       .accessibilityLabel(String(localized: "Duplicate Gesture"))
     }
@@ -2298,6 +2779,7 @@ private struct GestureMappingInspector: View {
         systemImage: "trash"
       )
     }
+    .adaptiveGlassButtonStyle()
     .fixedSize()
   }
 
@@ -2307,6 +2789,7 @@ private struct GestureMappingInspector: View {
     } label: {
       Image(systemName: "trash")
     }
+    .adaptiveGlassButtonStyle()
     .help(String(localized: "Delete Gesture"))
     .accessibilityLabel(String(localized: "Delete Gesture"))
   }
@@ -2393,7 +2876,9 @@ private struct GestureContextConditionEditor: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
 
-      Divider()
+      if !LiquidGlassStyle.isAvailable {
+        Divider()
+      }
 
       Form {
         Section(String(localized: "Modifier Keys")) {
@@ -2481,12 +2966,17 @@ private struct GestureContextConditionEditor: View {
       }
       .formStyle(.grouped)
 
-      Divider()
+      if !LiquidGlassStyle.isAvailable {
+        Divider()
+      }
+
       HStack {
         Spacer()
         Button(String(localized: "Cancel")) {
           dismiss()
         }
+        .adaptiveGlassButtonStyle()
+
         Button(String(localized: "Save")) {
           var updated = condition
           updated.displayIDs = parsedDisplayIDs
@@ -2494,6 +2984,7 @@ private struct GestureContextConditionEditor: View {
           onSave(updated)
           dismiss()
         }
+        .adaptiveGlassButtonStyle(prominent: true)
         .keyboardShortcut(.defaultAction)
       }
       .padding(20)
@@ -2733,6 +3224,7 @@ private struct AnimatedGestureTemplatePreview: View {
 private struct GestureTemplatePreviewCanvas: View, @MainActor Animatable {
   let template: GestureTemplate
   var drawingProgress: CGFloat
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
   var animatableData: CGFloat {
     get { drawingProgress }
@@ -2740,12 +3232,32 @@ private struct GestureTemplatePreviewCanvas: View, @MainActor Animatable {
   }
 
   var body: some View {
+    let useLuminous = LiquidGlassStyle.isAvailable && !reduceTransparency
     Canvas(rendersAsynchronously: true) { context, size in
       let points = GesturePreviewLayout.scaledPoints(
         template.points,
         in: size
       )
       guard let first = points.first else { return }
+      let markerSize = min(size.width, size.height) < 80 ? 8.0 : 11.0
+
+      if useLuminous {
+        let trimmed = LuminousTrailGeometry.trimmedPoints(points, progress: drawingProgress)
+        let maxRadius: CGFloat = min(size.width, size.height) < 80 ? 1.85 : 2.35
+        let glowBlur: CGFloat = min(size.width, size.height) < 80 ? 4.0 : 5.5
+        LuminousCanvasTrail.draw(
+          in: &context,
+          points: trimmed,
+          color: .accentColor,
+          maxRadius: maxRadius,
+          glowBlurRadius: glowBlur,
+          showsMarkers: true,
+          markerSize: markerSize,
+          showsLiveHead: drawingProgress < 0.995
+        )
+        return
+      }
+
       var path = Path()
       path.move(to: first)
       for point in points.dropFirst() {
@@ -2761,7 +3273,6 @@ private struct GestureTemplatePreviewCanvas: View, @MainActor Animatable {
         )
       )
 
-      let markerSize = min(size.width, size.height) < 80 ? 8.0 : 11.0
       let startMarker = Path(
         ellipseIn: CGRect(
           x: first.x - markerSize / 2,
@@ -2794,12 +3305,29 @@ private struct GestureTemplatePreviewCanvas: View, @MainActor Animatable {
         )
       }
     }
-    .background(
-      .secondary.opacity(0.08),
-      in: RoundedRectangle(
-        cornerRadius: 6
-      )
-    )
+    .background {
+      GeometryReader { proxy in
+        let cornerRadius: CGFloat =
+          LiquidGlassStyle.isAvailable
+          ? (proxy.size.height < 90 ? 10 : 16)
+          : 6
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+          .fill(
+            LiquidGlassStyle.isAvailable
+              ? Color.primary.opacity(0.05)
+              : Color.secondary.opacity(0.08)
+          )
+          .overlay {
+            if LiquidGlassStyle.isAvailable {
+              RoundedRectangle(
+                cornerRadius: cornerRadius,
+                style: .continuous
+              )
+              .stroke(Color.primary.opacity(0.07), lineWidth: 1)
+            }
+          }
+      }
+    }
   }
 }
 
@@ -3264,7 +3792,9 @@ struct GestureActionEditorSheet: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 18)
 
-      Divider()
+      if !LiquidGlassStyle.isAvailable {
+        Divider()
+      }
 
       ScrollView {
         GestureActionEditor(
@@ -3276,17 +3806,22 @@ struct GestureActionEditorSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
 
-      Divider()
+      if !LiquidGlassStyle.isAvailable {
+        Divider()
+      }
 
       HStack {
         Spacer()
         Button(String(localized: "Cancel")) {
           close()
         }
+        .adaptiveGlassButtonStyle()
+
         Button(String(localized: "Save")) {
           onSave(action)
           close()
         }
+        .adaptiveGlassButtonStyle(prominent: true)
         .keyboardShortcut(.defaultAction)
         .disabled(!action.isValid)
       }
@@ -3392,7 +3927,7 @@ struct GestureActionEditor: View {
           shortcut: keyboardShortcut,
           model: model
         )
-        .frame(width: 180)
+        .frame(width: 136, height: 24)
       case .openURL:
         VStack(alignment: .leading, spacing: 8) {
           WebsitePresetPicker(
@@ -3764,14 +4299,7 @@ private struct WebsitePresetPicker: View {
       }
       .padding(.horizontal, 10)
       .padding(.vertical, 8)
-      .background(
-        .quaternary.opacity(0.35),
-        in: RoundedRectangle(cornerRadius: 8)
-      )
-      .overlay {
-        RoundedRectangle(cornerRadius: 8)
-          .stroke(.quaternary)
-      }
+      .modifier(WebsitePresetPickerButtonBackgroundModifier())
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
@@ -4098,6 +4626,7 @@ private struct ActionPresetLibraryView: View {
         Button(String(localized: "Done")) {
           onDone()
         }
+        .adaptiveGlassButtonStyle()
       }
 
       Picker(String(localized: "Library"), selection: $mode) {
@@ -4121,10 +4650,12 @@ private struct ActionPresetLibraryView: View {
         .textFieldStyle(.roundedBorder)
 
         ScrollView(.horizontal, showsIndicators: false) {
-          HStack(spacing: 8) {
-            categoryButton(nil, label: String(localized: "All"))
-            ForEach(ActionPresetCategory.allCases, id: \.self) {
-              categoryButton($0, label: $0.label)
+          AdaptiveGlassGroup(spacing: 8) {
+            HStack(spacing: 8) {
+              categoryButton(nil, label: String(localized: "All"))
+              ForEach(ActionPresetCategory.allCases, id: \.self) {
+                categoryButton($0, label: $0.label)
+              }
             }
           }
           .background(HorizontalMouseWheelScrollBridge())
@@ -4170,6 +4701,7 @@ private struct ActionPresetLibraryView: View {
                 systemImage: "plus"
               )
             }
+            .adaptiveGlassButtonStyle()
             .disabled(!(action?.wrappedValue.isValid ?? false))
           }
 
@@ -4233,10 +4765,12 @@ private struct ActionPresetLibraryView: View {
     }
   }
 
+  @ViewBuilder
   private func categoryButton(
     _ category: ActionPresetCategory?,
     label: String
   ) -> some View {
+    let isSelected = selectedCategory == category
     Button {
       selectedCategory = category
     } label: {
@@ -4248,12 +4782,7 @@ private struct ActionPresetLibraryView: View {
       }
       .padding(.horizontal, 10)
       .padding(.vertical, 5)
-      .background(
-        selectedCategory == category
-          ? Color.accentColor.opacity(0.18)
-          : Color.secondary.opacity(0.08)
-      )
-      .clipShape(Capsule())
+      .modifier(AdaptiveCategoryChipBackgroundModifier(isSelected: isSelected))
     }
     .buttonStyle(.plain)
   }
@@ -4382,6 +4911,8 @@ private struct SaveActionPresetSheet: View {
         Button(String(localized: "Cancel")) {
           dismiss()
         }
+        .adaptiveGlassButtonStyle()
+
         Button(String(localized: "Save")) {
           guard
             model.createCustomActionPreset(
@@ -4394,6 +4925,7 @@ private struct SaveActionPresetSheet: View {
           }
           dismiss()
         }
+        .adaptiveGlassButtonStyle(prominent: true)
         .keyboardShortcut(.defaultAction)
         .disabled(
           name.trimmingCharacters(
@@ -4818,6 +5350,79 @@ extension ActionPresetScopeHint {
       String(localized: "Recommended for browser groups")
     case .finder:
       String(localized: "Recommended for Finder")
+    }
+  }
+}
+
+private struct SidebarPermissionCardBackgroundModifier: ViewModifier {
+  func body(content: Content) -> some View {
+    if LiquidGlassStyle.isAvailable {
+      content.adaptiveGlassCard(
+        cornerRadius: 14,
+        tint: .orange,
+        interactive: true
+      )
+    } else {
+      content
+        .background(
+          Color(nsColor: .controlBackgroundColor),
+          in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .overlay {
+          RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        }
+    }
+  }
+}
+
+private struct AdaptiveMiniSwitchToggleModifier: ViewModifier {
+  func body(content: Content) -> some View {
+    if LiquidGlassStyle.isAvailable {
+      content
+        .toggleStyle(.switch)
+        .controlSize(.mini)
+    } else {
+      content
+    }
+  }
+}
+
+private struct WebsitePresetPickerButtonBackgroundModifier: ViewModifier {
+  func body(content: Content) -> some View {
+    if LiquidGlassStyle.isAvailable {
+      content.adaptiveGlassCard(cornerRadius: 10, interactive: true)
+    } else {
+      content
+        .background(
+          .quaternary.opacity(0.35),
+          in: RoundedRectangle(cornerRadius: 8)
+        )
+        .overlay {
+          RoundedRectangle(cornerRadius: 8)
+            .stroke(.quaternary)
+        }
+    }
+  }
+}
+
+private struct AdaptiveCategoryChipBackgroundModifier: ViewModifier {
+  let isSelected: Bool
+
+  func body(content: Content) -> some View {
+    if LiquidGlassStyle.isAvailable {
+      content.adaptiveGlassCapsule(
+        tint: isSelected ? .accentColor : nil,
+        interactive: true
+      )
+    } else {
+      content
+        .background(
+          isSelected
+            ? Color.accentColor.opacity(0.18)
+            : Color.secondary.opacity(0.08)
+        )
+        .clipShape(Capsule())
     }
   }
 }

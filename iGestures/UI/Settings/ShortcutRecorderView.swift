@@ -26,6 +26,17 @@ struct ShortcutRecorderView: NSViewRepresentable {
     configureCapture(for: control)
   }
 
+  func sizeThatFits(
+    _ proposal: ProposedViewSize,
+    nsView: ShortcutRecorderControl,
+    context: Context
+  ) -> CGSize {
+    CGSize(
+      width: proposal.width ?? ShortcutRecorderControl.defaultWidth,
+      height: proposal.height ?? ShortcutRecorderControl.controlHeight
+    )
+  }
+
   private func configureCapture(
     for control: ShortcutRecorderControl
   ) {
@@ -38,8 +49,19 @@ struct ShortcutRecorderView: NSViewRepresentable {
   }
 }
 
+@available(macOS 26.0, *)
+private final class PassthroughGlassEffectView: NSGlassEffectView {
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    nil
+  }
+}
+
 @MainActor
 final class ShortcutRecorderControl: NSControl {
+  static let defaultWidth: CGFloat = 120
+  static let minimumWidth: CGFloat = 96
+  static let controlHeight: CGFloat = 24
+
   var shortcut = ShortcutRecordingSession.emptyShortcut {
     didSet {
       if session?.isRecording != true {
@@ -55,17 +77,50 @@ final class ShortcutRecorderControl: NSControl {
   var endSystemCapture: ((UUID) -> Void)?
 
   private let label = NonInteractiveTextField(labelWithString: "")
+  private var glassViewStorage: NSView?
   private var session: ShortcutRecordingSession?
   private var systemCaptureID: UUID?
+
+  override var intrinsicContentSize: NSSize {
+    NSSize(width: Self.defaultWidth, height: Self.controlHeight)
+  }
+
+  override var firstBaselineOffsetFromTop: CGFloat {
+    let labelHeight = label.intrinsicContentSize.height
+    let topInset = max(0, (Self.controlHeight - labelHeight) / 2)
+    return topInset + label.firstBaselineOffsetFromTop
+  }
+
+  override var lastBaselineOffsetFromBottom: CGFloat {
+    let labelHeight = label.intrinsicContentSize.height
+    let bottomInset = max(0, (Self.controlHeight - labelHeight) / 2)
+    return bottomInset + label.lastBaselineOffsetFromBottom
+  }
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     wantsLayer = true
-    layer?.cornerRadius = 6
-    layer?.borderWidth = 1
+    if #available(macOS 26.0, *) {
+      let radius = Self.controlHeight / 2
+      layer?.cornerRadius = radius
+      layer?.borderWidth = 0
+      let glassView = PassthroughGlassEffectView(frame: bounds)
+      glassView.autoresizingMask = [.width, .height]
+      glassView.cornerRadius = radius
+      glassView.style = .regular
+      if #available(macOS 27.0, *) {
+        glassView.effectIsInteractive = true
+      }
+      addSubview(glassView)
+      glassViewStorage = glassView
+    } else {
+      layer?.cornerRadius = 6
+      layer?.borderWidth = 1
+    }
     target = self
     action = #selector(beginRecording)
 
+    label.font = .systemFont(ofSize: 12, weight: .medium)
     label.alignment = .center
     label.lineBreakMode = .byTruncatingMiddle
     label.translatesAutoresizingMaskIntoConstraints = false
@@ -74,8 +129,8 @@ final class ShortcutRecorderControl: NSControl {
       label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
       label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
       label.centerYAnchor.constraint(equalTo: centerYAnchor),
-      widthAnchor.constraint(greaterThanOrEqualToConstant: 100),
-      heightAnchor.constraint(equalToConstant: 28),
+      widthAnchor.constraint(greaterThanOrEqualToConstant: Self.minimumWidth),
+      heightAnchor.constraint(equalToConstant: Self.controlHeight),
     ])
     updateAppearance()
     updateLabel()
@@ -207,10 +262,23 @@ final class ShortcutRecorderControl: NSControl {
   private func updateAppearance() {
     effectiveAppearance.performAsCurrentDrawingAppearance {
       let isFocused = window?.firstResponder === self
-      layer?.borderColor =
-        (isFocused ? NSColor.controlAccentColor : NSColor.separatorColor)
-        .cgColor
-      layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+      if #available(macOS 26.0, *),
+        let glassView = glassViewStorage as? NSGlassEffectView
+      {
+        layer?.borderWidth = isFocused ? 1.5 : 0
+        layer?.borderColor =
+          (isFocused ? NSColor.controlAccentColor : NSColor.clear).cgColor
+        layer?.backgroundColor = NSColor.clear.cgColor
+        glassView.tintColor =
+          isFocused
+          ? NSColor.controlAccentColor.withAlphaComponent(0.14)
+          : nil
+      } else {
+        layer?.borderColor =
+          (isFocused ? NSColor.controlAccentColor : NSColor.separatorColor)
+          .cgColor
+        layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+      }
       label.textColor = NSColor.labelColor
     }
   }
