@@ -73,6 +73,17 @@ final class ShortcutRecordingSessionTests: XCTestCase {
     XCTAssertEqual(session.shortcut, original)
   }
 
+  func testModifiedEditingKeysAreRecorded() {
+    for key: UInt16 in [51, 53, 117] {
+      var session = ShortcutRecordingSession(shortcut: ShortcutRecordingSession.emptyShortcut)
+      session.begin()
+      let command = CGEventFlags.maskCommand.rawValue
+      XCTAssertEqual(
+        session.handleKeyDown(keyCode: key, modifiers: command),
+        .recorded(KeyboardShortcut(keyCode: key, modifiers: command)))
+    }
+  }
+
   func testDeleteClearsShortcut() {
     var session = ShortcutRecordingSession(
       shortcut: KeyboardShortcut(keyCode: 13, modifiers: 1)

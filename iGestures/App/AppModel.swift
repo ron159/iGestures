@@ -2690,7 +2690,7 @@ final class AppModel: ObservableObject {
 
   private func observeApplicationActivation() {
     applicationActivationTask = Task { @MainActor [weak self] in
-      for await notification in NotificationCenter.default.notifications(
+      for await notification in NSWorkspace.shared.notificationCenter.notifications(
         named: NSWorkspace.didActivateApplicationNotification
       ) {
         guard !Task.isCancelled, let self else { return }

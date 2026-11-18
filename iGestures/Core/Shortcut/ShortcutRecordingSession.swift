@@ -88,12 +88,13 @@ public struct ShortcutRecordingSession: Sendable {
   ) -> ShortcutRecordingResult {
     guard isRecording else { return .ignored }
 
-    switch keyCode {
-    case 53:
+    let normalized = Self.normalizedModifiers(modifiers)
+    switch (keyCode, normalized) {
+    case (53, 0):
       shortcut = originalShortcut
       isRecording = false
       return .cancelled
-    case 51, 117:
+    case (51, 0), (117, 0), (117, CGEventFlags.maskSecondaryFn.rawValue):
       shortcut = Self.emptyShortcut
       isRecording = false
       return .cleared

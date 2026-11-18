@@ -417,15 +417,8 @@ public actor MappingStore {
       mode: mode,
       packName: imported.packName
     )
-    try ensureDirectoryExists()
-    try encode(database).write(to: importUndoURL, options: .atomic)
-    do {
-      try save(plan.database)
-      return plan.database
-    } catch {
-      try? fileManager.removeItem(at: importUndoURL)
-      throw error
-    }
+    try commitImport(plan.database, undoData: encode(database))
+    return plan.database
   }
 
   public func importConfiguration(
@@ -446,19 +439,25 @@ public actor MappingStore {
       gestureDatabase: database,
       settings: imported.settings == nil ? nil : currentSettings
     )
+    try commitImport(plan.database, undoData: encode(undoArchive))
+    return ConfigurationImportResult(gestureDatabase: plan.database, settings: imported.settings)
+  }
+
+  private func commitImport(_ imported: GestureDatabase, undoData: Data) throws {
+    try validate(imported)
     try ensureDirectoryExists()
-    try encode(undoArchive).write(
-      to: importUndoURL,
-      options: .atomic
-    )
+    let previous =
+      fileManager.fileExists(atPath: importUndoURL.path)
+      ? try Data(contentsOf: importUndoURL) : nil
+    try undoData.write(to: importUndoURL, options: .atomic)
     do {
-      try save(plan.database)
-      return ConfigurationImportResult(
-        gestureDatabase: plan.database,
-        settings: imported.settings
-      )
+      try save(imported)
     } catch {
-      try? fileManager.removeItem(at: importUndoURL)
+      if let previous {
+        try previous.write(to: importUndoURL, options: .atomic)
+      } else {
+        try fileManager.removeItem(at: importUndoURL)
+      }
       throw error
     }
   }
@@ -1110,7 +1109,7 @@ public actor MappingStore {
     guard
       compiledNamedActions.allSatisfy({
         !$0.allowsAppIntent
-          || ($0.isEnabled && $0.action.isSafeForAppIntent)
+          || ($0.isEnabled && $0.action.isSafeForAppIntent(allowingLegacyEmptyHost: true))
       })
     else {
       throw MappingStoreError.invalidNamedAction
@@ -1159,7 +1158,7 @@ public actor MappingStore {
       let chordButtons = mapping.requiredChordButtons
       guard chordButtons.count <= limits.maximumChordButtonCount,
         Set(chordButtons).count == chordButtons.count,
-        !chordButtons.contains(mapping.triggerButton ?? .right),
+        !chordButtons.contains(where: { $0 == mapping.triggerButton }),
         chordButtons.allSatisfy({
           $0.keyboardKeyCode == nil && $0 != .trackpad
         }),
@@ -1303,10 +1302,10 @@ public actor MappingStore {
       }
     }
     guard
-      action.isValid
+      action.isValid(allowingUnconfirmedScripts: false, allowingLegacyEmptyHost: true)
         || (!isEnabled
           && !action.scripts.isEmpty
-          && action.isValid(allowingUnconfirmedScripts: true))
+          && action.isValid(allowingUnconfirmedScripts: true, allowingLegacyEmptyHost: true))
     else {
       throw MappingStoreError.invalidAction
     }
@@ -1431,14 +1430,19 @@ public actor MappingStore {
     _ name: String,
     existingNames: Set<String>
   ) -> String {
-    let base = String(name.prefix(max(1, limits.maximumNameLength - 24)))
-    var candidate = "\(base) (Imported)"
-    var suffix = 2
-    while existingNames.contains(normalizedComparableName(candidate)) {
-      candidate = "\(base) (Imported \(suffix))"
-      suffix += 1
+    var number = 1
+    while true {
+      let suffix = number == 1 ? " (Imported)" : " (Imported \(number))"
+      var base = name[...]
+      while !base.isEmpty && base.utf8.count + suffix.utf8.count > limits.maximumNameLength {
+        base.removeLast()
+      }
+      let candidate = base + suffix
+      if !existingNames.contains(normalizedComparableName(String(candidate))) {
+        return String(candidate)
+      }
+      number += 1
     }
-    return candidate
   }
 
   private func writePrimary(

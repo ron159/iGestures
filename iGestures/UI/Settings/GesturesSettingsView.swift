@@ -4316,6 +4316,8 @@ private struct WebsitePresetPicker: View {
         )
         .textFieldStyle(.roundedBorder)
 
+        let matchingPresets = self.matchingPresets
+        let selectedID = selectedPreset?.id
         if matchingPresets.isEmpty {
           ContentUnavailableView(
             String(localized: "No Preset Websites"),
@@ -4329,7 +4331,7 @@ private struct WebsitePresetPicker: View {
           ScrollView {
             LazyVStack(spacing: 4) {
               ForEach(matchingPresets) { preset in
-                websiteRow(preset)
+                websiteRow(preset, isSelected: preset.id == selectedID)
               }
             }
           }
@@ -4361,7 +4363,7 @@ private struct WebsitePresetPicker: View {
     )
   }
 
-  private func websiteRow(_ preset: ActionPreset) -> some View {
+  private func websiteRow(_ preset: ActionPreset, isSelected: Bool) -> some View {
     Button {
       action = preset.action
       model.recordActionPresetUse(id: preset.id)
@@ -4379,7 +4381,7 @@ private struct WebsitePresetPicker: View {
             .lineLimit(1)
         }
         Spacer()
-        if preset.id == selectedPreset?.id {
+        if isSelected {
           Image(systemName: "checkmark")
             .foregroundStyle(.tint)
             .accessibilityHidden(true)
@@ -4389,7 +4391,7 @@ private struct WebsitePresetPicker: View {
       .padding(.vertical, 6)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(
-        preset.id == selectedPreset?.id
+        isSelected
           ? Color.accentColor.opacity(0.14)
           : Color.clear,
         in: RoundedRectangle(cornerRadius: 7)

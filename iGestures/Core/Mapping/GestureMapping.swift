@@ -414,17 +414,17 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
   }
 
   public func isValid(
-    allowingUnconfirmedScripts: Bool
+    allowingUnconfirmedScripts: Bool, allowingLegacyEmptyHost: Bool = false
   ) -> Bool {
     isValid(
       allowingUnconfirmedScripts: allowingUnconfirmedScripts,
-      depth: 0
+      allowingLegacyEmptyHost: allowingLegacyEmptyHost, depth: 0
     )
   }
 
   private func isValid(
     allowingUnconfirmedScripts: Bool,
-    depth: Int
+    allowingLegacyEmptyHost: Bool, depth: Int
   ) -> Bool {
     guard depth <= 20 else { return false }
     switch self {
@@ -436,7 +436,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
       guard let components = URLComponents(string: value),
         let scheme = components.scheme?.lowercased(),
         scheme == "http" || scheme == "https",
-        components.host != nil
+        let host = components.host, allowingLegacyEmptyHost || !host.isEmpty
       else {
         return false
       }
@@ -478,7 +478,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
           && action.isValid(
             allowingUnconfirmedScripts:
               allowingUnconfirmedScripts,
-            depth: depth + 1
+            allowingLegacyEmptyHost: allowingLegacyEmptyHost, depth: depth + 1
           )
       }
       return fallbackIsValid
@@ -489,7 +489,7 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
             && $0.action.isValid(
               allowingUnconfirmedScripts:
                 allowingUnconfirmedScripts,
-              depth: depth + 1
+              allowingLegacyEmptyHost: allowingLegacyEmptyHost, depth: depth + 1
             )
             && $0.delayAfter.isFinite
             && (0...5).contains($0.delayAfter)
@@ -563,26 +563,29 @@ public indirect enum GestureAction: Codable, Hashable, Sendable {
   }
 
   public var isSafeForAppIntent: Bool {
-    isSafeForAppIntent(depth: 0)
+    isSafeForAppIntent(allowingLegacyEmptyHost: false)
   }
 
-  private func isSafeForAppIntent(depth: Int) -> Bool {
+  func isSafeForAppIntent(allowingLegacyEmptyHost: Bool, depth: Int = 0) -> Bool {
     guard depth <= 20 else { return false }
     switch self {
     case .openURL, .launchApplication, .system, .window, .customWindow:
-      return isValid
+      return isValid(
+        allowingUnconfirmedScripts: false, allowingLegacyEmptyHost: allowingLegacyEmptyHost)
     case .sequence(let sequence):
       let fallbackIsSafe: Bool
       switch sequence.failurePolicy {
       case .stop, .continue:
         fallbackIsSafe = true
       case .fallback(let fallback):
-        fallbackIsSafe = fallback.isSafeForAppIntent(depth: depth + 1)
+        fallbackIsSafe = fallback.isSafeForAppIntent(
+          allowingLegacyEmptyHost: allowingLegacyEmptyHost, depth: depth + 1)
       }
       return fallbackIsSafe
         && !sequence.steps.isEmpty
         && sequence.steps.allSatisfy {
-          $0.action.isSafeForAppIntent(depth: depth + 1)
+          $0.action.isSafeForAppIntent(
+            allowingLegacyEmptyHost: allowingLegacyEmptyHost, depth: depth + 1)
         }
     case .none, .keyboardShortcut, .openPath, .typeText,
       .applicationMenu, .appleShortcut, .namedAction, .script:

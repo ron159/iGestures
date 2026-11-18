@@ -78,6 +78,10 @@ public struct CompiledMappingSnapshot: Sendable {
     .mapValues { $0.map(\.1) }
   }
 
+  func hasExplicitTrigger(_ button: GestureTriggerButton) -> Bool {
+    mappingsByTrigger[button] != nil
+  }
+
   public func mappings(
     for triggerButton: GestureTriggerButton,
     default defaultTriggerButton: GestureTriggerButton,
@@ -133,7 +137,8 @@ public struct CompiledMappingSnapshot: Sendable {
     default defaultTriggerButton: GestureTriggerButton,
     context: GestureMatchContext
   ) -> ActionRequest? {
-    mappings(
+    let recognizer = GestureRecognizer()
+    return mappings(
       for: triggerButton,
       default: defaultTriggerButton,
       context: context
@@ -144,8 +149,11 @@ public struct CompiledMappingSnapshot: Sendable {
         && !$0.inputVariant.requiresDrawnGesture
         && $0.appScope.includes(bundleID: bundleID)
     }
-    .sorted { $0.priority < $1.priority }
-    .first
+    .min { lhs, rhs in
+      let left = recognizer.specificity(of: lhs, for: bundleID, inputDevice: context.inputDevice)
+      let right = recognizer.specificity(of: rhs, for: bundleID, inputDevice: context.inputDevice)
+      return left == right ? lhs.priority < rhs.priority : left > right
+    }
     .map {
       ActionRequest(
         mappingID: $0.id,

@@ -843,6 +843,56 @@ final class MappingStoreTests: XCTestCase {
     XCTAssertFalse(try XCTUnwrap(result.mappings.first).isEnabled)
   }
 
+  func testInheritedChordAndLegacyURLRemainReadable() throws {
+    var database = try makeDatabase(name: "Legacy")
+    database.mappings[0].requiredChordButtons = [.right]
+    database.mappings[0].action = .openURL("https://")
+    let store = MappingStore(directoryURL: directoryURL)
+    XCTAssertFalse(database.mappings[0].action.isValid)
+    try store.validate(database)
+    database.mappings[0].triggerButton = .right
+    XCTAssertThrowsError(try store.validate(database))
+  }
+
+  func testFailedMergeKeepsUndoAfterRenamingMultibyteSet() async throws {
+    let name = String(repeating: "甲", count: 66)
+    let initial = GestureDatabase(mappings: [], configurationSets: [.init(name: name)])
+    let store = MappingStore(
+      directoryURL: directoryURL, limits: .init(maximumConfigurationSetCount: 2))
+    try await store.save(initial)
+    let url = directoryURL.appendingPathComponent("merge.json")
+    func writeSet() throws {
+      let incoming = GestureDatabase(mappings: [], configurationSets: [.init(name: name)])
+      try JSONEncoder().encode(incoming).write(to: url)
+    }
+    try writeSet()
+    let merged = try await store.importData(from: url, mode: .merge)
+    XCTAssertEqual(merged.configurationSets.count, 2)
+    XCTAssertTrue(merged.configurationSets.allSatisfy { $0.name.utf8.count <= 200 })
+    try writeSet()
+    do {
+      _ = try await store.importData(from: url, mode: .merge)
+      XCTFail("Expected the configuration set limit to reject the merge")
+    } catch MappingStoreError.invalidConfigurationSet {}
+    let restored = try await store.undoLastImport()
+    XCTAssertEqual(restored, initial)
+  }
+
+  func testDirectActionPrefersApplicationBeforeGlobalPriority() throws {
+    var global = try makeDatabase(name: "Global").mappings[0]
+    global.inputVariant = .longPress(minimumDuration: 0.5)
+    global.appScope = .all
+    var local = try makeDatabase(name: "Finder").mappings[0]
+    local.inputVariant = global.inputVariant
+    local.priority = 1
+    let snapshot = CompiledMappingSnapshot(mappings: [global, local])
+    XCTAssertEqual(
+      snapshot.directActionRequest(
+        for: "com.apple.finder", triggerButton: .right,
+        default: .right, context: GestureMatchContext(inputVariant: global.inputVariant))?
+        .mappingID, local.id)
+  }
+
   func testDirectVariantsChordsAndBoundedContextMatchTogether()
     throws
   {

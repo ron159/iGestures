@@ -507,6 +507,9 @@ public final class EventTapManager: @unchecked Sendable {
     type: CGEventType,
     event: CGEvent
   ) -> Unmanaged<CGEvent>? {
+    if EventSourceMarker.isSynthetic(event.getIntegerValueField(.eventSourceUserData)) {
+      return Unmanaged.passUnretained(event)
+    }
     if type == .keyDown || type == .keyUp {
       return handleShortcutEvent(type: type, event: event)
     }
@@ -691,15 +694,16 @@ public final class EventTapManager: @unchecked Sendable {
       y: Float(event.location.y)
     )
     let timestamp = TimeInterval(event.timestamp) / 1_000_000_000
-    let matchContext = makeMatchContext(
-      event: event,
-      inputDevice: inputDevice,
-      variant: .draw
-    )
+
     let result: GestureSessionResult
 
     switch phase {
     case .down:
+      let matchContext = makeMatchContext(
+        event: event,
+        inputDevice: inputDevice,
+        variant: .draw
+      )
       result = session.mouseDown(
         at: point,
         timestamp: timestamp,
@@ -784,6 +788,9 @@ public final class EventTapManager: @unchecked Sendable {
     switch phase {
     case .down:
       guard pendingDirectInteraction == nil else { return .suppress }
+      guard activeTriggerButton == nil, isEnabled,
+        !isExcluded(bundleID: bundleID, triggerButton: triggerButton)
+      else { return nil }
       let clickCount = event.getIntegerValueField(
         .mouseEventClickState
       )
@@ -801,7 +808,7 @@ public final class EventTapManager: @unchecked Sendable {
         ), let mouseDown = event.copy() {
           pendingDirectInteraction = DirectInteraction(
             triggerButton: triggerButton,
-            startedAt: timestamp,
+            bundleID: bundleID, startedAt: timestamp,
             mouseDown: mouseDown,
             startLocation: GesturePoint(
               x: Float(event.location.x),
@@ -843,7 +850,7 @@ public final class EventTapManager: @unchecked Sendable {
       }
       pendingDirectInteraction = DirectInteraction(
         triggerButton: triggerButton,
-        startedAt: timestamp,
+        bundleID: bundleID, startedAt: timestamp,
         mouseDown: mouseDown,
         startLocation: GesturePoint(
           x: Float(event.location.x),
@@ -855,7 +862,33 @@ public final class EventTapManager: @unchecked Sendable {
       return .suppress
 
     case .dragged:
-      return pendingDirectInteraction == nil ? nil : .suppress
+      guard let interaction = pendingDirectInteraction else { return nil }
+      let point = GesturePoint(x: Float(event.location.x), y: Float(event.location.y))
+      guard !interaction.consumed,
+        point.distance(to: interaction.startLocation) >= session.configuration.activationDistance
+      else { return .suppress }
+      pendingDirectInteraction = nil
+      activeTriggerButton = nil
+      let down = interaction.mouseDown
+      let drawContext = makeMatchContext(event: down, inputDevice: inputDevice, variant: .draw)
+      if isEnabled, !isExcluded(bundleID: interaction.bundleID, triggerButton: triggerButton),
+        mappingSnapshot.hasApplicableMapping(
+          for: interaction.bundleID, triggerButton: triggerButton,
+          default: inputConfiguration.triggerButton, inputDevice: inputDevice, context: drawContext)
+      {
+        _ = session.mouseDown(
+          at: interaction.startLocation, timestamp: interaction.startedAt,
+          frontmostBundleID: interaction.bundleID, shouldTrack: true, triggerButton: triggerButton)
+        pendingMouseDown = down
+        activeTriggerButton = triggerButton
+        activeMatchContext = drawContext
+        beginSessionSignpost()
+        return nil
+      }
+      down.setIntegerValueField(
+        .eventSourceUserData, value: EventSourceMarker.syntheticEventUserData)
+      down.post(tap: .cgSessionEventTap)
+      return .passThrough
 
     case .up:
       guard let interaction = pendingDirectInteraction else {
@@ -863,6 +896,13 @@ public final class EventTapManager: @unchecked Sendable {
       }
       pendingDirectInteraction = nil
       activeTriggerButton = nil
+      guard !interaction.consumed else { return .suppress }
+      guard isEnabled, !isExcluded(bundleID: interaction.bundleID, triggerButton: triggerButton),
+        !isExcluded(bundleID: bundleID, triggerButton: triggerButton)
+      else {
+        replayDirectClick(interaction, mouseUpEvent: event)
+        return .suppress
+      }
       let duration = max(0, timestamp - interaction.startedAt)
       let context = makeMatchContext(
         event: event,
@@ -878,9 +918,7 @@ public final class EventTapManager: @unchecked Sendable {
         dispatchAction(request)
         return .suppress
       }
-      if !interaction.consumed {
-        replayDirectClick(interaction, mouseUpEvent: event)
-      }
+      replayDirectClick(interaction, mouseUpEvent: event)
       return .suppress
     }
   }
@@ -905,6 +943,9 @@ public final class EventTapManager: @unchecked Sendable {
     let inputDevice: GestureInputDevice = .mouse(identifier: nil)
     let direction: GestureScrollDirection = delta > 0 ? .up : .down
     let bundleID = frontmostAppProvider.currentBundleID(at: event.location)
+    guard isEnabled, !isExcluded(bundleID: bundleID, triggerButton: interaction.triggerButton),
+      !isExcluded(bundleID: interaction.bundleID, triggerButton: interaction.triggerButton)
+    else { return Unmanaged.passUnretained(event) }
     let context = makeMatchContext(
       event: event,
       inputDevice: inputDevice,
@@ -1954,6 +1995,7 @@ public final class EventTapManager: @unchecked Sendable {
     guard
       button == inputConfiguration.triggerButton
         || button == inputConfiguration.secondaryTriggerButton
+        || activeTriggerButton == button || mappingSnapshot.hasExplicitTrigger(button)
     else {
       return nil
     }
@@ -2008,6 +2050,7 @@ private struct RepeatState {
 
 private struct DirectInteraction {
   let triggerButton: GestureTriggerButton
+  let bundleID: String?
   let startedAt: TimeInterval
   let mouseDown: CGEvent
   let startLocation: GesturePoint
