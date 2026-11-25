@@ -186,7 +186,7 @@ enum LuminousTrailGeometry {
   }
 
   static func buildRibbon(from rawPoints: [CGPoint], maxRadius: CGFloat) -> RibbonPaths {
-    let points = simplifiedPoints(rawPoints)
+    let points = smoothedPoints(rawPoints)
     let glowPath = CGMutablePath()
     let bodyPath = CGMutablePath()
     let corePath = CGMutablePath()
@@ -238,11 +238,14 @@ enum LuminousTrailGeometry {
       max(2.2, bodyRadius(at: t) * 1.55)
     }
 
-    for i in 1..<points.count {
-      let t0 = cumDist[i - 1] / totalLength
-      let t1 = cumDist[i] / totalLength
-      let p0 = points[i - 1]
-      let p1 = points[i]
+    var start = 0
+    while start < points.count - 1 {
+      let end = endOfStraightRun(in: points, from: start)
+      let t0 = cumDist[start] / totalLength
+      let t1 = cumDist[end] / totalLength
+      let p0 = points[start]
+      let p1 = points[end]
+      start = end
 
       addCCWCapsule(
         to: glowPath,
@@ -276,11 +279,35 @@ enum LuminousTrailGeometry {
     )
   }
 
-  private static func simplifiedPoints(_ rawPoints: [CGPoint]) -> [CGPoint] {
+  // Anchor each run to its first segment so appending samples cannot reselect old corners.
+  private static func endOfStraightRun(in points: [CGPoint], from start: Int) -> Int {
+    let origin = points[start]
+    var end = start + 1
+    let dx = points[end].x - origin.x
+    let dy = points[end].y - origin.y
+    let length = hypot(dx, dy)
+    guard length > 0 else { return end }
+
+    let ux = dx / length
+    let uy = dy / length
+    var previousProjection = length
+    // Limit the span so the ribbon's gradual width change is preserved on long straight runs.
+    while end + 1 < points.count && end - start < 32 {
+      let x = points[end + 1].x - origin.x
+      let y = points[end + 1].y - origin.y
+      let projection = x * ux + y * uy
+      guard projection >= previousProjection, abs(x * uy - y * ux) <= 0.2 else { break }
+      previousProjection = projection
+      end += 1
+    }
+    return end
+  }
+
+  private static func smoothedPoints(_ rawPoints: [CGPoint]) -> [CGPoint] {
     guard rawPoints.count > 2 else { return rawPoints }
 
     var spaced: [CGPoint] = []
-    spaced.reserveCapacity(min(rawPoints.count, 240))
+    spaced.reserveCapacity(rawPoints.count)
     if let first = rawPoints.first {
       spaced.append(first)
     }
@@ -299,31 +326,14 @@ enum LuminousTrailGeometry {
       spaced.append(last)
     }
 
-    let maxBeforeSmoothing = 240
-    let base: [CGPoint]
-    if spaced.count > maxBeforeSmoothing {
-      var sampled: [CGPoint] = []
-      sampled.reserveCapacity(maxBeforeSmoothing)
-      let step = Double(spaced.count - 1) / Double(maxBeforeSmoothing - 1)
-      for idx in 0..<(maxBeforeSmoothing - 1) {
-        sampled.append(spaced[Int(Double(idx) * step)])
-      }
-      if let last = spaced.last {
-        sampled.append(last)
-      }
-      base = sampled
-    } else {
-      base = spaced
-    }
-
-    guard base.count >= 3 else { return base }
+    guard spaced.count >= 3 else { return spaced }
 
     var smoothed: [CGPoint] = []
-    smoothed.reserveCapacity(min(480, base.count * 2))
-    smoothed.append(base[0])
-    for i in 0..<(base.count - 1) {
-      let p0 = base[i]
-      let p1 = base[i + 1]
+    smoothed.reserveCapacity(spaced.count)
+    smoothed.append(spaced[0])
+    for i in 0..<(spaced.count - 1) {
+      let p0 = spaced[i]
+      let p1 = spaced[i + 1]
       let segLen = hypot(p1.x - p0.x, p1.y - p0.y)
       if segLen > 3.0 {
         smoothed.append(
@@ -342,7 +352,7 @@ enum LuminousTrailGeometry {
         smoothed.append(p1)
       }
     }
-    if let last = base.last, smoothed.last != last {
+    if let last = spaced.last, smoothed.last != last {
       smoothed.append(last)
     }
     return smoothed

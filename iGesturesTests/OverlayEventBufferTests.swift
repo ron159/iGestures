@@ -3,6 +3,27 @@ import XCTest
 @testable import iGestures
 
 final class OverlayEventBufferTests: XCTestCase {
+  func testAppendingToLongLuminousTrailKeepsEarlierCornerVisible() {
+    let points = (0..<500).map { CGPoint(x: 2 * $0, y: $0 == 120 ? 36 : 0) }
+    let corner = CGPoint(x: 240, y: 22)
+    for count in [240, 241, 242, 243, 480, 500] {
+      let ribbon = LuminousTrailGeometry.buildRibbon(
+        from: Array(points.prefix(count)), maxRadius: 2.8)
+      for layer in [ribbon.glowPath, ribbon.bodyPath, ribbon.corePath] {
+        XCTAssertTrue(layer.contains(corner, using: .winding), "Lost corner at \(count) points")
+      }
+      XCTAssertEqual(ribbon.headPoint, points[count - 1])
+    }
+  }
+
+  func testLuminousTrailKeepsTipOfStraightBacktrack() {
+    let points = [0, 2, 4, 6, 8, 6, 4, 2].map { CGPoint(x: $0, y: 0) }
+    let ribbon = LuminousTrailGeometry.buildRibbon(from: points, maxRadius: 2.8)
+
+    XCTAssertTrue(ribbon.corePath.contains(CGPoint(x: 8, y: 0), using: .winding))
+    XCTAssertEqual(ribbon.headPoint, points.last)
+  }
+
   func testPointsAreCoalescedUntilDisplayDrain() {
     let buffer = OverlayEventBuffer()
     buffer.show(at: point(0, 0))
