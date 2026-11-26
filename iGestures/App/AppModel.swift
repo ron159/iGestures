@@ -553,12 +553,7 @@ final class AppModel: ObservableObject {
   }
 
   var canChangeLaunchAtLogin: Bool {
-    switch loginItemState {
-    case .notRegistered, .enabled:
-      true
-    case .requiresApproval, .notFound:
-      false
-    }
+    loginItemState != .requiresApproval
   }
 
   func refreshPermissions() {

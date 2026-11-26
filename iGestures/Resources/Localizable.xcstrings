@@ -3033,16 +3033,6 @@
         }
       }
     },
-    "Launch at login is unavailable in this build.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此构建无法使用登录启动。"
-          }
-        }
-      }
-    },
     "Launch at login requires approval in System Settings.": {
       "localizations": {
         "zh-Hans": {
@@ -6007,6 +5997,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "iGestures 仅观察已配置的鼠标按键，并只发送您选择的动作。手势轨迹始终保留在这台 Mac 上。"
+          }
+        }
+      }
+    },
+    "macOS could not find the login item. Turn on Launch at Login to register it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS 未找到此登录项。打开“登录时启动”即可尝试注册。"
           }
         }
       }

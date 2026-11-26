@@ -67,11 +67,13 @@ public final class LoginItemController {
 
   @discardableResult
   public func setEnabled(_ isEnabled: Bool) throws -> LoginItemState {
+    let currentState = provider.state
     if isEnabled {
-      if provider.state == .notRegistered {
+      // macOS can report .notFound before the first registration.
+      if currentState == .notRegistered || currentState == .notFound {
         try provider.register()
       }
-    } else if provider.state != .notRegistered {
+    } else if currentState != .notRegistered {
       try provider.unregister()
     }
     return refresh()
