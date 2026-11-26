@@ -13,6 +13,38 @@ final class LoginItemControllerTests: XCTestCase {
     XCTAssertEqual(provider.unregisterCount, 0)
   }
 
+  func testEnableRegistersWhenSystemCannotFindLoginItem() throws {
+    let provider = LoginItemProviderStub(state: .notFound)
+    let controller = LoginItemController(provider: provider)
+
+    XCTAssertEqual(try controller.setEnabled(true), .enabled)
+    XCTAssertEqual(provider.registerCount, 1)
+  }
+
+  func testEnableFromNotFoundRefreshesToRequiresApproval() throws {
+    let provider = LoginItemProviderStub(
+      state: .notFound,
+      registeredState: .requiresApproval
+    )
+    let controller = LoginItemController(provider: provider)
+
+    XCTAssertEqual(try controller.setEnabled(true), .requiresApproval)
+    XCTAssertEqual(provider.registerCount, 1)
+  }
+
+  func testFailedRegistrationCanBeRetriedFromNotFound() throws {
+    let provider = LoginItemProviderStub(state: .notFound)
+    provider.registrationError = CocoaError(.fileNoSuchFile)
+    let controller = LoginItemController(provider: provider)
+
+    XCTAssertThrowsError(try controller.setEnabled(true))
+    XCTAssertEqual(controller.refresh(), .notFound)
+
+    provider.registrationError = nil
+    XCTAssertEqual(try controller.setEnabled(true), .enabled)
+    XCTAssertEqual(provider.registerCount, 2)
+  }
+
   func testDisableUnregistersEnabledService() throws {
     let provider = LoginItemProviderStub(state: .enabled)
     let controller = LoginItemController(provider: provider)
@@ -51,14 +83,20 @@ private final class LoginItemProviderStub: LoginItemProviding {
   private(set) var registerCount = 0
   private(set) var unregisterCount = 0
   private(set) var openSettingsCount = 0
+  var registrationError: CocoaError?
+  private let registeredState: LoginItemState
 
-  init(state: LoginItemState) {
+  init(state: LoginItemState, registeredState: LoginItemState = .enabled) {
     self.state = state
+    self.registeredState = registeredState
   }
 
-  func register() {
+  func register() throws {
     registerCount += 1
-    state = .enabled
+    if let registrationError {
+      throw registrationError
+    }
+    state = registeredState
   }
 
   func unregister() {

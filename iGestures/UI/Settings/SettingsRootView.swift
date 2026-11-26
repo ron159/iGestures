@@ -327,7 +327,7 @@ struct GeneralSettingsView: View {
           Text(
             String(
               localized:
-                "Launch at login is unavailable in this build."
+                "macOS could not find the login item. Turn on Launch at Login to register it."
             )
           )
           .foregroundStyle(.secondary)
